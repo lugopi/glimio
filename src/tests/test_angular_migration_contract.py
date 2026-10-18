@@ -52,9 +52,10 @@ def test_frontend_build_lives_outside_the_source_tree() -> None:
     assert resolved == ROOT / "dist" / "glimio-web-ui"
     assert (ROOT / "src" / "web" / "frontend" / "dist").exists() is False or True  # dist may exist locally but is ignored
     ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
-    assert "/dist/" in ignore
+    assert "\ndist/\n" in ignore  # any dist folder (root build output included)
     assert "node_modules/" in ignore
     assert "__pycache__/" in ignore
+    assert ".angular/" in ignore
     tracked = __import__("subprocess").run(
         ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True
     ).stdout.splitlines()

@@ -89,12 +89,40 @@ def _run_npm(*args: str) -> bool:
     return result.returncode == 0
 
 
+def _install_frontend_dependencies() -> bool:
+    """Ensure node_modules matches package-lock.json (plain `npm i`).
+
+    Always runs `npm ci` (or `npm install` as fallback) when node_modules is
+    absent; when it exists but is older than package.json/package-lock.json,
+    runs `npm install` so newly added dependencies are picked up without a
+    manual step.
+    """
+    node_modules = FRONTEND_DIR / "node_modules"
+    lock = FRONTEND_DIR / "package-lock.json"
+    pkg = FRONTEND_DIR / "package.json"
+    def _mtime(path: Path) -> float:
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return 0.0
+    manifest_stamp = max(_mtime(pkg), _mtime(lock))
+    needs_install = not node_modules.is_dir() or _mtime(node_modules) < manifest_stamp
+    if not needs_install:
+        return True
+    print("[frontend] Installation des dépendances npm…", flush=True)
+    if not node_modules.is_dir():
+        if _run_npm("ci"):
+            return True
+    return _run_npm("install")
+
+
 def _ensure_angular_dist() -> Path | None:
     """Return the Angular build directory, building it on demand.
 
     The canonical location is <root>/dist/glimio-web-ui (ignored by git). When
-    it is missing, dependencies are installed and `npm run build` is executed
-    automatically before serving — no manual npm step is ever required.
+    it is missing, dependencies are installed (`npm ci`/`npm install`) and
+    `npm run build` is executed automatically before serving — no manual npm
+    step is ever required.
     """
     existing = _resolve_dist_dir()
     if existing is not None:
@@ -102,9 +130,9 @@ def _ensure_angular_dist() -> Path | None:
     if not FRONTEND_DIR.is_dir():
         return None
     print(f"[frontend] Build Angular automatique ({FRONTEND_DIR})…", flush=True)
-    if not (FRONTEND_DIR / "node_modules").is_dir():
-        if not _run_npm("ci"):
-            _run_npm("install")
+    if not _install_frontend_dependencies():
+        print("[frontend] Échec de l'installation des dépendances npm.", flush=True)
+        return None
     # Clear the stale Angular cache and any previous output so a build can never
     # be poisoned by an old configuration (e.g. a removed legacy CSS entry).
     shutil.rmtree(FRONTEND_DIR / ".angular", ignore_errors=True)
