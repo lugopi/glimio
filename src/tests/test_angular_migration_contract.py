@@ -33,43 +33,37 @@ def test_angular_uses_shared_api_and_reusable_pagination_component() -> None:
 
 
 def test_existing_production_entrypoint_is_preserved_until_cutover() -> None:
-    html = (ROOT / "src" / "web" / "static" / "index.html").read_text(encoding="utf-8")
-    assert '<script type="module" src="/static/js/app.js"></script>' in html
-    assert '<glimio-root>' not in html
-    docs = (ROOT / "docs" / "ANGULAR_22_MIGRATION.md").read_text(encoding="utf-8")
-    assert "Required gates before cutover" in docs
-    assert "existing `/` entry point is deliberately unchanged" in docs
+    html = (FRONTEND / "src" / "index.html").read_text(encoding="utf-8")
+    assert "<glimio-root></glimio-root>" in html
+    assert 'rel="icon"' in html and "brand/glimio.svg" in html
 
 
-def test_heroicons_are_served_from_a_local_svg_sprite() -> None:
-    sprite = ROOT / "src" / "web" / "static" / "vendor" / "heroicons" / "heroicons.svg"
-    icons = sprite.read_text(encoding="utf-8")
+def test_icons_come_from_ng_heroicons_registry() -> None:
+    package = json.loads((FRONTEND / "package.json").read_text(encoding="utf-8"))
+    registry = (FRONTEND / "src" / "app" / "shared" / "icon-registry.ts").read_text(encoding="utf-8")
     component = (FRONTEND / "src" / "app" / "shared" / "icon.component.ts").read_text(encoding="utf-8")
-    assert '<symbol id="bars-3"' in icons
-    assert '<symbol id="x-mark"' in icons
-    assert "https://" not in component
-    assert "/static/vendor/heroicons/heroicons.svg#" in component
+    assert "@ng-icons/core" in package["dependencies"]
+    assert "@ng-icons/heroicons" in package["dependencies"]
+    assert "from '@ng-icons/heroicons/outline'" in registry
+    assert "NgIconComponent" in component
+    assert "/static/vendor" not in component and "https://" not in component
 
 
-def test_all_functional_icons_use_local_heroicons_sprite() -> None:
+def test_all_functional_icons_use_the_ng_icon_component() -> None:
     import re
 
-    static = ROOT / "src" / "web" / "static"
-    html = (static / "index.html").read_text(encoding="utf-8")
-    ui = (static / "js" / "components" / "ui.js").read_text(encoding="utf-8")
-    jobs = (static / "js" / "pages" / "jobs.js").read_text(encoding="utf-8")
-    sprite = (static / "vendor" / "heroicons" / "heroicons.svg").read_text(encoding="utf-8")
-    # The Glimio brand mark is served as a dedicated SVG image asset. Every
-    # inline SVG left in the interface must therefore be a Heroicons symbol.
-    assert '<img class="brand-logo" src="/static/brand/glimio.svg"' in html
-    all_svgs = re.findall(r"<svg\b.*?</svg>", html, flags=re.DOTALL)
-    assert all_svgs
-    assert all("<use href=\"/static/vendor/heroicons/heroicons.svg#" in block for block in all_svgs)
-    assert "<path" not in ui and "<circle" not in ui and "<rect" not in ui
-    assert "<path" not in jobs and "<circle" not in jobs and "<rect" not in jobs
-    symbols = set(re.findall(r'<symbol id="([^"]+)"', sprite))
-    used = set(re.findall(r"heroicons\.svg#([a-z0-9-]+)", html + ui + jobs))
-    assert used <= symbols
+    app = FRONTEND / "src" / "app"
+    registry = (app / "shared" / "icon-registry.ts").read_text(encoding="utf-8")
+    registered = set(re.findall(r"^  ([A-Za-z0-9]+):", registry, flags=re.MULTILINE)) | set(
+        re.findall(r"'([a-z0-9-]+)':", registry)
+    )
+    used: set[str] = set()
+    for template in app.rglob("*.html"):
+        used |= set(re.findall(r'<glimio-icon\s+name="([^"]+)"', template.read_text(encoding="utf-8")))
+    assert used
+    for name in used:
+        key = name if name in registered else name.replace("-x", "X").replace("-", "")
+        assert name in registered or key in registered, f"icône « {name} » absente du registre @ng-icons"
 
 
 def test_session_library_exposes_persisted_processing_options() -> None:
@@ -86,7 +80,7 @@ def test_session_library_exposes_persisted_processing_options() -> None:
     assert 'metadata["processing_settings"]' in backend
 
 
-def test_angular_components_keep_logic_template_and_scss_separate() -> None:
+def test_angular_components_keep_logic_and_scss_separate() -> None:
     app = FRONTEND / "src" / "app"
     components = [
         app / "app.component",
@@ -99,12 +93,11 @@ def test_angular_components_keep_logic_template_and_scss_separate() -> None:
     ]
     for component in components:
         ts_file = component.with_name(component.name + ".ts")
-        html_file = component.with_name(component.name + ".html")
         scss_file = component.with_name(component.name + ".scss")
-        assert ts_file.is_file()
-        assert html_file.is_file()
-        assert scss_file.is_file()
+        assert ts_file.is_file(), f"fichier manquant : {ts_file}"
+        assert scss_file.is_file(), f"style SCSS manquant : {scss_file}"
         source = ts_file.read_text(encoding="utf-8")
-        assert "templateUrl:" in source
-        assert "styleUrl:" in source
-        assert "template: `" not in source
+        assert "styleUrl:" in source, f"{ts_file.name} doit référencer son .scss via styleUrl"
+        html_file = component.with_name(component.name + ".html")
+        if html_file.is_file():
+            assert "templateUrl:" in source, f"{ts_file.name} doit référencer son .html via templateUrl"

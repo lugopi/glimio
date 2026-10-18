@@ -26,8 +26,7 @@
             ],
             "tsConfig": "tsconfig.app.json",
             "styles": [
-              "../static/app.css",
-              "src/angular-overrides.css"
+              "src/styles/main.scss"
             ],
             "outputHashing": "all"
           },
@@ -46,8 +45,7 @@
                 }
               ],
               "optimization": true,
-              "sourceMap": false,
-              "baseHref": "/angular/"
+              "sourceMap": false
             },
             "development": {
               "optimization": false,
