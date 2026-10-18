@@ -563,7 +563,10 @@
   .toast.is-error { border-left-color: var(--c-danger); }
   .toast.is-success { border-left-color: var(--c-success); }
   .job-row--clickable, .job-row--clickable:hover { border: 1px solid var(--c-border-soft); border-radius: 11px; box-shadow: none; }
-  .job-icon, .upload-icon, .settings-icon, .placeholder-icon, .brand-mark { border: 0; border-radius: 8px; box-shadow: none; }
+  .job-icon, .upload-icon, .settings-icon, .placeholder-icon { border: 0; border-radius: 8px; box-shadow: none; }
+  // La marque garde son contour : le logo SVG est autonome (fond plein) et
+  // reste visible même si l'image échoue à charger (pas de carré nu).
+  .brand-mark { border: 1px solid color-mix(in srgb, var(--c-accent) 48%, var(--c-border)); background: var(--c-accent-soft); border-radius: 12px; overflow: hidden; }
   .document-content pre { border: 1px solid var(--c-border-soft); border-radius: 7px; box-shadow: none; }
   :focus-visible { outline: 2px solid var(--c-accent); outline-offset: 3px; }
 }
@@ -847,13 +850,17 @@
   .library-pagination-footer .field-label { margin-bottom: 0; }
 
   // Blocs empilés dans un panneau de contrôle (enregistreur, import).
-  .control-panel > * + * { margin-top: 13px; }
+  .control-panel > * + *, .import-panel > * + * { margin-top: 13px; }
   .control-panel > .card-header + *, .control-panel > .eyebrow + * { margin-top: 0; }
   .control-panel > .card-header { margin-bottom: 15px; }
   .control-panel > .section-heading:first-of-type { margin-top: 22px; }
 
   // En-tête « eyebrow » utilisé hors card-header (panneau d'import).
-  .control-panel > .eyebrow { margin-bottom: 6px; }
+  .control-panel > .eyebrow, .import-panel > .eyebrow { margin-bottom: 6px; }
+  .import-panel > .eyebrow + * { margin-top: 0; }
+  // Le bouton d'action et la note finale respirent après les options.
+  .import-panel > .btn { margin-top: 18px; }
+  .import-panel > .field-note { margin: 10px 0 0; }
 
   // Rangée d'actions finale d'un panneau (démarrer/arrêter, importer).
   .card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--c-border-soft); }

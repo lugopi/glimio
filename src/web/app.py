@@ -466,6 +466,20 @@ def _worker_from_payload_from_record(job: dict[str, Any]) -> Any:
     raise ValueError("type de tâche inconnu")
 
 
+def _warmup_persistence() -> None:
+    """Create the SQLite database and its schema at startup (idempotent).
+
+    ``database_path`` already creates the parent directory; ``initialize``
+    then opens (and therefore creates) the ``.sqlite3`` file itself. Doing
+    this eagerly means a fresh clone never sees 404/503 on /api/* because
+    the persistence layer was missing.
+    """
+    try:
+        _initialize_persistence()
+    except Exception as exc:  # pragma: no cover - defensive startup guard
+        print(f"[web] Persistance SQLite indisponible au démarrage : {exc}", flush=True)
+
+
 def _initialize_persistence() -> None:
     global JOB_STORE, PREFERENCES_STORE
     if JOB_STORE is not None and PREFERENCES_STORE is not None:
@@ -842,10 +856,9 @@ def index() -> FileResponse:
     return FileResponse(str(ANGULAR_DIST_DIR / "index.html"))
 
 
-# Catch-all SPA route: serve hashed Angular assets (main-*.js, styles-*.css,
-# brand/glimio.svg, …) and fall back to index.html for client-side routes.
-# Registered last so every /api/* endpoint above keeps priority.
-@app.get("/{spa_path:path}", include_in_schema=False)
+# NOTE: this catch-all is re-registered at the END of the module (see below) so
+# every /api/* endpoint declared after it keeps priority. The placeholder here
+# only documents the SPA fallback contract.
 def angular_spa(spa_path: str) -> Response:
     if spa_path.startswith("api/"):
         raise HTTPException(status_code=404, detail="Ressource introuvable.")
@@ -1806,6 +1819,12 @@ def ask_library(request: SearchRequest) -> dict[str, Any]:
     return {"query": request.query, "answer": answer, "sources": passages, "llm_error": None}
 
 
+# Catch-all SPA route — MUST be registered last (after every /api/* endpoint)
+# so Starlette keeps API priority and only unmatched paths fall back to the
+# Angular index.html. Serves hashed assets (main-*.js, styles-*.css, brand/…).
+app.add_api_route("/{spa_path:path}", angular_spa, methods=["GET"], include_in_schema=False)
+
+
 def main() -> None:
     try:
         import uvicorn
@@ -1826,6 +1845,10 @@ def main() -> None:
         raise
     global ANGULAR_DIST_DIR
     ANGULAR_DIST_DIR = _ensure_angular_dist()
+
+    # Create the SQLite database (and its schema) up front so every /api/*
+    # route works out of the box on a fresh clone, without a manual step.
+    _warmup_persistence()
 
     url = f"http://{host}:{port}"
     print(f"Glimio Web : {url}", flush=True)
