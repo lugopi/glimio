@@ -6,6 +6,7 @@
     <option name="PARENT_ENVS" value="true" />
     <envs>
       <env name="PYTHONUNBUFFERED" value="1" />
+      <env name="GLIMIO_WEB_BUILD" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="L:\Documents\ChatGPT\glimio_A\.venv" />
@@ -22,6 +23,8 @@
     <option name="MODULE_MODE" value="true" />
     <option name="REDIRECT_INPUT" value="false" />
     <option name="INPUT_FILE" value="" />
-    <method v="2" />
+    <method v="2">
+      <option name="NPM_SCRIPT" cliArguments="run build" scriptName="build" packageName="$PROJECT_DIR$/src/web/frontend/package.json" />
+    </method>
   </configuration>
 </component>

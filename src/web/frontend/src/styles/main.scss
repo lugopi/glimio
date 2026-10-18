@@ -1,0 +1,19 @@
+// Glimio — feuille de style globale (Angular uniquement).
+// L'ordre est important : Tailwind (utilitaires + @theme des tokens) → normalisation → composants.
+@use 'tailwindcss';
+@use './tokens.scss';
+@use './modern-normalize.scss';
+@use './components.scss';
+
+// Le scanner Tailwind analyse les modèles et composants Angular.
+@source '../**/*.{html,ts}';
+
+// La marque Glimio change de teinte selon le thème pour rester visible sans perdre ses détails.
+.brand-mark {
+  --brand-primary: var(--c-accent);
+  --brand-secondary: var(--c-accent-contrast);
+}
+[data-theme='light'] .brand-mark {
+  --brand-primary: var(--c-accent);
+  --brand-secondary: #ffffff;
+}

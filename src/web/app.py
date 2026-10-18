@@ -48,8 +48,42 @@ PROJECT_ROOT = discover_project_root(package_file=__file__)
 SESSION_ROOT = resolve_session_root(PROJECT_ROOT)
 
 WEB_DIR = Path(__file__).resolve().parent
+# The Angular 22 workspace is the only front end. `npm run build` (or Rider's
+# "Start - Web" run configuration) produces dist/glimio-web-ui/browser; this
+# module mirrors that output into src/web/static so a wheel install and an
+# editable checkout are served by the same code path with `python -m web`.
+FRONTEND_DIR = WEB_DIR / "frontend"
+FRONTEND_DIST_DIR = FRONTEND_DIR / "dist" / "glimio-web-ui" / "browser"
 STATIC_DIR = WEB_DIR / "static"
-ANGULAR_STATIC_DIR = STATIC_DIR / "angular"
+ANGULAR_STATIC_DIR = STATIC_DIR
+
+
+def _sync_angular_build() -> Path | None:
+    """Mirror a fresh frontend build into the packaged static directory."""
+    if not FRONTEND_DIST_DIR.is_dir():
+        return ANGULAR_STATIC_DIR if (ANGULAR_STATIC_DIR / "index.html").is_file() else None
+
+    target = ANGULAR_STATIC_DIR
+    marker = target / ".build-stamp"
+    source_stamp = max(
+        (f.stat().st_mtime for f in FRONTEND_DIST_DIR.rglob("*") if f.is_file()), default=0
+    )
+    if marker.is_file() and target.is_dir():
+        try:
+            if float(marker.read_text(encoding="utf-8")) == source_stamp:
+                return target
+        except ValueError:
+            pass
+    staging = STATIC_DIR.parent / ".static-staging"
+    if staging.exists():
+        shutil.rmtree(staging)
+    shutil.copytree(FRONTEND_DIST_DIR, staging)
+    if target.exists():
+        shutil.rmtree(target)
+    staging.rename(target)
+    marker = target / ".build-stamp"
+    marker.write_text(str(source_stamp), encoding="utf-8")
+    return target
 DEFAULT_WHISPER_MODEL = "models/asr/model.bin"
 DEFAULT_WHISPER_CLI = "bin/asr/whisper-cli.exe"
 DEFAULT_GGUF = "models/llm/model.gguf"
@@ -106,26 +140,33 @@ app = FastAPI(
     title="Glimio — Audio, transcription et notes", version="0.4.2",
     docs_url="/api/docs", redoc_url=None, lifespan=lifespan,
 )
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-# Optional Angular 22 preview. The stable production UI at "/" remains the fallback
-# until the Angular build passes the documented feature-parity and regression gates.
-if ANGULAR_STATIC_DIR.is_dir():
-    @app.get("/angular", include_in_schema=False)
-    @app.get("/angular/", include_in_schema=False)
-    def angular_preview_index() -> FileResponse:
-        return FileResponse(str(ANGULAR_STATIC_DIR / "index.html"))
 
-    @app.get("/angular/{asset_path:path}", include_in_schema=False)
-    def angular_preview_asset(asset_path: str) -> Response:
-        candidate = (ANGULAR_STATIC_DIR / asset_path).resolve()
+# The Angular build is the single front end: hashed assets under /static and a
+# SPA fallback for every non-API GET route (direct navigation and refreshes).
+_sync_angular_build()
+if STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.get("/{spa_path:path}", include_in_schema=False)
+def angular_spa(spa_path: str) -> Response:
+    index_file = STATIC_DIR / "index.html"
+    if not index_file.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail="Interface Angular absente : lancez « npm run build » dans src/web/frontend.",
+        )
+    candidate = (STATIC_DIR / spa_path).resolve() if spa_path else None
+    if candidate is not None and spa_path:
         try:
-            candidate.relative_to(ANGULAR_STATIC_DIR.resolve())
+            candidate.relative_to(STATIC_DIR.resolve())
         except ValueError as exc:
             raise HTTPException(status_code=404, detail="Ressource introuvable.") from exc
         if candidate.is_file():
             return FileResponse(str(candidate))
-        # SPA route fallback for direct navigation and browser refreshes.
-        return FileResponse(str(ANGULAR_STATIC_DIR / "index.html"))
+    # Root URL and unknown paths serve the SPA entry point; the Angular router
+    # resolves the real route client-side.
+    return FileResponse(str(index_file))
 
 
 class Settings(BaseModel):
@@ -185,6 +226,8 @@ class JobRequest(BaseModel):
     action: Literal["transcribe", "summarize", "process"]
     session_id: str
     settings: Settings = Field(default_factory=Settings)
+    # When true, ignore durable checkpoints and re-run the stage (e.g. "Refaire le résumé").
+    force: bool = False
 
 
 class RecordRequest(BaseModel):
@@ -664,6 +707,10 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str)
     """Run a session pipeline with durable checkpoints between model stages."""
     payload = _job_payload(job_id)
     checkpoint = payload.get("checkpoint")
+    force = bool(payload.get("force"))
+    if force:
+        # Explicit user re-run (e.g. "Refaire le résumé"): start from scratch for this action.
+        checkpoint = None
 
     def publish(message: str) -> None:
         folded = message.casefold()
@@ -681,6 +728,10 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str)
         current = _job_payload(job_id)
         current.update({"type": "session", "action": action, "session_id": folder.name,
                         "settings": _serialize_model(settings), "checkpoint": value})
+        if not force:
+            # A forced re-run is complete once it finishes; keep the flag so a crash
+            # recovery restarts the stage instead of trusting stale checkpoints.
+            current.pop("force", None)
         current.pop("resume_phase", None)
         _set_job(job_id, session_id=folder.name, _payload=current)
 
@@ -750,11 +801,6 @@ def _run_import_job(job_id: str) -> None:
         except OSError:
             pass
     _run_session_job(action, folder, settings, job_id)
-
-
-@app.get("/", include_in_schema=False)
-def index() -> FileResponse:
-    return FileResponse(str(STATIC_DIR / "index.html"))
 
 
 @app.get("/api/health")
@@ -1195,10 +1241,13 @@ def start_session_job(request: JobRequest) -> dict[str, Any]:
         _run_session_job(request.action, folder, request.settings, job_id)
 
     label = {"transcribe": "Transcription lancée", "summarize": "Résumé lancé", "process": "Traitement complet lancé"}[request.action]
+    if request.force and request.action == "summarize":
+        label = "Régénération du résumé lancée"
     return _start_job(
         request.action, label, worker, session_id=folder.name,
         payload={"type": "session", "action": request.action, "session_id": folder.name,
-                 "settings": _serialize_model(request.settings), "checkpoint": None},
+                 "settings": _serialize_model(request.settings), "checkpoint": None,
+                 "force": request.force},
     )
 
 
@@ -1704,11 +1753,50 @@ def ask_library(request: SearchRequest) -> dict[str, Any]:
     return {"query": request.query, "answer": answer, "sources": passages, "llm_error": None}
 
 
+def _ensure_frontend_build() -> None:
+    """Build the Angular front end when a fresh dist is missing.
+
+    Enabled by Rider's "Start - Web" configuration (GLIMIO_WEB_BUILD=1) or by
+    setting GLIMIO_WEB_BUILD=auto; never fails the server startup, it only
+    prints guidance so `python -m web` keeps working with a prebuilt static/.
+    """
+    mode = os.environ.get("GLIMIO_WEB_BUILD", "").strip().casefold()
+    if mode not in {"1", "true", "yes", "auto"}:
+        return
+    stamp = STATIC_DIR / ".build-stamp"
+    need_build = not (STATIC_DIR / "index.html").is_file()
+    if not need_build and FRONTEND_DIST_DIR.is_dir():
+        source_stamp = max(
+            (f.stat().st_mtime for f in FRONTEND_DIST_DIR.rglob("*") if f.is_file()), default=0
+        )
+        try:
+            need_build = float(stamp.read_text(encoding="utf-8")) != source_stamp
+        except (OSError, ValueError):
+            need_build = True
+    if not need_build and mode in {"1", "true", "yes"}:
+        # Explicit request from the IDE run configuration: always rebuild.
+        need_build = True
+    if not need_build:
+        return
+    npm = shutil.which("npm")
+    if npm is None:
+        print("[frontend] npm introuvable : lancez « npm run build » dans src/web/frontend.", flush=True)
+        return
+    print(f"[frontend] Build Angular ({FRONTEND_DIR})…", flush=True)
+    result = subprocess.run([npm, "run", "build"], cwd=FRONTEND_DIR, shell=(os.name == "nt"))
+    if result.returncode != 0:
+        print("[frontend] Échec du build Angular ; le serveur démarre avec les fichiers statiques existants.", flush=True)
+        return
+    synced = _sync_angular_build()
+    print(f"[frontend] Interface synchronisée : {synced}", flush=True)
+
+
 def main() -> None:
     try:
         import uvicorn
     except ImportError as exc:
         raise SystemExit('Dépendances web absentes. Installe-les avec : python -m pip install -e ".[web]"') from exc
+    _ensure_frontend_build()
     host = os.environ.get("GLIMIO_WEB_HOST", os.environ.get("SEANCE_WEB_HOST", "127.0.0.1"))
     try:
         port = int(os.environ.get("GLIMIO_WEB_PORT", os.environ.get("SEANCE_WEB_PORT", "8765")))

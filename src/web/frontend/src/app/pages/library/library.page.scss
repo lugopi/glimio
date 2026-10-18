@@ -2,3 +2,32 @@
   display: block;
   min-width: 0;
 }
+
+// Carte « Options de traitement de cette séance » : respiration entre les composants.
+.session-processing-options {
+  padding: 18px 20px 20px;
+  margin-top: 16px;
+  border-radius: var(--radius-panel, 12px);
+  background: var(--c-surface-raised);
+  border: 1px solid var(--c-border-soft);
+}
+
+.session-processing-options .detail-section-heading {
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--c-border-soft);
+}
+
+.common-processing-fields {
+  row-gap: 18px;
+  column-gap: 16px;
+}
+
+.diarize-card {
+  padding: 12px 14px;
+}
+
+.session-action-row {
+  gap: 10px;
+  margin: 4px 0 16px;
+}

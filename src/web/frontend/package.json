@@ -7,9 +7,6 @@
     "start": "ng serve --host 127.0.0.1 --proxy-config proxy.conf.json",
     "build": "ng build --configuration production",
     "build:development": "ng build --configuration development",
-    "build:all": "npm run build:legacy-css && npm run build",
-    "build:legacy-css": "npx @tailwindcss/cli -i ./src/styles.css -o ../static/app.css --minify",
-    "watch:legacy-css": "npx @tailwindcss/cli -i ./src/styles.css -o ../static/app.css --watch",
     "test": "ng test --watch=false",
     "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
@@ -30,7 +27,6 @@
     "@angular/build": "^22.2.3",
     "@angular/cli": "^22.2.3",
     "@angular/compiler-cli": "^22.2.3",
-    "@tailwindcss/cli": "4.3.3",
     "@types/node": "^26.6.5",
     "jsdom": "^30.1.3",
     "tailwindcss": "4.3.3",
