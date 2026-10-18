@@ -19,8 +19,9 @@
   .app-shell { @apply grid min-h-screen; grid-template-columns: 250px minmax(0, 1fr); }
   .sidebar { @apply fixed inset-y-0 left-0 z-20 flex w-[250px] flex-col border-r border-border-soft; padding: 25px 15px 18px; background: var(--c-sidebar); }
   .brand { @apply flex items-center gap-[12px] px-[11px] pb-[33px]; }
-  .brand-mark { @apply flex size-[48px] items-center justify-center gap-[3px]; border: 0; background: transparent; }
-  .brand-mark img { display: block; width: 40px; height: 40px; object-fit: contain; }
+  .brand-mark { @apply flex size-[48px] items-center justify-center gap-[3px] text-accent; border: 0; background: transparent; }
+  /* Logo injecté en ligne : sizing via .brand-logo (svg) et repli img. */
+  .brand-mark .brand-logo, .brand-mark img { @apply block size-10 shrink-0; object-fit: contain; }
   .brand-name { @apply block text-[1.5rem] font-extrabold italic leading-none tracking-[-.04em]; }
   .brand-caption { @apply mt-[5px] block font-mono text-[0.75rem] tracking-[1.5px] text-subtle; }
   .side-label, .eyebrow, .section-mini-title { @apply font-mono text-[0.75rem] font-medium tracking-[1.25px] text-subtle; }
@@ -39,7 +40,7 @@
   .sidebar-path { @apply overflow-hidden px-2.5; }
   .sidebar-path small { @apply mb-[7px] block font-mono text-[0.75rem] tracking-[1px] text-subtle; }
   .sidebar-path code { @apply font-mono text-[0.75rem] text-muted; overflow-wrap: anywhere; }
-  .main-area { @apply col-start-2 mx-auto w-full min-w-0 px-[34px]; max-width: 1780px; }
+  .main-area { @apply col-start-2 mx-auto grid w-full min-w-0 max-w-[1780px] content-start gap-[18px] px-[34px] pb-8; }
   .topbar { @apply mb-[31px] flex min-h-[68px] items-center justify-between gap-5 border-b border-border-soft; }
   .breadcrumbs { @apply flex items-center gap-[9px] text-xs text-subtle; }
   .breadcrumbs strong { @apply font-semibold text-text; }
@@ -326,10 +327,11 @@
 }
 @media (max-width: 850px) {
   .app-shell { display: block; }
+  .main-area { @apply col-auto gap-0 pb-6; }
   .sidebar { position: sticky; inset: 0 0 auto; z-index: 30; width: 100%; height: auto; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--c-border); }
-  .brand { padding: 0 5px 10px; }
-  .brand-mark { width: 34px; height: 34px; border-radius: 9px; }
-  .brand-mark img { width: 28px; height: 28px; }
+  .brand { @apply gap-2.5 px-[5px] pb-2.5; }
+  .brand-mark { @apply size-[34px] overflow-hidden rounded-[9px]; }
+  .brand-mark .brand-logo, .brand-mark img { @apply size-7 shrink-0; }
   .brand-name { font-size: 1.25rem; }
   .brand-caption { font-size: .75rem; }
   .side-label, .sidebar-bottom { display: none; }
@@ -740,8 +742,8 @@
   .btn-icon-text svg { display: block; width: 18px; height: 18px; }
   .search-box > span svg { display: block; width: 17px; height: 17px; }
   .placeholder-icon svg { display: block; width: 23px; height: 23px; }
-  .brand-mark { overflow: hidden; }
-  .brand-mark img { width: 40px; height: 40px; }
+  .brand-mark { @apply overflow-hidden; }
+  .brand-mark .brand-logo, .brand-mark img { @apply size-10 shrink-0; }
   .diarization-settings { gap: 13px; padding: 18px 20px 20px; }
   .diarization-settings > .field-note { margin: 0; line-height: 1.6; }
   .diarization-settings .auto-speakers-toggle { margin: 0; padding: 10px 12px; }
@@ -872,4 +874,30 @@
   // Rangée d'actions finale d'un panneau (démarrer/arrêter, importer).
   .card-actions { @apply mt-[18px] flex flex-wrap items-center gap-2.5 border-t border-border-soft pt-4; }
   @media (max-width: 600px) { .common-processing-fields { grid-template-columns: minmax(0, 1fr); } .detail-section-heading { flex-direction: column; } .detail-section-heading .btn { width: 100%; } }
+}
+
+/* Glimio — espacement vertical standard des blocs empilés dans les vues (gap/padding/marge). */
+@layer components {
+  // Les vues Angular empilent leurs <section> directement sous router-outlet :
+  // un écart constant remplace l'absence de marge entre cartes successives.
+  .view > section + section,
+  .view > div + section,
+  .view > section + div { @apply mt-4; }
+  .settings-section > .settings-grid { @apply mt-4; }
+  .settings-section > .diarization-settings-section { @apply mt-4; }
+  .card-pad > * + * { @apply mt-4; }
+  .card-pad > .card-header + *, .card-pad > .eyebrow + * { @apply mt-0; }
+  .jobs-panel > .jobs-list { @apply mt-3; }
+  .search-results > * + * { @apply mt-3; }
+}
+
+/* Glimio — branding : le logo SVG injecté en ligne (public/brand/glimio.svg)
+   change de couleur avec le thème. Ses calques principaux utilisent currentColor
+   (couleur d'accent du thème) et son calque « shadows » utilise --brand-shadow
+   (couleur contrastante du thème, semi-transparente). */
+@layer base {
+  .brand-mark {
+    color: var(--c-accent);
+    --brand-shadow: color-mix(in srgb, var(--c-accent-contrast) 55%, transparent);
+  }
 }

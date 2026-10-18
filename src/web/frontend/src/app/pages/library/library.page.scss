@@ -1,41 +1,33 @@
+@reference '../../styles/tailwind-ref.scss';
+
 :host {
-  display: block;
-  min-width: 0;
+  @apply block min-w-0;
 }
 
 /* Espacement interne de la carte « Options de traitement de cette séance » :
    respiration entre le titre, les champs et les actions (complète les règles globales). */
 :host {
+  .library-layout > * { @apply min-w-0; }
+  .session-detail > * + * { @apply mt-0; }
+
   .session-processing-options {
-    padding: 18px 0 4px;
+    @apply px-0 pt-[18px] pb-1;
 
-    > .detail-section-heading { margin-bottom: 16px; }
-    > .settings-grid { margin-top: 0; }
+    > .detail-section-heading { @apply mb-4; }
+    > .settings-grid { @apply mt-0; }
     .common-processing-fields { row-gap: 18px; column-gap: 16px; }
-    .diarize-card { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; }
-    .field-note { margin-top: 6px; }
+    .diarize-card { @apply flex items-start gap-3 p-[12px_14px]; }
+    .field-note { @apply mt-1.5; }
   }
 
-  .session-action-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin: 14px 0 18px;
-  }
+  .session-action-row { @apply my-[14px] mb-[18px] flex flex-wrap gap-2.5; }
 
-  .detail-section + .detail-section { margin-top: 20px; }
+  .detail-section + .detail-section { @apply mt-5; }
 
-  .artifact-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
-  .card-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .artifact-links { @apply mt-3 flex flex-wrap items-center gap-2.5; }
+  .card-actions { @apply mt-4 flex flex-wrap items-center gap-2.5; }
 
   .library-pagination-footer {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px solid var(--c-border-soft);
+    @apply mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-3.5;
   }
 }

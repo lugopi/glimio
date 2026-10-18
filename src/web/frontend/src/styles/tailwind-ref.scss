@@ -1,0 +1,12 @@
+// Glimio — point d'entrée minimal pour la directive `@reference` de Tailwind 4.
+// Les styles des composants Angular (`styleUrl`) ne connaissent pas la config
+// Tailwind globale : ils référencent CE fichier (sans @use, qui est interdit
+// après d'autres règles) pour résoudre leurs @apply. Il doit rester aligné
+// avec main.scss (tokens + scan des templates).
+@import './tokens.scss';
+
+@source '../app/**/*.{html,ts}';
+@source '../../styles/**/*.scss';
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);

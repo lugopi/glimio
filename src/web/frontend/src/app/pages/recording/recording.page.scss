@@ -1,4 +1,12 @@
+@reference '../../styles/tailwind-ref.scss';
+
 :host {
-  display: block;
-  min-width: 0;
+  @apply block min-w-0;
+}
+
+/* Espacement vertical standard des blocs de la page d'enregistrement. */
+:host {
+  .control-grid > * { @apply min-w-0; }
+  .record-options > * { @apply min-w-0; }
+  .device-grid > * { @apply min-w-0; }
 }

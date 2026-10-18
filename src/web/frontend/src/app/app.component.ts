@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, HostListener, OnInit, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs';
 import { PreferencesService } from './core/preferences.service';
@@ -26,6 +28,24 @@ export class AppComponent implements OnInit {
   readonly theme = signal<ThemeName>('dark');
   readonly currentPage = signal('Enregistrement');
 
+  /**
+   * Logo Glimio injecté en ligne (inline) : ses calques SVG utilisent
+   * currentColor et var(--brand-shadow), définis par .brand-mark selon le
+   * thème courant — le branding change donc de couleur avec le thème.
+   */
+  private readonly http = inject(HttpClient);
+  private readonly sanitizer = inject(DomSanitizer);
+  private readonly rawBrandLogo = signal<string | null>(null);
+  readonly brandLogo = computed<SafeHtml | null>(() => {
+    const svg = this.rawBrandLogo();
+    if (!svg) return null;
+    // La déclaration XML et les commentaires Inkscape ne sont pas valides en HTML.
+    const cleaned = svg
+      .replace(/<\?xml[^>]*\?>/g, '')
+      .replace(/<!--[\s\S]*?-->/g, '');
+    return this.sanitizer.bypassSecurityTrustHtml(cleaned);
+  });
+
   constructor() {
     effect(() => {
       const saved = this.preferences.preferences();
@@ -34,6 +54,11 @@ export class AppComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.http.get('brand/glimio.svg', { responseType: 'text' })
+      .subscribe({
+        next: svg => this.rawBrandLogo.set(svg),
+        error: () => this.rawBrandLogo.set(null),
+      });
     this.preferences.load();
     this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(event => {
       const url = (event as NavigationEnd).urlAfterRedirects.split('?')[0];

@@ -1,4 +1,12 @@
+@reference '../../styles/tailwind-ref.scss';
+
 :host {
-  display: block;
-  min-width: 0;
+  @apply block min-w-0;
+}
+
+/* Respiration entre le héros de recherche, les actions et les résultats. */
+:host {
+  .search-hero { @apply mb-4; }
+  .search-results { @apply grid min-w-0 gap-[13px]; }
+  .source-list { @apply grid min-w-0 gap-0; }
 }

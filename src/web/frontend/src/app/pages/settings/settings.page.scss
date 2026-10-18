@@ -1,4 +1,15 @@
+@reference '../../styles/tailwind-ref.scss';
+
 :host {
-  display: block;
-  min-width: 0;
+  @apply block min-w-0;
+}
+
+/* Sections de paramètres : titre → contenu → pied avec un rythme constant. */
+:host {
+  .settings-section > .card-title { @apply mb-2; }
+  .settings-section > .card-description { @apply mb-4 max-w-[78ch]; }
+  .settings-grid > div,
+  .settings-grid > label { @apply min-w-0; }
+  .settings-grid .field-label { @apply mb-2; }
+  .settings-grid .field-note { @apply mt-2 block; }
 }

@@ -1,4 +1,14 @@
+@reference '../../styles/tailwind-ref.scss';
+
 :host {
-  display: block;
-  min-width: 0;
+  @apply block min-w-0;
+}
+
+/* Rangée de pagination : écart constant entre indicateurs et contrôles. */
+.pagination-controls {
+  @apply flex flex-wrap items-center justify-center gap-2.5 py-1;
+}
+
+.pagination-indicator {
+  @apply whitespace-nowrap font-mono text-[0.75rem] text-subtle;
 }
