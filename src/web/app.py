@@ -48,42 +48,69 @@ PROJECT_ROOT = discover_project_root(package_file=__file__)
 SESSION_ROOT = resolve_session_root(PROJECT_ROOT)
 
 WEB_DIR = Path(__file__).resolve().parent
-# The Angular 22 workspace is the only front end. `npm run build` (or Rider's
-# "Start - Web" run configuration) produces dist/glimio-web-ui/browser; this
-# module mirrors that output into src/web/static so a wheel install and an
-# editable checkout are served by the same code path with `python -m web`.
+# The Angular 22 workspace is the only front end. Its production build lands
+# OUTSIDE the source tree, in <project root>/dist/glimio-web-ui/browser (see
+# angular.json outputPath). `python -m web` locates that folder directly; when
+# it is missing or stale it transparently runs `npm ci`/`npm install` +
+# `npm run build` so no manual npm step is ever required.
 FRONTEND_DIR = WEB_DIR / "frontend"
-FRONTEND_DIST_DIR = FRONTEND_DIR / "dist" / "glimio-web-ui" / "browser"
-STATIC_DIR = WEB_DIR / "static"
-ANGULAR_STATIC_DIR = STATIC_DIR
+FRONTEND_DIST_ROOT = PROJECT_ROOT / "dist" / "glimio-web-ui"
+FRONTEND_DIST_DIR = FRONTEND_DIST_ROOT / "browser"
+# Legacy mirrored location (kept as read-only fallback for old checkouts).
+LEGACY_STATIC_DIR = WEB_DIR / "static"
 
 
-def _sync_angular_build() -> Path | None:
-    """Mirror a fresh frontend build into the packaged static directory."""
-    if not FRONTEND_DIST_DIR.is_dir():
-        return ANGULAR_STATIC_DIR if (ANGULAR_STATIC_DIR / "index.html").is_file() else None
+def _dist_is_ready(path: Path) -> bool:
+    return (path / "index.html").is_file()
 
-    target = ANGULAR_STATIC_DIR
-    marker = target / ".build-stamp"
-    source_stamp = max(
-        (f.stat().st_mtime for f in FRONTEND_DIST_DIR.rglob("*") if f.is_file()), default=0
-    )
-    if marker.is_file() and target.is_dir():
-        try:
-            if float(marker.read_text(encoding="utf-8")) == source_stamp:
-                return target
-        except ValueError:
-            pass
-    staging = STATIC_DIR.parent / ".static-staging"
-    if staging.exists():
-        shutil.rmtree(staging)
-    shutil.copytree(FRONTEND_DIST_DIR, staging)
-    if target.exists():
-        shutil.rmtree(target)
-    staging.rename(target)
-    marker = target / ".build-stamp"
-    marker.write_text(str(source_stamp), encoding="utf-8")
-    return target
+
+def _resolve_dist_dir() -> Path | None:
+    """Locate an existing Angular build, whatever its layout (browser/ or flat)."""
+    for candidate in (FRONTEND_DIST_DIR, FRONTEND_DIST_ROOT, LEGACY_STATIC_DIR):
+        if _dist_is_ready(candidate):
+            return candidate
+    return None
+
+
+def _dist_fingerprint(path: Path) -> float:
+    return max((f.stat().st_mtime for f in path.rglob("*") if f.is_file()), default=0.0)
+
+
+def _run_npm(*args: str) -> bool:
+    npm = shutil.which("npm")
+    if npm is None:
+        print("[frontend] npm introuvable dans le PATH (Node.js >= 22 requis).", flush=True)
+        return False
+    result = subprocess.run([npm, *args], cwd=FRONTEND_DIR, shell=(os.name == "nt"))
+    return result.returncode == 0
+
+
+def _ensure_angular_dist() -> Path | None:
+    """Return the Angular build directory, building it on demand.
+
+    Priority: <root>/dist (canonical, ignored by git) -> src/web/static legacy
+    mirror. If neither holds a fresh index.html, dependencies are installed and
+    `npm run build` is executed automatically before serving.
+    """
+    existing = _resolve_dist_dir()
+    if existing is not None:
+        return existing
+    if not FRONTEND_DIR.is_dir():
+        return None
+    print(f"[frontend] Build Angular automatique ({FRONTEND_DIR})…", flush=True)
+    if not (FRONTEND_DIR / "node_modules").is_dir():
+        if not _run_npm("ci"):
+            _run_npm("install")
+    if not _run_npm("run", "build"):
+        print("[frontend] Échec du build Angular.", flush=True)
+        return None
+    built = _resolve_dist_dir()
+    if built is not None:
+        print(f"[frontend] Interface prête : {built}", flush=True)
+    return built
+
+
+STATIC_DIR = _ensure_angular_dist() or FRONTEND_DIST_DIR
 DEFAULT_WHISPER_MODEL = "models/asr/model.bin"
 DEFAULT_WHISPER_CLI = "bin/asr/whisper-cli.exe"
 DEFAULT_GGUF = "models/llm/model.gguf"
@@ -143,7 +170,6 @@ app = FastAPI(
 
 # The Angular build is the single front end: hashed assets under /static and a
 # SPA fallback for every non-API GET route (direct navigation and refreshes).
-_sync_angular_build()
 if STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -1754,41 +1780,51 @@ def ask_library(request: SearchRequest) -> dict[str, Any]:
 
 
 def _ensure_frontend_build() -> None:
-    """Build the Angular front end when a fresh dist is missing.
+    """Rebuild the Angular front end on demand before serving.
 
-    Enabled by Rider's "Start - Web" configuration (GLIMIO_WEB_BUILD=1) or by
-    setting GLIMIO_WEB_BUILD=auto; never fails the server startup, it only
-    prints guidance so `python -m web` keeps working with a prebuilt static/.
+    By default (GLIMIO_WEB_BUILD unset or "auto") a build is triggered only
+    when no usable dist exists — `python -m web` therefore never requires a
+    manual `npm run build`. With GLIMIO_WEB_BUILD=1/force (Rider's "Start -
+    Web" configuration) the front end is rebuilt on every launch, and sources
+    newer than the previous build also trigger a rebuild automatically.
     """
-    mode = os.environ.get("GLIMIO_WEB_BUILD", "").strip().casefold()
-    if mode not in {"1", "true", "yes", "auto"}:
-        return
-    stamp = STATIC_DIR / ".build-stamp"
-    need_build = not (STATIC_DIR / "index.html").is_file()
-    if not need_build and FRONTEND_DIST_DIR.is_dir():
+    global STATIC_DIR
+    mode = os.environ.get("GLIMIO_WEB_BUILD", "auto").strip().casefold()
+    force = mode in {"1", "true", "yes", "force"}
+    current = _resolve_dist_dir()
+    fresh = current is not None and current.is_relative_to(FRONTEND_DIST_ROOT)
+    if fresh and not force:
+        # Rebuild when frontend sources are newer than the built bundles.
+        stamp_file = FRONTEND_DIST_ROOT / ".source-stamp"
         source_stamp = max(
-            (f.stat().st_mtime for f in FRONTEND_DIST_DIR.rglob("*") if f.is_file()), default=0
+            (f.stat().st_mtime for f in FRONTEND_DIR.rglob("*")
+             if f.is_file() and "node_modules" not in f.parts and "dist" not in f.parts),
+            default=0.0,
         )
         try:
-            need_build = float(stamp.read_text(encoding="utf-8")) != source_stamp
+            fresh = float(stamp_file.read_text(encoding="utf-8")) == source_stamp
         except (OSError, ValueError):
-            need_build = True
-    if not need_build and mode in {"1", "true", "yes"}:
-        # Explicit request from the IDE run configuration: always rebuild.
-        need_build = True
-    if not need_build:
+            fresh = False
+        if not fresh:
+            print("[frontend] Sources modifiées depuis le dernier build : rebuild…", flush=True)
+    if fresh and not force:
         return
-    npm = shutil.which("npm")
-    if npm is None:
-        print("[frontend] npm introuvable : lancez « npm run build » dans src/web/frontend.", flush=True)
+    resolved = _ensure_angular_dist()
+    if resolved is None:
+        print("[frontend] Aucun build Angular exploitable ; le serveur démarre quand même.", flush=True)
         return
-    print(f"[frontend] Build Angular ({FRONTEND_DIR})…", flush=True)
-    result = subprocess.run([npm, "run", "build"], cwd=FRONTEND_DIR, shell=(os.name == "nt"))
-    if result.returncode != 0:
-        print("[frontend] Échec du build Angular ; le serveur démarre avec les fichiers statiques existants.", flush=True)
-        return
-    synced = _sync_angular_build()
-    print(f"[frontend] Interface synchronisée : {synced}", flush=True)
+    STATIC_DIR = resolved
+    app.router.routes = [r for r in app.router.routes
+                         if getattr(r, "name", None) != "static"]
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    source_stamp = max(
+        (f.stat().st_mtime for f in FRONTEND_DIR.rglob("*")
+         if f.is_file() and "node_modules" not in f.parts and "dist" not in f.parts),
+        default=0.0,
+    )
+    FRONTEND_DIST_ROOT.mkdir(parents=True, exist_ok=True)
+    (FRONTEND_DIST_ROOT / ".source-stamp").write_text(str(source_stamp), encoding="utf-8")
+    print(f"[frontend] Interface servie depuis : {STATIC_DIR}", flush=True)
 
 
 def main() -> None:

@@ -22,7 +22,7 @@ Glimio est une application de bureau locale avec une interface web qui aide à e
 - **Diarisation facultative** : segmentation et regroupement de voix avec des modèles ONNX configurables.
 - **Résumés et notes** : génération locale par llama.cpp et un modèle GGUF.
 - **Bibliothèque** : recherche, filtres, pagination, audio, résumés, transcriptions, options de traitement par séance, renommage et suppression.
-- **Interface cohérente** : les icônes fonctionnelles utilisent le sprite local Heroicons v2 Outline (`src/web/static/vendor/heroicons/heroicons.svg`) ; le menu mobile possède une grande cible tactile et se ferme avec Échap ou après navigation.
+- **Interface cohérente** : les icônes fonctionnelles utilisent le sprite local Heroicons v2 Outline (`@ng-icons/heroicons (icônes arborescentes intégrées au bundle Angular)`) ; le menu mobile possède une grande cible tactile et se ferme avec Échap ou après navigation.
 - **Recherche multi-séances** : retrouve des passages et prépare une réponse à partir des sources correspondantes.
 - **Interface bilingue** : français et anglais, avec préférence persistée dans le navigateur et catalogues hors ligne.
 - **Traitements durables** : file d’attente, état des tâches et points de reprise conservés en SQLite.
@@ -98,7 +98,7 @@ La capture et l’analyse audio peuvent traiter des informations personnelles. O
 
 ### Structure des composants Angular
 
-Les composants Angular sont séparés en trois fichiers : `*.component.ts` ou `*.page.ts` pour la logique, le fichier `.html` associé pour le template et le fichier `.scss` associé pour les styles propres au composant. Les styles partagés de l’interface restent dans les feuilles globales tant que leur migration composant par composant n’a pas été vérifiée visuellement. Les composants doivent utiliser le composant partagé `glimio-icon` pour les icônes Heroicons ; le logo de marque est l’asset vectoriel `src/web/static/brand/glimio.svg`.
+Les composants Angular sont séparés en trois fichiers : `*.component.ts` ou `*.page.ts` pour la logique, le fichier `.html` associé pour le template et le fichier `.scss` associé pour les styles propres au composant. Les styles partagés de l’interface restent dans les feuilles globales tant que leur migration composant par composant n’a pas été vérifiée visuellement. Les composants doivent utiliser le composant partagé `glimio-icon` pour les icônes Heroicons ; le logo de marque est l’asset vectoriel `src/web/frontend/public/brand/glimio.svg`.
 
 ## Développement et tests
 
@@ -117,9 +117,6 @@ Contrôle de contraste des principaux jetons de thème :
 Vérification JavaScript (Node.js requis) :
 
 ```powershell
-node --check src/web/static/js/app.js
-node --check src/web/static/js/pages/recording.js
-node --check src/web/static/js/pages/library.js
 ```
 
 ### Interface web — migration Angular 22 en cours
@@ -137,7 +134,7 @@ npm run build
 
 Le build Angular est disponible en aperçu à `/angular/` après redémarrage du serveur FastAPI. Il ne remplace pas encore l’interface stable : la bascule n’aura lieu qu’après validation de la parité fonctionnelle et des tests de non-régression. Pour régénérer le CSS de la version stable pendant cette transition, utilise `npm run build:legacy-css`.
 
-Garde le CSS livré (`src/web/static/app.css`) synchronisé avec ses sources Tailwind. Pour les nouvelles chaînes UI de la version stable, modifie les catalogues `src/web/static/locales/fr.json` et `en.json` et ajoute un test. La suite automatisée ne remplace pas des essais manuels sur le matériel audio, les navigateurs et les lecteurs d’écran. La conformité WCAG AAA n’est pas certifiée. Le rapport [`ACCESSIBILITY_AUDIT.md`](ACCESSIBILITY_AUDIT.md) détaille les vérifications et les limites ; Glimio ne revendique pas une conformité WCAG globale certifiée.
+Garde le CSS livré (`src/web/frontend/src/styles/`) synchronisé avec ses sources Tailwind. Pour les nouvelles chaînes UI de la version stable, modifie les catalogues `src/web/frontend/src/i18n (à réintroduire côté Angular)` et ajoute un test. La suite automatisée ne remplace pas des essais manuels sur le matériel audio, les navigateurs et les lecteurs d’écran. La conformité WCAG AAA n’est pas certifiée. Le rapport [`ACCESSIBILITY_AUDIT.md`](ACCESSIBILITY_AUDIT.md) détaille les vérifications et les limites ; Glimio ne revendique pas une conformité WCAG globale certifiée.
 
 ## Git et contribution
 

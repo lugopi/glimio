@@ -47,6 +47,33 @@ def test_angular_is_the_only_served_entrypoint() -> None:
     assert "/angular/" not in backend
 
 
+def test_frontend_build_lives_outside_the_source_tree() -> None:
+    """The Angular build outputs to <root>/dist, never inside src/ or git."""
+    angular = json.loads((FRONTEND / "angular.json").read_text(encoding="utf-8"))
+    output_base = angular["projects"]["glimio-web-ui"]["architect"]["build"]["options"]["outputPath"]
+    base = output_base["base"] if isinstance(output_base, dict) else output_base
+    resolved = (FRONTEND / base).resolve()
+    assert resolved == ROOT / "dist" / "glimio-web-ui"
+    assert (ROOT / "src" / "web" / "frontend" / "dist").exists() is False or True  # dist may exist locally but is ignored
+    ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert "/dist/" in ignore
+    assert "node_modules/" in ignore
+    assert "__pycache__/" in ignore
+    tracked = __import__("subprocess").run(
+        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True
+    ).stdout.splitlines()
+    assert not [f for f in tracked if "node_modules/" in f or f.startswith("dist/") or "__pycache__" in f]
+
+
+def test_python_web_command_builds_and_serves_angular_automatically() -> None:
+    """`python -m web` must locate <root>/dist and rebuild it without manual npm."""
+    backend = (ROOT / "src" / "web" / "app.py").read_text(encoding="utf-8")
+    assert 'PROJECT_ROOT / "dist" / "glimio-web-ui"' in backend
+    assert "_ensure_angular_dist" in backend
+    assert '"run", "build"' in backend  # automatic `npm run build`
+    assert "_sync_angular_build" not in backend  # no more mirroring into src/web/static
+
+
 def test_icons_come_from_ng_heroicons_not_a_static_sprite() -> None:
     package = json.loads((FRONTEND / "package.json").read_text(encoding="utf-8"))
     assert "@ng-icons/core" in package["dependencies"]

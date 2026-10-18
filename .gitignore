@@ -1,5 +1,2 @@
-.build-stamp
-chunk-*.js
-main-*.js
-polyfills-*.js
-styles-*.css
+node_modules/
+__pycache__/

@@ -12,7 +12,10 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "outputPath": "dist/glimio-web-ui",
+            "outputPath": {
+              "base": "../../../dist/glimio-web-ui",
+              "browser": ""
+            },
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [
