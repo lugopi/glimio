@@ -48,8 +48,94 @@ PROJECT_ROOT = discover_project_root(package_file=__file__)
 SESSION_ROOT = resolve_session_root(PROJECT_ROOT)
 
 WEB_DIR = Path(__file__).resolve().parent
-STATIC_DIR = WEB_DIR / "static"
-ANGULAR_STATIC_DIR = STATIC_DIR / "angular"
+FRONTEND_DIR = WEB_DIR / "frontend"
+# The Angular application is the only UI. Its production build lives outside the
+# source tree, at <project root>/dist/glimio-web-ui, and is served directly.
+ANGULAR_DIST_DIR = PROJECT_ROOT / "dist" / "glimio-web-ui"
+
+
+def _npm_command(args: list[str]) -> list[str]:
+    """Return a subprocess command for npm on Windows (npm is an .cmd shim)."""
+    if os.name == "nt":
+        return ["cmd", "/c", "npm", *args]
+    return ["npm", *args]
+
+
+def _install_frontend_dependencies() -> None:
+    """Install front-end dependencies before building (no manual npm step needed)."""
+    node_modules = FRONTEND_DIR / "node_modules"
+    lock = FRONTEND_DIR / "package-lock.json"
+    pkg = FRONTEND_DIR / "package.json"
+    needs_install = not node_modules.is_dir()
+    if not needs_install and pkg.is_file() and node_modules.is_dir():
+        mtime_node = node_modules.stat().st_mtime
+        newest_source = max(
+            (p.stat().st_mtime for p in (pkg, lock) if p.is_file()), default=0
+        )
+        needs_install = newest_source > mtime_node
+    if needs_install:
+        print("[web] Installation des dépendances du front (npm)…", flush=True)
+        commands = [["ci"] if lock.is_file() else ["install"], ["install"]]
+        last_error: Exception | None = None
+        for args in commands:
+            try:
+                subprocess.run(_npm_command(args), cwd=FRONTEND_DIR, check=True)
+                return
+            except (OSError, subprocess.CalledProcessError) as exc:
+                last_error = exc
+        raise SystemExit(f"Impossible d'installer les dépendances du front : {last_error}")
+
+
+def _build_frontend() -> None:
+    print("[web] Build du front Angular (npm run build)…", flush=True)
+    cache = FRONTEND_DIR / ".angular"
+    if cache.is_dir():
+        shutil.rmtree(cache, ignore_errors=True)
+    try:
+        subprocess.run(_npm_command(["run", "build"]), cwd=FRONTEND_DIR, check=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise SystemExit(
+            f"Le build Angular a échoué : {exc}\n"
+            "Vérifiez que Node.js (>= 22) et npm sont installés et sur le PATH."
+        ) from exc
+
+
+def _ensure_angular_dist() -> Path:
+    """Guarantee the Angular build exists before serving; build it automatically."""
+    index_path = ANGULAR_DIST_DIR / "index.html"
+    if index_path.is_file():
+        return ANGULAR_DIST_DIR
+    if not FRONTEND_DIR.is_dir():
+        raise SystemExit(
+            f"Dossier front introuvable : {FRONTEND_DIR}. Impossible de construire l'UI."
+        )
+    _install_frontend_dependencies()
+    _build_frontend()
+    if not index_path.is_file():
+        raise SystemExit(
+            f"Build terminé mais introuvable : {index_path}. Relancez « npm run build » dans src/web/frontend."
+        )
+    return ANGULAR_DIST_DIR
+
+
+def _sources_newer_than_build() -> bool:
+    """True when front sources are newer than the current dist output."""
+    index_path = ANGULAR_DIST_DIR / "index.html"
+    if not index_path.is_file():
+        return True
+    built_at = index_path.stat().st_mtime
+    roots = [FRONTEND_DIR / "src", FRONTEND_DIR / "public",
+             FRONTEND_DIR / "angular.json", FRONTEND_DIR / "package.json",
+             FRONTEND_DIR / "package-lock.json", FRONTEND_DIR / "tsconfig.app.json"]
+    for root in roots:
+        if root.is_file():
+            if root.stat().st_mtime > built_at:
+                return True
+        elif root.is_dir():
+            for path in root.rglob("*"):
+                if path.is_file() and path.stat().st_mtime > built_at:
+                    return True
+    return False
 DEFAULT_WHISPER_MODEL = "models/asr/model.bin"
 DEFAULT_WHISPER_CLI = "bin/asr/whisper-cli.exe"
 DEFAULT_GGUF = "models/llm/model.gguf"
@@ -106,26 +192,19 @@ app = FastAPI(
     title="Glimio — Audio, transcription et notes", version="0.4.2",
     docs_url="/api/docs", redoc_url=None, lifespan=lifespan,
 )
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-# Optional Angular 22 preview. The stable production UI at "/" remains the fallback
-# until the Angular build passes the documented feature-parity and regression gates.
-if ANGULAR_STATIC_DIR.is_dir():
-    @app.get("/angular", include_in_schema=False)
-    @app.get("/angular/", include_in_schema=False)
-    def angular_preview_index() -> FileResponse:
-        return FileResponse(str(ANGULAR_STATIC_DIR / "index.html"))
+# The Angular SPA is the whole front-end. Resolve its build (auto npm ci + ng build
+# on first run) and mount it directly; there is no legacy static folder anymore.
+ANGULAR_DIST_DIR = _ensure_angular_dist()
 
-    @app.get("/angular/{asset_path:path}", include_in_schema=False)
-    def angular_preview_asset(asset_path: str) -> Response:
-        candidate = (ANGULAR_STATIC_DIR / asset_path).resolve()
-        try:
-            candidate.relative_to(ANGULAR_STATIC_DIR.resolve())
-        except ValueError as exc:
-            raise HTTPException(status_code=404, detail="Ressource introuvable.") from exc
-        if candidate.is_file():
-            return FileResponse(str(candidate))
-        # SPA route fallback for direct navigation and browser refreshes.
-        return FileResponse(str(ANGULAR_STATIC_DIR / "index.html"))
+
+def _angular_file(relative: str) -> Path | None:
+    """Resolve a path inside the Angular dist without allowing traversal."""
+    candidate = (ANGULAR_DIST_DIR / relative).resolve()
+    try:
+        candidate.relative_to(ANGULAR_DIST_DIR.resolve())
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
 
 
 class Settings(BaseModel):
@@ -185,6 +264,7 @@ class JobRequest(BaseModel):
     action: Literal["transcribe", "summarize", "process"]
     session_id: str
     settings: Settings = Field(default_factory=Settings)
+    force: bool = False
 
 
 class RecordRequest(BaseModel):
@@ -660,10 +740,15 @@ def _device_names() -> dict[str, list[str]]:
     return {"microphones": microphones, "outputs": outputs}
 
 
-def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str) -> None:
-    """Run a session pipeline with durable checkpoints between model stages."""
+def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
+                     force: bool = False) -> None:
+    """Run a session pipeline with durable checkpoints between model stages.
+
+    ``force`` clears the checkpoint so a stage (e.g. the summary) can be redone
+    even when it was already completed for this session.
+    """
     payload = _job_payload(job_id)
-    checkpoint = payload.get("checkpoint")
+    checkpoint = None if force else payload.get("checkpoint")
 
     def publish(message: str) -> None:
         folded = message.casefold()
@@ -754,7 +839,23 @@ def _run_import_job(job_id: str) -> None:
 
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
-    return FileResponse(str(STATIC_DIR / "index.html"))
+    return FileResponse(str(ANGULAR_DIST_DIR / "index.html"))
+
+
+# Catch-all SPA route: serve hashed Angular assets (main-*.js, styles-*.css,
+# brand/glimio.svg, …) and fall back to index.html for client-side routes.
+# Registered last so every /api/* endpoint above keeps priority.
+@app.get("/{spa_path:path}", include_in_schema=False)
+def angular_spa(spa_path: str) -> Response:
+    if spa_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Ressource introuvable.")
+    served = _angular_file(spa_path) if spa_path else None
+    if served is not None:
+        return FileResponse(str(served))
+    fallback = ANGULAR_DIST_DIR / "index.html"
+    if not fallback.is_file():
+        raise HTTPException(status_code=404, detail="Build Angular indisponible.")
+    return FileResponse(str(fallback))
 
 
 @app.get("/api/health")
@@ -1192,7 +1293,8 @@ def start_session_job(request: JobRequest) -> dict[str, Any]:
         _save_session_processing_settings(folder, request.settings)
 
     def worker(job_id: str) -> None:
-        _run_session_job(request.action, folder, request.settings, job_id)
+        _run_session_job(request.action, folder, request.settings, job_id,
+                         force=request.force)
 
     label = {"transcribe": "Transcription lancée", "summarize": "Résumé lancé", "process": "Traitement complet lancé"}[request.action]
     return _start_job(
@@ -1714,6 +1816,17 @@ def main() -> None:
         port = int(os.environ.get("GLIMIO_WEB_PORT", os.environ.get("SEANCE_WEB_PORT", "8765")))
     except ValueError as exc:
         raise SystemExit("GLIMIO_WEB_PORT (ou SEANCE_WEB_PORT) doit être un entier.") from exc
+    # Keep the served UI fresh: rebuild when sources changed (or when forced).
+    try:
+        if os.environ.get("GLIMIO_WEB_BUILD", "").casefold() in {"1", "true", "yes"} or _sources_newer_than_build():
+            _install_frontend_dependencies()
+            _build_frontend()
+    except SystemExit as exc:
+        print(f"[web] {exc}", flush=True)
+        raise
+    global ANGULAR_DIST_DIR
+    ANGULAR_DIST_DIR = _ensure_angular_dist()
+
     url = f"http://{host}:{port}"
     print(f"Glimio Web : {url}", flush=True)
     print(f"Racine du projet : {PROJECT_ROOT}", flush=True)

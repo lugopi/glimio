@@ -2,3 +2,40 @@
   display: block;
   min-width: 0;
 }
+
+/* Espacement interne de la carte « Options de traitement de cette séance » :
+   respiration entre le titre, les champs et les actions (complète les règles globales). */
+:host {
+  .session-processing-options {
+    padding: 18px 0 4px;
+
+    > .detail-section-heading { margin-bottom: 16px; }
+    > .settings-grid { margin-top: 0; }
+    .common-processing-fields { row-gap: 18px; column-gap: 16px; }
+    .diarize-card { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; }
+    .field-note { margin-top: 6px; }
+  }
+
+  .session-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 14px 0 18px;
+  }
+
+  .detail-section + .detail-section { margin-top: 20px; }
+
+  .artifact-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .card-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+
+  .library-pagination-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--c-border-soft);
+  }
+}

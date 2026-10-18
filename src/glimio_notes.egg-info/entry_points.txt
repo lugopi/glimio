@@ -1,0 +1,5 @@
+[console_scripts]
+glimio = seance.cli:main
+glimio-web = web.app:main
+seance = seance.cli:main
+seance-web = web.app:main
