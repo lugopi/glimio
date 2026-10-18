@@ -1,2 +1,110 @@
+# Local app state, databases, recordings and generated session data
+.glimio/
+/seances/
+/recordings/
+/data-local/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+*.db-wal
+*.db-shm
+# Raw/private local media: force-add only intentional fixtures or samples
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.aac
+*.ogg
+*.opus
+*.mp4
+*.mkv
+*.webm
+
+# AI models: download locally; never commit weights
+/models/
+**/models/
+*.gguf
+*.onnx
+*.pt
+*.pth
+*.safetensors
+*.ckpt
+*.model
+*.tflite
+*.engine
+*.bin
+
+# External/native executables and libraries
+/bin/
+**/bin/
+*.exe
+*.dll
+*.pyd
+*.so
+*.dylib
+*.lib
+*.a
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Python artifacts and virtual environments
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Frontend dependencies and generated build output
+
+### Angular ###
+## Angular ##
+# compiled output
 dist/
+tmp/
+app/**/*.js
+app/**/*.js.map
+static/
+build/
+.next/
+
+# dependencies
+node_modules/
+bower_components/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+# misc
+.sass-cache/
+connect.lock/
+coverage/
+libpeerconnection.log/
+npm-debug.log
+testem.log
+typings/
 .angular/
+
+# e2e
+e2e/*.js
+e2e/*.map
+
+# System Files
+.DS_Store/
+*.pyc
+/dist/
