@@ -4,7 +4,7 @@
         <div class="brand">
           <!-- Le logo est injecté en ligne (inline) : ses calques utilisent
                currentColor / var(--brand-shadow) et suivent donc la couleur du thème. -->
-          <div class="brand-mark" aria-hidden="true" [innerHTML]="brandLogo"></div>
+          <div class="brand-mark" aria-hidden="true" [innerHTML]="brandLogo()"></div>
           <div class="brand-copy"><strong class="brand-name">Glimio</strong><small class="brand-caption">AUDIO · TRANSCRIPTION · NOTES</small></div>
           <button class="mobile-nav-toggle btn btn--secondary btn--icon" type="button" (click)="toggleMobileMenu()"
             [attr.aria-label]="mobileMenuOpen() ? 'Fermer le menu principal' : 'Ouvrir le menu principal'"
