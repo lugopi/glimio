@@ -67,8 +67,8 @@ export class ApiService {
     return this.http.delete<{ deleted: number }>('/api/jobs/history').pipe(catchError(this.normalizeError));
   }
 
-  startSessionJob(action: JobAction, sessionId: string, settings: GlimioSettings): Observable<Job> {
-    return this.http.post<Job>('/api/jobs', { action, session_id: sessionId, settings }).pipe(catchError(this.normalizeError));
+  startSessionJob(action: JobAction, sessionId: string, settings: GlimioSettings, force = false): Observable<Job> {
+    return this.http.post<Job>('/api/jobs', { action, session_id: sessionId, settings, force }).pipe(catchError(this.normalizeError));
   }
 
   startRecording(payload: {

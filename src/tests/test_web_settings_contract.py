@@ -25,7 +25,14 @@ class WebSettingsContractTests(unittest.TestCase):
 
 
     def test_settings_form_paths_match_backend_defaults(self) -> None:
-        html = (Path(__file__).parents[1] / "web" / "static" / "index.html").read_text(encoding="utf-8")
+        # Full-Angular cutover : le front ne codera plus en dur les chemins de
+        # modèles — il affiche ceux renvoyés par l'API (source de vérité).
+        from fastapi.testclient import TestClient
+        from web.app import app
+
+        client = TestClient(app)
+        payload = client.get("/api/preferences").json()
+        settings = payload["settings"]
         expected = {
             "model": DEFAULT_WHISPER_MODEL,
             "whisper_cli": DEFAULT_WHISPER_CLI,
@@ -35,9 +42,8 @@ class WebSettingsContractTests(unittest.TestCase):
             "diarization_embedding_model": "models/diarization/embedding.onnx",
         }
         for key, path in expected.items():
-            match = re.search(rf'data-setting="{re.escape(key)}"[^>]*value="([^"]*)"', html)
-            self.assertIsNotNone(match, f"Missing UI field for {key}")
-            self.assertEqual(match.group(1), path, f"UI default mismatch for {key}")
+            self.assertIn(key, settings, f"Champ manquant dans /api/preferences : {key}")
+            self.assertEqual(settings[key], path, f"Défaut divergent pour {key}")
 
     def test_cli_fallbacks_use_upstream_executable_names(self) -> None:
         src_root = Path(__file__).parents[1]

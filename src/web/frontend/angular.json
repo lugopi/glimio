@@ -13,9 +13,12 @@
           "builder": "@angular/build:application",
           "options": {
             "outputPath": {
-              "base": "../static",
-              "browser": "."
+              "base": "../../../dist/glimio-web-ui",
+              "browser": ""
             },
+            "assets": [
+              { "glob": "**/*", "input": "public", "output": "/" }
+            ],
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [
@@ -23,8 +26,7 @@
             ],
             "tsConfig": "tsconfig.app.json",
             "styles": [
-              "../static/app.css",
-              "src/angular-overrides.css"
+              "src/styles/main.scss"
             ],
             "outputHashing": "all"
           },
@@ -43,8 +45,7 @@
                 }
               ],
               "optimization": true,
-              "sourceMap": false,
-              "baseHref": "/angular/"
+              "sourceMap": false
             },
             "development": {
               "optimization": false,

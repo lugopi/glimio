@@ -18,10 +18,10 @@
   .skip-link:focus { transform: translateY(0); }
   .app-shell { @apply grid min-h-screen; grid-template-columns: 250px minmax(0, 1fr); }
   .sidebar { @apply fixed inset-y-0 left-0 z-20 flex w-[250px] flex-col border-r border-border-soft; padding: 25px 15px 18px; background: var(--c-sidebar); }
-  .brand { @apply flex items-center gap-[11px] px-[11px] pb-[33px]; }
-  .brand-mark { @apply flex size-[37px] items-center justify-center gap-[3px] rounded-xl; border: 1px solid color-mix(in srgb, var(--c-accent) 48%, var(--c-border)); background: var(--c-accent-soft); }
-  .brand-mark img { display: block; width: 31px; height: 31px; object-fit: contain; }
-  .brand-name { @apply block text-[1.25rem] font-extrabold italic leading-none tracking-[-.04em]; }
+  .brand { @apply flex items-center gap-[12px] px-[11px] pb-[33px]; }
+  .brand-mark { @apply flex size-[48px] items-center justify-center gap-[3px]; border: 0; background: transparent; }
+  .brand-mark img { display: block; width: 40px; height: 40px; object-fit: contain; }
+  .brand-name { @apply block text-[1.5rem] font-extrabold italic leading-none tracking-[-.04em]; }
   .brand-caption { @apply mt-[5px] block font-mono text-[0.75rem] tracking-[1.5px] text-subtle; }
   .side-label, .eyebrow, .section-mini-title { @apply font-mono text-[0.75rem] font-medium tracking-[1.25px] text-subtle; }
   .side-label { @apply px-3 pb-3; }
@@ -328,8 +328,9 @@
   .app-shell { display: block; }
   .sidebar { position: sticky; inset: 0 0 auto; z-index: 30; width: 100%; height: auto; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--c-border); }
   .brand { padding: 0 5px 10px; }
-  .brand-mark { width: 29px; height: 29px; border-radius: 9px; }
-  .brand-name { font-size: 1.0625rem; }
+  .brand-mark { width: 34px; height: 34px; border-radius: 9px; }
+  .brand-mark img { width: 28px; height: 28px; }
+  .brand-name { font-size: 1.25rem; }
   .brand-caption { font-size: .75rem; }
   .side-label, .sidebar-bottom { display: none; }
   .nav-list { display: none; }
@@ -562,7 +563,9 @@
   .toast.is-error { border-left-color: var(--c-danger); }
   .toast.is-success { border-left-color: var(--c-success); }
   .job-row--clickable, .job-row--clickable:hover { border: 1px solid var(--c-border-soft); border-radius: 11px; box-shadow: none; }
-  .job-icon, .upload-icon, .settings-icon, .placeholder-icon, .brand-mark { border: 0; border-radius: 8px; box-shadow: none; }
+  .job-icon, .upload-icon, .settings-icon, .placeholder-icon { border: 0; border-radius: 8px; box-shadow: none; }
+  // La marque est sans bordure ni fond : le logo SVG est autonome et s'affiche directement.
+  .brand-mark { border: 0; background: transparent; }
   .document-content pre { border: 1px solid var(--c-border-soft); border-radius: 7px; box-shadow: none; }
   :focus-visible { outline: 2px solid var(--c-accent); outline-offset: 3px; }
 }
@@ -726,7 +729,7 @@
   .diarization-settings { padding: 15px 14px 16px; }
 }
 
-/* Glimio 0.4.2 review — keep the source component styles aligned with static/app.css. */
+/* Glimio 0.4.2 review — component styles for the Angular front end (Tailwind v4 layers). */
 @layer components {
   .nav-icon svg { display: block; width: 18px; height: 18px; flex: 0 0 18px; }
   .mobile-nav-toggle .icon { width: 20px; height: 20px; flex: 0 0 20px; }
@@ -738,7 +741,7 @@
   .search-box > span svg { display: block; width: 17px; height: 17px; }
   .placeholder-icon svg { display: block; width: 23px; height: 23px; }
   .brand-mark { overflow: hidden; }
-  .brand-mark img { width: 31px; height: 31px; }
+  .brand-mark img { width: 40px; height: 40px; }
   .diarization-settings { gap: 13px; padding: 18px 20px 20px; }
   .diarization-settings > .field-note { margin: 0; line-height: 1.6; }
   .diarization-settings .auto-speakers-toggle { margin: 0; padding: 10px 12px; }
@@ -822,12 +825,51 @@
 
 
 @layer components {
-  .common-processing-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 14px; }
-  .common-processing-fields > div, .common-processing-fields > label { min-width: 0; }
-  .session-processing-options { padding: 15px 0 0; border-top: 1px solid var(--c-border-soft); }
-  .detail-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-  .detail-section-heading h3 { margin: 0; }
-  .detail-section-heading .field-note { margin: 5px 0 0; }
-  .session-processing-options .settings-grid { margin-top: 12px; }
+  .common-processing-fields { @apply grid grid-cols-2 items-start gap-[14px]; }
+  .common-processing-fields > div, .common-processing-fields > label { @apply min-w-0; }
+  .session-processing-options { @apply border-t border-border-soft pt-[15px]; }
+  .detail-section-heading { @apply mb-3 flex items-start justify-between gap-3; }
+  .detail-section-heading h3 { @apply m-0; }
+  .detail-section-heading .field-note { @apply mt-[5px] mb-0; }
+  .session-processing-options .settings-grid { @apply mt-3; }
+
+  // Sections empilées dans le panneau de détail d'une séance : respiration entre les blocs.
+  .detail-section + .detail-section { @apply border-t border-border-soft pt-[18px] mt-5; }
+  .detail-section > h3 { @apply mb-3 text-[0.8125rem] font-bold tracking-[-.2px]; }
+  .detail-section h4 { @apply my-4 text-[0.8125rem] font-bold text-muted; }
+
+  // Rangée d'actions de séance (Transcrire / Résumer / Refaire le résumé / Traiter).
+  .session-action-row { @apply mb-[18px] flex flex-wrap items-center gap-2.5; }
+
+  // Liens des documents disponibles.
+  .artifact-links { @apply mb-1 flex flex-wrap items-center gap-3.5; }
+
+  // Pied de pagination de la liste des séances.
+  .library-pagination-footer { @apply flex flex-wrap items-center justify-between gap-3 border-t border-border-soft px-4 py-3.5; }
+  .library-pagination-footer .field-label { @apply mb-0; }
+
+  // Blocs empilés dans un panneau de contrôle (enregistreur, import) : respiration standard entre chaque carte/champ/bouton.
+  .control-panel > * + *, .import-panel > * + * { @apply mt-4; }
+  .control-panel > .card-header + *, .control-panel > .eyebrow + * { @apply mt-0; }
+  .control-panel > .card-header { @apply mb-[15px]; }
+  .control-panel > .section-heading:first-of-type { @apply mt-[22px]; }
+
+  // Grilles internes : écart garanti entre les cartes (sources, appareils, workflows).
+  .source-options, .device-grid, .workflow-options { @apply gap-3; }
+  .device-grid { @apply mt-3.5; }
+  .device-meta { @apply mt-3 flex flex-wrap items-center justify-between gap-2.5 text-[0.75rem] text-subtle; }
+  .diarize-card { @apply mt-3.5 block rounded-[13px] border border-border-soft bg-surface-raised p-[13px_15px]; }
+  .normalization-gain-control { @apply mt-3.5; }
+  .import-panel .workflow-options { @apply mt-4; }
+
+  // En-tête « eyebrow » utilisé hors card-header (panneau d'import).
+  .control-panel > .eyebrow, .import-panel > .eyebrow { @apply mb-1.5; }
+  .import-panel > .eyebrow + * { @apply mt-0; }
+  // Le bouton d'action et la note finale respirent après les options.
+  .import-panel > .btn { @apply mt-[18px]; }
+  .import-panel > .field-note { @apply mt-2.5 mb-0; }
+
+  // Rangée d'actions finale d'un panneau (démarrer/arrêter, importer).
+  .card-actions { @apply mt-[18px] flex flex-wrap items-center gap-2.5 border-t border-border-soft pt-4; }
   @media (max-width: 600px) { .common-processing-fields { grid-template-columns: minmax(0, 1fr); } .detail-section-heading { flex-direction: column; } .detail-section-heading .btn { width: 100%; } }
 }

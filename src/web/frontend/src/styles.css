@@ -1,8 +1,0 @@
-@import "./modern-normalize.css";
-@import "tailwindcss";
-@import "./tokens.css";
-@import "./components.css";
-
-/* All interface markup stays semantic. The Tailwind scanner also covers the modular UI. */
-@source "../../static/index.html";
-@source "../../static/js/**/*.js";
