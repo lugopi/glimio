@@ -34,15 +34,11 @@ def test_angular_uses_shared_api_and_reusable_pagination_component() -> None:
 
 
 def test_angular_is_the_only_served_entrypoint() -> None:
-    """After the cutover, `/` serves the Angular index and no legacy JS remains."""
+    """After the cutover, `/` serves the Angular index and no legacy folder remains."""
     html = (FRONTEND / "src" / "index.html").read_text(encoding="utf-8")
     assert "<glimio-root>" in html
     static = ROOT / "src" / "web" / "static"
-    assert not (static / "js").exists()
-    assert not (static / "vendor").exists()
-    served_index = static / "index.html"
-    if served_index.is_file():
-        assert "<glimio-root>" in served_index.read_text(encoding="utf-8")
+    assert not static.exists(), "src/web/static must be deleted: the front end is Angular only"
     backend = (ROOT / "src" / "web" / "app.py").read_text(encoding="utf-8")
     assert "/angular/" not in backend
 
@@ -72,6 +68,8 @@ def test_python_web_command_builds_and_serves_angular_automatically() -> None:
     assert "_ensure_angular_dist" in backend
     assert '"run", "build"' in backend  # automatic `npm run build`
     assert "_sync_angular_build" not in backend  # no more mirroring into src/web/static
+    assert "LEGACY_STATIC_DIR" not in backend  # no static-folder fallback at all
+    assert 'WEB_DIR / "static"' not in backend
 
 
 def test_icons_come_from_ng_heroicons_not_a_static_sprite() -> None:

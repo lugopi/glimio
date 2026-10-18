@@ -54,19 +54,23 @@ WEB_DIR = Path(__file__).resolve().parent
 # it is missing or stale it transparently runs `npm ci`/`npm install` +
 # `npm run build` so no manual npm step is ever required.
 FRONTEND_DIR = WEB_DIR / "frontend"
+# Canonical output folder (angular.json outputPath.base); the browser/ subdir
+# only appears when a different CLI version emits it — both are accepted.
 FRONTEND_DIST_ROOT = PROJECT_ROOT / "dist" / "glimio-web-ui"
 FRONTEND_DIST_DIR = FRONTEND_DIST_ROOT / "browser"
-# Legacy mirrored location (kept as read-only fallback for old checkouts).
-LEGACY_STATIC_DIR = WEB_DIR / "static"
 
 
 def _dist_is_ready(path: Path) -> bool:
-    return (path / "index.html").is_file()
+    return path.is_dir() and (path / "index.html").is_file()
 
 
 def _resolve_dist_dir() -> Path | None:
-    """Locate an existing Angular build, whatever its layout (browser/ or flat)."""
-    for candidate in (FRONTEND_DIST_DIR, FRONTEND_DIST_ROOT, LEGACY_STATIC_DIR):
+    """Locate the Angular production build under <root>/dist (browser/ or flat).
+
+    There is intentionally no src/web/static fallback anymore: the only front
+    end is the Angular build living outside the source tree.
+    """
+    for candidate in (FRONTEND_DIST_ROOT, FRONTEND_DIST_DIR):
         if _dist_is_ready(candidate):
             return candidate
     return None
@@ -88,9 +92,9 @@ def _run_npm(*args: str) -> bool:
 def _ensure_angular_dist() -> Path | None:
     """Return the Angular build directory, building it on demand.
 
-    Priority: <root>/dist (canonical, ignored by git) -> src/web/static legacy
-    mirror. If neither holds a fresh index.html, dependencies are installed and
-    `npm run build` is executed automatically before serving.
+    The canonical location is <root>/dist/glimio-web-ui (ignored by git). When
+    it is missing, dependencies are installed and `npm run build` is executed
+    automatically before serving — no manual npm step is ever required.
     """
     existing = _resolve_dist_dir()
     if existing is not None:
@@ -101,6 +105,12 @@ def _ensure_angular_dist() -> Path | None:
     if not (FRONTEND_DIR / "node_modules").is_dir():
         if not _run_npm("ci"):
             _run_npm("install")
+    # Clear the stale Angular cache and any previous output so a build can never
+    # be poisoned by an old configuration (e.g. a removed legacy CSS entry).
+    shutil.rmtree(FRONTEND_DIR / ".angular", ignore_errors=True)
+    for candidate in (FRONTEND_DIST_ROOT, FRONTEND_DIST_DIR):
+        if candidate.is_dir():
+            shutil.rmtree(candidate, ignore_errors=True)
     if not _run_npm("run", "build"):
         print("[frontend] Échec du build Angular.", flush=True)
         return None

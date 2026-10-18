@@ -119,9 +119,9 @@ Vérification JavaScript (Node.js requis) :
 ```powershell
 ```
 
-### Interface web — migration Angular 22 en cours
+### Interface web — Angular 22 (front end unique)
 
-L’interface actuellement servie à `/` reste la version stable en JavaScript pendant que l’application Angular 22 est portée et vérifiée. Le backend demeure en FastAPI/Python. Voir [`docs/ANGULAR_22_MIGRATION.md`](docs/ANGULAR_22_MIGRATION.md) pour l’architecture cible, les contraintes de versions et les critères de bascule.
+L’interface servie à `/` est l’application Angular 22 ; le legacy JavaScript et le dossier `src/web/static` n'existent plus. Le backend demeure en FastAPI/Python. Voir [`docs/ANGULAR_22_MIGRATION.md`](docs/ANGULAR_22_MIGRATION.md) pour l’architecture cible et les contraintes de versions.
 
 Angular 22 requiert Node.js `22.22.3+` dans la branche 22 (ou une version compatible de la branche 24/26). Depuis `src/web/frontend` :
 
@@ -132,7 +132,7 @@ npm test
 npm run build
 ```
 
-Le build Angular est disponible en aperçu à `/angular/` après redémarrage du serveur FastAPI. Il ne remplace pas encore l’interface stable : la bascule n’aura lieu qu’après validation de la parité fonctionnelle et des tests de non-régression. Pour régénérer le CSS de la version stable pendant cette transition, utilise `npm run build:legacy-css`.
+`python -m web` localise le build dans `<racine>/dist/glimio-web-ui` et lance automatiquement `npm ci` + `npm run build` s’il est absent ou périmé : aucune étape npm manuelle n’est requise. Le CSS global est produit par Tailwind v4 via `src/styles/main.scss` (@use 'tailwindcss' + tokens + composants), sans fichier statique intermédiaire.
 
 Garde le CSS livré (`src/web/frontend/src/styles/`) synchronisé avec ses sources Tailwind. Pour les nouvelles chaînes UI de la version stable, modifie les catalogues `src/web/frontend/src/i18n (à réintroduire côté Angular)` et ajoute un test. La suite automatisée ne remplace pas des essais manuels sur le matériel audio, les navigateurs et les lecteurs d’écran. La conformité WCAG AAA n’est pas certifiée. Le rapport [`ACCESSIBILITY_AUDIT.md`](ACCESSIBILITY_AUDIT.md) détaille les vérifications et les limites ; Glimio ne revendique pas une conformité WCAG globale certifiée.
 

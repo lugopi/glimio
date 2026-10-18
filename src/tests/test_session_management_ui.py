@@ -181,24 +181,31 @@ class AutomaticSessionTitleTests(unittest.TestCase):
 
 class UIAvailabilityContractsTests(unittest.TestCase):
     def test_unavailable_document_tabs_are_hidden_instead_of_rendered_disabled(self) -> None:
-        web = Path(__file__).resolve().parents[1] / "web"
-        library_js = (web / "static" / "js" / "pages" / "library.js").read_text(encoding="utf-8")
-        self.assertIn("session.summary ? '<button class=\"detail-tab", library_js)
-        self.assertIn("session.transcript ? `<button class=\"detail-tab", library_js)
-        self.assertEqual(library_js.count('data-doc="transcript"'), 1)
-        self.assertNotIn("label: 'Transcription'", library_js)
+        # Full Angular : les actions de document sont rendues sous @if conditionnel.
+        html = (Path(__file__).resolve().parents[1] / "web" / "frontend" / "src" / "app"
+                / "pages" / "library" / "library.page.html").read_text(encoding="utf-8")
+        self.assertIn("@if (selected()?.summary)", html)
+        self.assertIn("@if (selected()?.transcript)", html)
+        self.assertIn("Afficher le résumé", html)
+        self.assertIn("Afficher la transcription", html)
+        self.assertNotIn('disabled="disabled"', html)  # masqué, jamais désactivé
 
     def test_recording_advanced_controls_are_conditional(self) -> None:
-        web = Path(__file__).resolve().parents[1] / "web"
-        recording_js = (web / "static" / "js" / "pages" / "recording.js").read_text(encoding="utf-8")
-        html = (web / "static" / "index.html").read_text(encoding="utf-8")
-        self.assertNotIn("thresholdField.hidden", recording_js)
-        self.assertNotIn("threshold.disabled = !automaticCount", recording_js)
-        self.assertIn("its visibility and editability", recording_js)
-        self.assertIn('id="diarization-num-speakers"', html)
-        self.assertIn('id="diarization-threshold"', html)
+        # Full Angular : les contrôles de diarisation avancés vivent dans la
+        # bibliothèque (par séance) ; la page recording garde le strict minimum.
+        app = Path(__file__).resolve().parents[1] / "web" / "frontend" / "src" / "app"
+        html = (app / "pages" / "recording" / "recording.page.html").read_text(encoding="utf-8")
+        self.assertIn('id="recording-speakers"', html)
+        self.assertIn("Automatique", html)
         self.assertNotIn("Prêt à enregistrer", html)
         self.assertNotIn("accent-picker", html)
+        settings_html = (app / "pages" / "settings" / "settings.page.html").read_text(encoding="utf-8")
+        backend = (Path(__file__).resolve().parents[1] / "web" / "app.py").read_text(encoding="utf-8")
+        self.assertIn("diarization_threshold", backend)
+        self.assertTrue(
+            "threshold" in settings_html or "seuil" in settings_html.lower(),
+            "Le seuil de diarisation doit être exposé dans l'UI (paramètres).",
+        )
 
 
 if __name__ == "__main__":
