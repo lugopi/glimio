@@ -1,7 +1,8 @@
-"""Contract tests for the staged Angular 22 migration."""
+"""Contract tests for the finished Angular 22 cutover (full-Angular front end)."""
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,44 +33,44 @@ def test_angular_uses_shared_api_and_reusable_pagination_component() -> None:
     assert (app / "pages" / "settings" / "settings.page.ts").is_file()
 
 
-def test_existing_production_entrypoint_is_preserved_until_cutover() -> None:
-    html = (ROOT / "src" / "web" / "static" / "index.html").read_text(encoding="utf-8")
-    assert '<script type="module" src="/static/js/app.js"></script>' in html
-    assert '<glimio-root>' not in html
-    docs = (ROOT / "docs" / "ANGULAR_22_MIGRATION.md").read_text(encoding="utf-8")
-    assert "Required gates before cutover" in docs
-    assert "existing `/` entry point is deliberately unchanged" in docs
-
-
-def test_heroicons_are_served_from_a_local_svg_sprite() -> None:
-    sprite = ROOT / "src" / "web" / "static" / "vendor" / "heroicons" / "heroicons.svg"
-    icons = sprite.read_text(encoding="utf-8")
-    component = (FRONTEND / "src" / "app" / "shared" / "icon.component.ts").read_text(encoding="utf-8")
-    assert '<symbol id="bars-3"' in icons
-    assert '<symbol id="x-mark"' in icons
-    assert "https://" not in component
-    assert "/static/vendor/heroicons/heroicons.svg#" in component
-
-
-def test_all_functional_icons_use_local_heroicons_sprite() -> None:
-    import re
-
+def test_angular_is_the_only_served_entrypoint() -> None:
+    """After the cutover, `/` serves the Angular index and no legacy JS remains."""
+    html = (FRONTEND / "src" / "index.html").read_text(encoding="utf-8")
+    assert "<glimio-root>" in html
     static = ROOT / "src" / "web" / "static"
-    html = (static / "index.html").read_text(encoding="utf-8")
-    ui = (static / "js" / "components" / "ui.js").read_text(encoding="utf-8")
-    jobs = (static / "js" / "pages" / "jobs.js").read_text(encoding="utf-8")
-    sprite = (static / "vendor" / "heroicons" / "heroicons.svg").read_text(encoding="utf-8")
-    # The Glimio brand mark is served as a dedicated SVG image asset. Every
-    # inline SVG left in the interface must therefore be a Heroicons symbol.
-    assert '<img class="brand-logo" src="/static/brand/glimio.svg"' in html
-    all_svgs = re.findall(r"<svg\b.*?</svg>", html, flags=re.DOTALL)
-    assert all_svgs
-    assert all("<use href=\"/static/vendor/heroicons/heroicons.svg#" in block for block in all_svgs)
-    assert "<path" not in ui and "<circle" not in ui and "<rect" not in ui
-    assert "<path" not in jobs and "<circle" not in jobs and "<rect" not in jobs
-    symbols = set(re.findall(r'<symbol id="([^"]+)"', sprite))
-    used = set(re.findall(r"heroicons\.svg#([a-z0-9-]+)", html + ui + jobs))
-    assert used <= symbols
+    assert not (static / "js").exists()
+    assert not (static / "vendor").exists()
+    served_index = static / "index.html"
+    if served_index.is_file():
+        assert "<glimio-root>" in served_index.read_text(encoding="utf-8")
+    backend = (ROOT / "src" / "web" / "app.py").read_text(encoding="utf-8")
+    assert "/angular/" not in backend
+
+
+def test_icons_come_from_ng_heroicons_not_a_static_sprite() -> None:
+    package = json.loads((FRONTEND / "package.json").read_text(encoding="utf-8"))
+    assert "@ng-icons/core" in package["dependencies"]
+    assert "@ng-icons/heroicons" in package["dependencies"]
+    component = (FRONTEND / "src" / "app" / "shared" / "icon.component.ts").read_text(encoding="utf-8")
+    registry = (FRONTEND / "src" / "app" / "shared" / "icon-registry.ts").read_text(encoding="utf-8")
+    assert "NgIcon" in component
+    assert "heroicons.svg" not in component + registry
+    assert "https://" not in component + registry
+    for import_line in re.findall(r"from '([^']+)'", registry):
+        assert import_line.startswith("@ng-icons/") or import_line == "rxjs", import_line
+
+
+def test_all_functional_icons_use_the_glimio_icon_component() -> None:
+    app = FRONTEND / "src" / "app"
+    used: set[str] = set()
+    for template in app.rglob("*.html"):
+        text = template.read_text(encoding="utf-8")
+        assert "<svg" not in text, f"inline SVG left in {template.name}"
+        used.update(re.findall(r'<glimio-icon\s+name="([a-z0-9-]+)"', text))
+    registry = (app / "shared" / "icon-registry.ts").read_text(encoding="utf-8")
+    assert used, "no icons found in templates"
+    for name in used:
+        assert f"'{name}'" in registry, f"icon '{name}' missing from icon-registry.ts"
 
 
 def test_session_library_exposes_persisted_processing_options() -> None:
@@ -84,6 +85,18 @@ def test_session_library_exposes_persisted_processing_options() -> None:
     assert "saveSessionSettings" in api
     assert '@app.put("/api/sessions/{session_id}/settings")' in backend
     assert 'metadata["processing_settings"]' in backend
+
+
+def test_library_offers_regenerate_summary_action() -> None:
+    app = ROOT / "src" / "web" / "frontend" / "src" / "app"
+    library_template = (app / "pages" / "library" / "library.page.html").read_text(encoding="utf-8")
+    library_ts = (app / "pages" / "library" / "library.page.ts").read_text(encoding="utf-8")
+    api = (app / "core" / "api.service.ts").read_text(encoding="utf-8")
+    backend = (ROOT / "src" / "web" / "app.py").read_text(encoding="utf-8")
+    assert "Refaire le résumé" in library_template
+    assert "runJob('summarize', true)" in library_template
+    assert "force" in library_ts and "force" in api
+    assert "force" in backend
 
 
 def test_angular_components_keep_logic_template_and_scss_separate() -> None:
