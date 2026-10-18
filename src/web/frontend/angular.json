@@ -16,6 +16,9 @@
               "base": "../../../dist/glimio-web-ui",
               "browser": ""
             },
+            "assets": [
+              { "glob": "**/*", "input": "public", "output": "/" }
+            ],
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [
@@ -23,16 +26,10 @@
             ],
             "tsConfig": "tsconfig.app.json",
             "styles": [
-              "src/styles/main.scss"
+              "../static/app.css",
+              "src/angular-overrides.css"
             ],
-            "outputHashing": "all",
-            "assets": [
-              {
-                "glob": "**/*",
-                "input": "public",
-                "output": "/"
-              }
-            ]
+            "outputHashing": "all"
           },
           "configurations": {
             "production": {
@@ -49,7 +46,8 @@
                 }
               ],
               "optimization": true,
-              "sourceMap": false
+              "sourceMap": false,
+              "baseHref": "/angular/"
             },
             "development": {
               "optimization": false,
