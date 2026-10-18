@@ -1,0 +1,63 @@
+    <a class="skip-link" href="#main-content">Aller au contenu principal</a>
+    <div class="app-shell">
+      <aside class="sidebar" [class.is-nav-open]="mobileMenuOpen()" aria-label="Navigation de l'application">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <img class="brand-logo" src="/static/brand/glimio.svg" alt="" width="31" height="31">
+          </div>
+          <div class="brand-copy"><strong class="brand-name">Glimio</strong><small class="brand-caption">AUDIO · TRANSCRIPTION · NOTES</small></div>
+          <button class="mobile-nav-toggle btn btn--secondary btn--icon" type="button" (click)="toggleMobileMenu()"
+            [attr.aria-label]="mobileMenuOpen() ? 'Fermer le menu principal' : 'Ouvrir le menu principal'"
+            aria-controls="main-navigation" [attr.aria-expanded]="mobileMenuOpen()">
+            <glimio-icon [name]="mobileMenuOpen() ? 'x-mark' : 'bars-3'" />
+          </button>
+        </div>
+        <div class="side-label">ESPACE DE TRAVAIL</div>
+        <nav class="nav-list" id="main-navigation" aria-label="Navigation principale">
+          <a class="nav-link" routerLink="/recording" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }" (click)="closeMobileMenu()">
+            <span class="nav-icon"><glimio-icon name="microphone" /></span><span>Enregistrement</span>
+          </a>
+          <a class="nav-link" routerLink="/library" routerLinkActive="is-active" (click)="closeMobileMenu()">
+            <span class="nav-icon"><glimio-icon name="book-open" /></span><span>Bibliothèque</span><span class="nav-count">{{ libraryCount() }}</span>
+          </a>
+          <a class="nav-link" routerLink="/search" routerLinkActive="is-active" (click)="closeMobileMenu()">
+            <span class="nav-icon"><glimio-icon name="magnifying-glass" /></span><span>Recherche intelligente</span>
+          </a>
+          <a class="nav-link" routerLink="/settings" routerLinkActive="is-active" (click)="closeMobileMenu()">
+            <span class="nav-icon"><glimio-icon name="cog-6-tooth" /></span><span>Paramètres</span>
+          </a>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="offline-indicator runtime-indicator" data-mode="local">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            <div><strong>Traitement local</strong><small>Les modèles sont exécutés sur cet appareil.</small></div>
+          </div>
+          <div class="sidebar-path">
+            <div class="sidebar-path-heading"><small>DOSSIER DES SÉANCES</small><button class="path-copy-button" type="button" (click)="copySessionRoot()">Copier</button></div>
+            <code [title]="preferences.sessionRoot()">{{ preferences.sessionRoot() }}</code>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-area" id="main-content" tabindex="-1">
+        <header class="topbar">
+          <div class="breadcrumbs"><span>Glimio</span><span class="crumb-divider">/</span><strong>{{ currentPage() }}</strong></div>
+          <div class="topbar-right">
+            <label class="sr-only" for="theme-select">Thème de l'interface</label>
+            <select class="select theme-select" id="theme-select" [value]="theme()" (change)="setTheme($event)">
+              <option value="dark">Sombre</option><option value="light">Clair</option><option value="midnight">Minuit</option><option value="forest">Forêt</option>
+            </select>
+            <button class="btn btn--secondary btn--icon" type="button" aria-label="Actualiser la configuration" (click)="reloadConfig()"><glimio-icon name="arrow-path" /></button>
+          </div>
+        </header>
+        <router-outlet />
+      </main>
+    </div>
+    <div class="toast-region" aria-live="polite" aria-atomic="true">
+      @for (toast of toasts.messages(); track toast.id) {
+        <div class="toast" [class.is-success]="toast.kind === 'success'" [class.is-error]="toast.kind === 'error'" role="status">
+          <span>{{ toast.message }}</span><button type="button" aria-label="Fermer la notification" (click)="toasts.dismiss(toast.id)"><glimio-icon name="x-mark" /></button>
+        </div>
+      }
+    </div>
+  

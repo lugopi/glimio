@@ -1,0 +1,5 @@
+@import "./modern-normalize.css";
+@import "./tokens.css";
+@import "./components.css";
+
+/* Angular owns the UI. Legacy utility generation remains isolated in styles.css. */

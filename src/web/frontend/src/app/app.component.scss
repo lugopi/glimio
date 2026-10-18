@@ -1,0 +1,21 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+}
+
+.brand-logo {
+  display: block;
+  width: 31px;
+  height: 31px;
+  object-fit: contain;
+}
+
+.mobile-nav-toggle {
+  min-width: 48px;
+  min-height: 48px;
+  touch-action: manipulation;
+}
+
+@media (min-width: 851px) {
+  .mobile-nav-toggle { display: none; }
+}

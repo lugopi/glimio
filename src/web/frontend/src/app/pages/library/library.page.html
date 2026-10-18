@@ -1,0 +1,43 @@
+    <section class="view is-active" aria-labelledby="library-title">
+      <div class="page-heading"><div><div class="eyebrow">VOTRE MÉMOIRE DE TRAVAIL</div><h1 id="library-title">Bibliothèque des séances</h1><p class="subheading">Consultez les résumés, transcriptions et pistes audio, puis relancez les traitements nécessaires.</p></div><a class="btn btn--primary" routerLink="/recording"><glimio-icon name="microphone" /> Nouvelle séance</a></div>
+      <section class="library-layout">
+        <div class="card library-list-panel">
+          <div class="library-toolbar"><label class="sr-only" for="library-query">Rechercher une séance</label><input class="input" id="library-query" [(ngModel)]="query" (ngModelChange)="searchChanged()" placeholder="Rechercher une séance…"><label class="sr-only" for="library-filter">Filtrer les séances</label><select class="select" id="library-filter" [(ngModel)]="filter" (ngModelChange)="loadSessions(true)"><option value="all">Toutes les séances</option><option value="summary">Avec résumé</option><option value="transcript">Avec transcription</option><option value="audio">Avec audio</option></select></div>
+          <div class="library-stats"><strong>{{ total() }}</strong> séance(s) <span>·</span> <span>{{ sessionsWithSummary() }} résumé(s) sur cette page</span></div>
+          <div class="session-list">
+            @for (session of pageItems(); track session.id) {
+              <button class="session-card" [class.is-selected]="selectedId() === session.id" type="button" (click)="openSession(session.id)">
+                <div class="session-card-top"><span class="session-date">{{ dateLabel(session.started_at, session.id) }}</span><span class="session-markers">@if (session.summary) { <span class="badge badge--success">Résumé</span> } @if (session.transcript) { <span class="badge">Texte</span> } @if (session.audio) { <span class="badge">Audio</span> }</span></div>
+                <strong>{{ session.title }}</strong><p>{{ session.summary_excerpt || (session.transcript ? 'Transcription disponible' : session.audio ? 'Audio disponible' : 'Aucun document reconnu pour le moment.') }}</p>
+                @if (session.processing?.active) { <div class="session-card-progress"><span class="spinner"></span><span>{{ session.processing.message }}</span></div> }
+              </button>
+            } @empty { <div class="library-empty">Aucune séance trouvée. Enregistrez une séance ou importez un fichier depuis le centre de pilotage.</div> }
+          </div>
+          <div class="library-pagination-footer"><label class="field-label" for="session-page-size">Séances par page</label><select class="select" id="session-page-size" [ngModel]="pageSize()" (ngModelChange)="changePageSize($event)"><option [ngValue]="10">10</option><option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option></select><glimio-pagination [page]="page()" [pageSize]="pageSize()" [totalItems]="total()" label="Pagination de la bibliothèque" (pageChange)="changePage($event)" /></div>
+        </div>
+
+        <article class="card session-detail-panel" id="session-detail">
+          @if (selected()) {
+            <div class="detail-header"><div><div class="eyebrow">DÉTAIL DE LA SÉANCE</div><h2 class="card-title">{{ selected()?.title }}</h2><p class="field-note">{{ dateLabel(selected()?.started_at, selected()?.id || '') }}</p></div><div class="detail-actions"><button class="btn btn--secondary btn--icon" type="button" aria-label="Renommer la séance" title="Renommer" (click)="renameSession()"><glimio-icon name="pencil-square" /></button><button class="btn btn--secondary btn--icon" type="button" aria-label="Supprimer la séance" title="Supprimer" (click)="deleteSession()"><glimio-icon name="trash" /></button></div></div>
+            <div class="session-action-row"><button class="btn btn--secondary btn--small" type="button" [disabled]="working()" (click)="runJob('transcribe')">Transcrire</button><button class="btn btn--secondary btn--small" type="button" [disabled]="working()" (click)="runJob('summarize')">Résumer</button><button class="btn btn--primary btn--small" type="button" [disabled]="working()" (click)="runJob('process')">Traiter complètement</button></div>
+            @if (sessionSettings(); as options) {
+              <section class="detail-section session-processing-options" aria-labelledby="session-processing-options-title">
+                <div class="detail-section-heading"><div><h3 id="session-processing-options-title">Options de traitement de cette séance</h3><p class="field-note">Ces choix sont enregistrés avec la séance et utilisés lors des prochains traitements.</p></div><button class="btn btn--secondary btn--small" type="button" [disabled]="working()" (click)="saveSessionSettings()">Enregistrer les options</button></div>
+                <div class="settings-grid common-processing-fields">
+                  <div><label class="field-label" for="session-language">Langue de transcription</label><select class="select" id="session-language" [ngModel]="options.language" (ngModelChange)="patchSessionSetting('language', $event)"><option value="auto">Automatique</option><option value="detect">Détection Whisper</option><option value="fr">Français</option><option value="en">Anglais</option><option value="de">Allemand</option><option value="it">Italien</option><option value="es">Espagnol</option></select></div>
+                  <div><label class="field-label" for="session-format">Format du résumé</label><select class="select" id="session-format" [ngModel]="options.format" (ngModelChange)="patchSessionSetting('format', $event)">@for (format of formats; track format) { <option [value]="format">{{ formatLabel(format) }}</option> }</select></div>
+                  <div><label class="diarize-card"><input type="checkbox" [ngModel]="options.diarize" (ngModelChange)="patchSessionSetting('diarize', $event)"><span><strong>Diarisation vocale</strong><small>Associer les segments aux voix détectées.</small></span></label></div>
+                  <div><label class="field-label" for="session-speakers">Nombre d’interlocuteurs</label><select class="select" id="session-speakers" [ngModel]="options.diarization_num_speakers" (ngModelChange)="patchSessionSetting('diarization_num_speakers', numberValue($event))"><option [ngValue]="-1">Automatique</option>@for (count of speakerCounts; track count) { <option [ngValue]="count">{{ count }}</option> }</select></div>
+                </div>
+              </section>
+            }
+            @if (selected()?.processing?.active) { <div class="session-progress-panel"><span class="spinner"></span><span>{{ selected()?.processing?.message }}</span></div> }
+            <div class="detail-section"><h3>Documents disponibles</h3><div class="artifact-links">@if (selected()?.summary) { <button class="text-link-button" type="button" (click)="loadArtifact('summary')">Afficher le résumé</button> } @if (selected()?.transcript) { <button class="text-link-button" type="button" (click)="loadArtifact('transcript')">Afficher la transcription</button> } </div>
+              @if (artifactTitle()) { <h4>{{ artifactTitle() }}</h4><pre class="artifact-content">{{ artifactContent() }}</pre> }
+            </div>
+            @if (selected()?.audio_tracks?.length) { <div class="detail-section"><h3>Pistes audio</h3><div class="audio-track-list">@for (track of selected()?.audio_tracks ?? []; track track) { <div class="audio-track"><div class="audio-track-title"><strong>{{ trackLabel(track) }}</strong><small>{{ track }}</small></div><audio controls preload="metadata" [src]="audioUrl(selected()!.id, track)">Votre navigateur ne prend pas en charge la lecture audio.</audio></div> }</div></div> }
+          } @else { <div class="panel-placeholder"><div class="placeholder-icon"><glimio-icon name="book-open" /></div><h2>Sélectionnez une séance</h2><p>Le résumé, la transcription, l'audio et les informations de traitement apparaîtront ici.</p></div> }
+        </article>
+      </section>
+    </section>
+  

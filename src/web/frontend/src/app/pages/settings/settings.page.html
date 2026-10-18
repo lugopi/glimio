@@ -1,0 +1,29 @@
+    <section class="view is-active" aria-labelledby="settings-title">
+      <div class="page-heading"><div><div class="eyebrow">CONFIGURATION GÉNÉRALE</div><h1 id="settings-title">Paramètres</h1><p class="subheading">Configurez les modèles, les exécutables, le traitement et la qualité d’enregistrement.</p></div></div>
+      @if (settings(); as value) {
+        <section class="card settings-panel" aria-labelledby="settings-models-title">
+          <div class="settings-body">
+            <section class="settings-section" aria-labelledby="settings-models-title"><h2 class="card-title" id="settings-models-title">Modèles et exécutables</h2><div class="settings-grid">
+              <div><label class="field-label" for="whisper-model">Modèle Whisper</label><input class="input" id="whisper-model" [ngModel]="value.model" (ngModelChange)="patch('model', $event)"></div>
+              <div><label class="field-label" for="whisper-cli">Exécutable whisper-cli</label><input class="input" id="whisper-cli" [ngModel]="value.whisper_cli" (ngModelChange)="patch('whisper_cli', $event)"><small class="field-note">Chemin relatif à la racine du projet ou chemin absolu.</small></div>
+              <div><label class="field-label" for="llama-model">Modèle GGUF</label><input class="input" id="llama-model" [ngModel]="value.gguf" (ngModelChange)="patch('gguf', $event)"></div>
+              <div><label class="field-label" for="llama-cli">Exécutable llama-completion</label><input class="input" id="llama-cli" [ngModel]="value.llama_completion" (ngModelChange)="patch('llama_completion', $event)"><small class="field-note">Chemin relatif à la racine du projet ou chemin absolu.</small></div>
+              <div><label class="field-label" for="ffmpeg">FFmpeg</label><input class="input" id="ffmpeg" [ngModel]="value.ffmpeg" (ngModelChange)="patch('ffmpeg', $event)"></div>
+              <div><label class="field-label" for="threads">Threads CPU</label><input class="input" id="threads" type="number" min="1" max="256" [ngModel]="value.threads" (ngModelChange)="patch('threads', numberValue($event))"></div>
+            </div></section>
+            <section class="settings-section" aria-labelledby="settings-transcription-title"><h2 class="card-title" id="settings-transcription-title">Transcription et diarisation</h2><div class="settings-grid">
+              <div><label class="field-label" for="diarization-threshold">Seuil de regroupement des voix <output>{{ value.diarization_threshold | number:'1.2-2' }}</output></label><input class="range-input" id="diarization-threshold" type="range" min="0" max="1" step="0.01" [ngModel]="value.diarization_threshold" (ngModelChange)="patch('diarization_threshold', numberValue($event))"><small class="field-note">Un seuil plus élevé regroupe les voix de façon plus stricte. Ajustez-le selon la qualité audio et le nombre d’interlocuteurs.</small></div>
+              <div><label class="field-label" for="bitrate">Qualité audio</label><select class="select" id="bitrate" [ngModel]="value.audio_bitrate_kbps" (ngModelChange)="patch('audio_bitrate_kbps', audioBitrateValue($event))"><option [ngValue]="128">128 kbps</option><option [ngValue]="256">256 kbps</option><option [ngValue]="384">384 kbps</option><option [ngValue]="512">512 kbps</option><option [ngValue]="768">768 kbps</option></select></div>
+            </div></section>
+            <section class="settings-section" aria-labelledby="settings-llm-title"><h2 class="card-title" id="settings-llm-title">Génération du résumé</h2><div class="settings-grid">
+              <div><label class="field-label" for="context">Fenêtre de contexte</label><input class="input" id="context" type="number" min="2048" max="131072" step="1024" [ngModel]="value.context" (ngModelChange)="patch('context', numberValue($event))"></div>
+              <div><label class="field-label" for="max-tokens">Tokens maximum</label><input class="input" id="max-tokens" type="number" min="500" max="32768" [ngModel]="value.max_tokens" (ngModelChange)="patch('max_tokens', numberValue($event))"></div>
+              <div><label class="field-label" for="analysis-tokens">Tokens d’analyse</label><input class="input" id="analysis-tokens" type="number" min="100" max="32768" [ngModel]="value.analysis_tokens" (ngModelChange)="patch('analysis_tokens', numberValue($event))"></div>
+              <label class="diarize-card"><input type="checkbox" [ngModel]="value.no_review" (ngModelChange)="patch('no_review', $event)"><span><strong>Désactiver la relecture finale</strong><small>Réduit les étapes de vérification du résumé.</small></span></label>
+            </div></section>
+            <div class="settings-footer"><span class="settings-autosave-note"><span class="settings-autosave-icon"><glimio-icon name="check-circle" /></span><span class="settings-autosave-copy"><strong>Sauvegarde automatique</strong><small>{{ preferences.isSaving() ? 'Enregistrement des modifications…' : 'Les modifications sont enregistrées automatiquement.' }}</small></span></span><span class="field-note">Les chemins relatifs sont résolus depuis la racine du projet. Les changements s’appliquent aux prochains traitements.</span></div>
+          </div>
+        </section>
+      } @else { <div class="panel-placeholder"><span class="spinner"></span><h2>Chargement des paramètres…</h2></div> }
+    </section>
+  

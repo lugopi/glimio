@@ -1,0 +1,71 @@
+    <section class="view is-active" aria-labelledby="control-title">
+      <div class="page-heading"><div><div class="eyebrow">CENTRE DE PILOTAGE</div><h1 id="control-title">Enregistrement et import</h1><p class="subheading">Enregistrez une source audio, importez un fichier ou relancez un traitement sur une séance existante.</p></div></div>
+      <div class="control-grid">
+        <section class="card control-panel recording-panel">
+          <div class="card-header"><div><div class="eyebrow">NOUVELLE SÉANCE</div><h2 class="card-title">Configuration de l'enregistrement</h2><p class="card-description">Les pistes audio sont conservées localement. Vous pourrez les transcrire et les résumer ensuite.</p></div></div>
+          <label class="field-label" for="record-title">Titre de la séance <span class="optional">FACULTATIF</span></label>
+          <input class="input" id="record-title" [ngModel]="title" (ngModelChange)="title = $event" placeholder="Ex. : Point projet — architecture" autocomplete="off">
+          <div class="section-heading"><strong>1. Sources audio</strong><small>Une source au minimum</small></div>
+          <div class="source-options">
+            <label class="source-card"><input type="checkbox" [ngModel]="captureMicrophone" (ngModelChange)="captureMicrophone = $event; persistUiPreferences()"><span><strong>Microphone</strong><small>Votre voix et les sons captés par le micro.</small></span></label>
+            <label class="source-card"><input type="checkbox" [ngModel]="captureWindows" (ngModelChange)="captureWindows = $event; persistUiPreferences()"><span><strong>Audio Windows</strong><small>Son diffusé sur la sortie Windows choisie.</small></span></label>
+          </div>
+          <div class="device-grid">
+            <div><label class="field-label" for="device-microphone">Périphérique microphone</label><select class="select" id="device-microphone" [ngModel]="microphone" (ngModelChange)="microphone = $event; persistUiPreferences()"><option value="">Périphérique par défaut</option>@for (device of devices().microphones; track device) { <option [value]="device">{{ device }}</option> }</select></div>
+            <div><label class="field-label" for="device-output">Sortie Windows</label><select class="select" id="device-output" [ngModel]="output" (ngModelChange)="output = $event; persistUiPreferences()"><option value="">Périphérique par défaut</option>@for (device of devices().outputs; track device) { <option [value]="device">{{ device }}</option> }</select></div>
+          </div>
+          <div class="device-meta"><span>{{ deviceStatus() }}</span><button class="text-link-button" type="button" (click)="refreshDevices()"><glimio-icon name="arrow-path" /> Détecter les appareils</button></div>
+          <label class="diarize-card"><input type="checkbox" [ngModel]="normalizeWindows" (ngModelChange)="normalizeWindows = $event; persistUiPreferences()"><span><strong>Rehausser automatiquement le volume Windows</strong><small>Augmente les pistes faibles vers un pic cible de −6 dBFS.</small></span></label>
+          <div class="normalization-gain-control"><label class="field-label" for="normalize-gain">Gain maximal <output>+{{ normalizeGain }} dB maximum</output></label><input class="range-input" id="normalize-gain" type="range" min="0" max="30" step="1" [ngModel]="normalizeGain" (ngModelChange)="normalizeGain = $event; persistUiPreferences()"></div>
+          <div class="section-heading"><strong>2. Traitement après l'arrêt</strong><small>Vous pourrez retraiter plus tard</small></div>
+          <div class="workflow-options">
+            <label class="choice-card"><input type="radio" name="recording-workflow" value="none" [ngModel]="workflow" (ngModelChange)="workflow = $event; persistUiPreferences()"><span><strong>Enregistrer seulement</strong><small>Conserver l'audio, sans lancer de modèle.</small></span></label>
+            <label class="choice-card"><input type="radio" name="recording-workflow" value="transcribe" [ngModel]="workflow" (ngModelChange)="workflow = $event; persistUiPreferences()"><span><strong>Transcrire</strong><small>Créer la transcription avec Whisper.</small></span></label>
+            <label class="choice-card"><input type="radio" name="recording-workflow" value="summary" [ngModel]="workflow" (ngModelChange)="workflow = $event; persistUiPreferences()"><span><strong>Transcrire + résumer</strong><small>Enchaîner transcription et synthèse.</small></span></label>
+          </div>
+          <div class="card-actions">
+            @if (activeRecording()) {
+              <button class="btn btn--danger" type="button" [disabled]="activeRecording()?.phase !== 'recording'" (click)="stopRecording()">Arrêter l'enregistrement</button>
+            } @else {
+              <button class="btn btn--primary" type="button" [disabled]="starting() || (!captureMicrophone && !captureWindows)" (click)="startRecording()">@if (starting()) { Préparation… } @else { <glimio-icon name="microphone" /> Démarrer l'enregistrement }</button>
+            }
+          </div>
+          @if (activeRecording()) { <p class="field-note" aria-live="polite">{{ activeRecording()?.message || 'Enregistrement en cours…' }}</p> }
+        </section>
+
+        <section class="card control-panel import-panel">
+          <div class="eyebrow">IMPORTER UN FICHIER</div><h2 class="card-title">Audio ou vidéo existant</h2><p class="card-description">Importez un fichier audio ou vidéo pour créer une séance et lancer le traitement local.</p>
+          <label class="field-label" for="import-file">Fichier source</label><input class="input" id="import-file" type="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.flac,.ogg,.mp4,.mkv,.webm" (change)="selectFile($event)">
+          <div class="workflow-options"><label class="choice-card"><input type="radio" name="import-action" value="process" [ngModel]="importAction" (ngModelChange)="importAction = $event; persistUiPreferences()"><span><strong>Transcrire + résumer</strong><small>Exécuter la chaîne complète.</small></span></label><label class="choice-card"><input type="radio" name="import-action" value="transcribe" [ngModel]="importAction" (ngModelChange)="importAction = $event; persistUiPreferences()"><span><strong>Transcrire seulement</strong><small>Créer uniquement le texte.</small></span></label></div>
+          <button class="btn btn--primary" type="button" [disabled]="!selectedFile() || importing()" (click)="importFile()">{{ importing() ? 'Import en cours…' : 'Importer et traiter' }}</button>
+          <p class="field-note">Taille maximale : 5 Go. Les fichiers sont traités sur cet appareil.</p>
+        </section>
+      </div>
+
+      <section class="card shared-processing-panel" aria-labelledby="processing-options-title">
+        <div class="card-header"><div><div class="eyebrow">OPTIONS COMMUNES</div><h2 class="card-title" id="processing-options-title">Options communes de traitement</h2><p class="card-description">Ces choix s’appliquent aux nouveaux enregistrements, aux imports et servent de valeurs initiales dans la bibliothèque.</p></div></div>
+        @if (settings(); as value) {
+          <div class="shared-processing-content common-processing-fields">
+            <div><label class="field-label" for="recording-language">Langue de transcription</label><select class="select" id="recording-language" [ngModel]="value.language" (ngModelChange)="patchSetting('language', $event)"><option value="auto">Automatique (langue de l’interface)</option><option value="detect">Détecter avec Whisper</option><option value="fr">Français</option><option value="en">Anglais</option><option value="de">Allemand</option><option value="it">Italien</option><option value="es">Espagnol</option></select><small class="field-note">La détection automatique n’effectue pas de traduction.</small></div>
+            <div><label class="field-label" for="recording-summary-format">Format du résumé par défaut</label><select class="select" id="recording-summary-format" [ngModel]="value.format" (ngModelChange)="patchSetting('format', $event)">@for (format of formats; track format) { <option [value]="format">{{ formatLabel(format) }}</option> }</select></div>
+            <div><label class="diarize-card"><input type="checkbox" [ngModel]="value.diarize" (ngModelChange)="patchSetting('diarize', $event)"><span><strong>Diarisation vocale</strong><small>Détecter les différentes voix et associer les segments de transcription aux interlocuteurs.</small></span></label></div>
+            <div><label class="field-label" for="recording-speakers">Nombre d’interlocuteurs</label><select class="select" id="recording-speakers" [ngModel]="value.diarization_num_speakers" (ngModelChange)="patchSetting('diarization_num_speakers', numberValue($event))"><option [ngValue]="-1">Automatique</option>@for (count of speakerCounts; track count) { <option [ngValue]="count">{{ count }}</option> }</select><small class="field-note">Le nombre est une indication fixe seulement si vous le connaissez ; sinon laissez Automatique.</small></div>
+          </div>
+        }
+      </section>
+
+      <section class="card jobs-panel" aria-labelledby="jobs-title">
+        <div class="card-header"><div><div class="eyebrow">SUIVI DES TRAITEMENTS</div><h2 class="card-title" id="jobs-title">Activités récentes</h2><p class="card-description">État des enregistrements, imports, transcriptions et résumés.</p></div><button class="btn btn--secondary btn--icon" type="button" aria-label="Actualiser les activités" (click)="refreshJobs()"><glimio-icon name="arrow-path" /></button></div>
+        @if (jobsResponse()?.queue?.waiting || jobsResponse()?.queue?.running) { <div class="queue-overview"><strong>File de traitement</strong><span>{{ jobsResponse()?.queue?.waiting || 0 }} en attente. Les modèles sont exécutés séquentiellement.</span></div> }
+        <div class="jobs-list">
+          @for (job of visibleJobs(); track job.id) {
+            <div class="job-row-wrap">
+              <article class="job-row"><span class="job-icon"><glimio-icon [name]="job.state === 'completed' ? 'check-circle' : 'clock'" /></span><span class="job-main"><strong>{{ jobLabel(job) }}</strong>@if (job.session_id) { <small>Séance · {{ job.session_id }}</small> }<span class="job-progress-text">{{ job.message || job.state }}</span>@if (job.error) { <small class="job-error-text">{{ job.error }}</small> }</span><span class="job-state" [class.is-completed]="job.state === 'completed'" [class.is-error]="job.state === 'error'" [class.is-running]="job.state === 'running'">{{ stateLabel(job.state) }}</span></article>
+              @if (isDeletable(job)) { <button class="job-row-delete" type="button" (click)="deleteJob(job)" [attr.aria-label]="'Effacer l’activité ' + jobLabel(job)" title="Effacer cette activité"><glimio-icon name="x-mark" /></button> }
+            </div>
+          } @empty { <div class="inline-empty">Aucune activité récente. Les nouveaux traitements apparaîtront ici.</div> }
+        </div>
+        <div class="jobs-footer"><button class="btn btn--secondary btn--small" type="button" [disabled]="!hasDeletableJobs()" (click)="clearHistory()"><glimio-icon name="trash" /> Effacer l’historique terminé</button><glimio-pagination [page]="jobsPage()" [pageSize]="pageSize" [totalItems]="jobs().length" label="Pagination des activités" (pageChange)="jobsPage.set($event)" /></div>
+      </section>
+    </section>
+  

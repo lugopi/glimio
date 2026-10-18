@@ -1,0 +1,18 @@
+    <section class="view is-active" aria-labelledby="search-title">
+      <div class="page-heading"><div><div class="eyebrow">INTERROGER VOTRE HISTORIQUE</div><h1 id="search-title">Recherche intelligente</h1><p class="subheading">Retrouvez des passages dans plusieurs séances, puis obtenez une synthèse fondée sur les sources.</p></div><span class="feature-chip">MULTI-SÉANCES</span></div>
+      <section class="search-hero card" aria-labelledby="ai-query-label">
+        <label id="ai-query-label" for="ai-query">Que souhaitez-vous retrouver ?</label>
+        <div class="ai-composer"><textarea class="textarea ai-query-input" id="ai-query" rows="3" maxlength="12000" [ngModel]="query()" (ngModelChange)="query.set($event)" (keydown.control.enter)="runSearch()" (keydown.meta.enter)="runSearch()" placeholder="Posez une question sur vos séances…"></textarea>
+          <div class="ai-composer-footer"><span class="ai-query-shortcut">Ctrl / ⌘ + Entrée pour rechercher</span><div class="ai-search-actions"><button class="btn btn--danger" type="button" [hidden]="!searchId()" (click)="cancelSearch()">Annuler</button><button class="btn btn--primary ai-run-button" type="button" [disabled]="running() || query().trim().length < 2" (click)="runSearch()"><glimio-icon name="magnifying-glass" /> {{ running() ? 'Recherche…' : 'Rechercher' }}</button></div></div>
+        </div>
+        <p class="search-hint"><glimio-icon name="information-circle" /> Glimio recherche les passages pertinents dans plusieurs séances et chaque source renvoie à sa séance d’origine.</p>
+      </section>
+      <div class="search-results" aria-live="polite">
+        @if (running()) { <article class="answer-card ai-progress-card"><div class="result-card-head"><h2>Recherche dans les archives</h2><span class="badge badge--accent">EN COURS</span></div><p class="answer-text live-progress"><span class="spinner"></span> {{ result()?.message || 'Préparation de la recherche…' }} @if (result()?.sessions_total) { · {{ result()?.sessions_scanned || 0 }}/{{ result()?.sessions_total }} séance(s) analysée(s) }</p></article> }
+        @if (result()?.answer) { <article class="answer-card"><div class="result-card-head"><h2>Synthèse générale</h2></div><div class="answer-text" data-no-translate="true"><p>{{ result()?.answer }}</p></div></article> }
+        @if (result()?.llm_error) { <article class="answer-card"><div class="result-card-head"><h2>Synthèse indisponible</h2><span class="badge">INFO</span></div><p class="answer-text">{{ result()?.llm_error }}</p></article> }
+        @if ((result()?.sources?.length ?? 0) > 0) { <div class="result-card-head"><h2>Passages retrouvés</h2><span class="badge">{{ result()?.sources?.length }} SOURCE(S)</span></div><div class="source-list">@for (source of result()?.sources ?? []; track source.source_number + source.session_id + source.filename) { <article class="source-item"><div class="source-number">[{{ source.source_number }}]</div><div><strong>{{ source.title }}</strong><div class="source-meta">{{ source.session_id }} · {{ source.filename }} · {{ source.kind }}</div><div class="source-excerpt">{{ source.text }}</div><a class="btn btn--secondary btn--small source-open" [routerLink]="['/library']" [queryParams]="{ session: source.session_id }">Ouvrir la séance</a></div></article> }</div> }
+        @if (!running() && !result()) { <div class="panel-placeholder"><div class="placeholder-icon"><glimio-icon name="magnifying-glass" /></div><h2>Explorez vos séances</h2><p>Posez une question pour réunir des informations issues de plusieurs séances.</p></div> }
+      </div>
+    </section>
+  

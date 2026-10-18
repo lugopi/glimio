@@ -67,11 +67,21 @@ env/
 htmlcov/
 
 # Frontend dependencies and generated build output
-node_modules/
+
+### Angular ###
+## Angular ##
+# compiled output
 dist/
+tmp/
+app/**/*.js
+app/**/*.js.map
+static/
 build/
 .next/
-static/
+
+# dependencies
+node_modules/
+bower_components/
 
 # OS/editor files
 .DS_Store
@@ -79,3 +89,20 @@ Thumbs.db
 desktop.ini
 .idea/
 .vscode/
+
+# misc
+.sass-cache/
+connect.lock/
+coverage/
+libpeerconnection.log/
+npm-debug.log
+testem.log
+typings/
+.angular/
+
+# e2e
+e2e/*.js
+e2e/*.map
+
+# System Files
+.DS_Store/

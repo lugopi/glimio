@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glimio-notes"
+version = "0.4.2"
+description = "Glimio — local audio recording and import, speech transcription, speaker diarization, AI summaries, and searchable session notes"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "soundcard>=0.4.2; platform_system == 'Windows'",
+]
+
+[project.optional-dependencies]
+diarization = ["sherpa-onnx>=1.10.28"]
+web = [
+    "fastapi>=0.143.4",
+    "uvicorn>=0.27",
+    "python-multipart>=0.0.9",
+]
+dev = [
+    "pytest>=9.0",
+]
+
+[project.scripts]
+# Glimio commands; legacy aliases are retained for existing scripts.
+glimio = "seance.cli:main"
+glimio-web = "web.app:main"
+seance = "seance.cli:main"
+seance-web = "web.app:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["seance*", "web*"]
+
+[tool.setuptools.package-data]
+web = [
+    "static/*.html", "static/*.css", "static/brand/*.svg", "static/locales/*.json",
+    "static/js/*.js", "static/js/core/*.js",
+    "static/js/components/*.js", "static/js/pages/*.js",
+    "frontend/package.json", "frontend/angular.json", "frontend/tsconfig*.json", "frontend/proxy.conf.json",
+    "frontend/src/*.css", "frontend/src/*.html", "frontend/src/*.ts",
+    "frontend/src/app/**/*.html", "frontend/src/app/**/*.scss",
+    "frontend/src/app/*.ts", "frontend/src/app/core/*.ts", "frontend/src/app/shared/*.ts",
+    "frontend/src/app/layout/*.ts", "frontend/src/app/pages/**/*.ts",
+    "static/angular/*", "static/vendor/heroicons/*", "static/vendor/heroicons/24/outline/*.svg",
+]
