@@ -830,5 +830,32 @@
   .detail-section-heading h3 { margin: 0; }
   .detail-section-heading .field-note { margin: 5px 0 0; }
   .session-processing-options .settings-grid { margin-top: 12px; }
+
+  // Sections empilées dans le panneau de détail d'une séance : respiration entre les blocs.
+  .detail-section + .detail-section { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--c-border-soft); }
+  .detail-section > h3 { margin: 0 0 12px; font-size: .8125rem; font-weight: 700; letter-spacing: -.2px; }
+  .detail-section h4 { margin: 16px 0 8px; font-size: .8125rem; font-weight: 700; color: var(--c-muted); }
+
+  // Rangée d'actions de séance (Transcrire / Résumer / Refaire le résumé / Traiter).
+  .session-action-row { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 0 0 18px; }
+
+  // Liens des documents disponibles.
+  .artifact-links { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 4px; }
+
+  // Pied de pagination de la liste des séances.
+  .library-pagination-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--c-border-soft); padding: 14px 16px; }
+  .library-pagination-footer .field-label { margin-bottom: 0; }
+
+  // Blocs empilés dans un panneau de contrôle (enregistreur, import).
+  .control-panel > * + * { margin-top: 13px; }
+  .control-panel > .card-header + *, .control-panel > .eyebrow + * { margin-top: 0; }
+  .control-panel > .card-header { margin-bottom: 15px; }
+  .control-panel > .section-heading:first-of-type { margin-top: 22px; }
+
+  // En-tête « eyebrow » utilisé hors card-header (panneau d'import).
+  .control-panel > .eyebrow { margin-bottom: 6px; }
+
+  // Rangée d'actions finale d'un panneau (démarrer/arrêter, importer).
+  .card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--c-border-soft); }
   @media (max-width: 600px) { .common-processing-fields { grid-template-columns: minmax(0, 1fr); } .detail-section-heading { flex-direction: column; } .detail-section-heading .btn { width: 100%; } }
 }

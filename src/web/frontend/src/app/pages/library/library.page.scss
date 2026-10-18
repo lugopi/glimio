@@ -4,7 +4,7 @@
 }
 
 // Carte « Options de traitement de cette séance » : respiration entre les composants.
-.session-processing-options {
+:host ::ng-deep .session-processing-options {
   padding: 18px 20px 20px;
   margin-top: 16px;
   border-radius: var(--radius-panel, 12px);
@@ -12,22 +12,22 @@
   border: 1px solid var(--c-border-soft);
 }
 
-.session-processing-options .detail-section-heading {
+:host ::ng-deep .session-processing-options .detail-section-heading {
   padding-bottom: 14px;
   margin-bottom: 16px;
   border-bottom: 1px solid var(--c-border-soft);
 }
 
-.common-processing-fields {
+:host ::ng-deep .common-processing-fields {
   row-gap: 18px;
   column-gap: 16px;
 }
 
-.diarize-card {
+:host ::ng-deep .diarize-card {
   padding: 12px 14px;
 }
 
-.session-action-row {
+:host ::ng-deep .session-action-row {
   gap: 10px;
-  margin: 4px 0 16px;
+  margin: 4px 0 18px;
 }
