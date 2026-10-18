@@ -19,7 +19,7 @@
   .app-shell { @apply grid min-h-screen; grid-template-columns: 250px minmax(0, 1fr); }
   .sidebar { @apply fixed inset-y-0 left-0 z-20 flex w-[250px] flex-col border-r border-border-soft; padding: 25px 15px 18px; background: var(--c-sidebar); }
   .brand { @apply flex items-center gap-[12px] px-[11px] pb-[33px]; }
-  .brand-mark { @apply flex size-[48px] items-center justify-center gap-[3px] rounded-xl; border: 1px solid color-mix(in srgb, var(--c-accent) 48%, var(--c-border)); background: var(--c-accent-soft); }
+  .brand-mark { @apply flex size-[48px] items-center justify-center gap-[3px]; border: 0; background: transparent; }
   .brand-mark img { display: block; width: 40px; height: 40px; object-fit: contain; }
   .brand-name { @apply block text-[1.5rem] font-extrabold italic leading-none tracking-[-.04em]; }
   .brand-caption { @apply mt-[5px] block font-mono text-[0.75rem] tracking-[1.5px] text-subtle; }
@@ -564,9 +564,8 @@
   .toast.is-success { border-left-color: var(--c-success); }
   .job-row--clickable, .job-row--clickable:hover { border: 1px solid var(--c-border-soft); border-radius: 11px; box-shadow: none; }
   .job-icon, .upload-icon, .settings-icon, .placeholder-icon { border: 0; border-radius: 8px; box-shadow: none; }
-  // La marque garde son contour : le logo SVG est autonome (fond plein) et
-  // reste visible même si l'image échoue à charger (pas de carré nu).
-  .brand-mark { border: 1px solid color-mix(in srgb, var(--c-accent) 48%, var(--c-border)); background: var(--c-accent-soft); border-radius: 12px; overflow: hidden; }
+  // La marque est sans bordure ni fond : le logo SVG est autonome et s'affiche directement.
+  .brand-mark { border: 0; background: transparent; }
   .document-content pre { border: 1px solid var(--c-border-soft); border-radius: 7px; box-shadow: none; }
   :focus-visible { outline: 2px solid var(--c-accent); outline-offset: 3px; }
 }
@@ -850,10 +849,18 @@
   .library-pagination-footer .field-label { margin-bottom: 0; }
 
   // Blocs empilés dans un panneau de contrôle (enregistreur, import).
-  .control-panel > * + *, .import-panel > * + * { margin-top: 13px; }
+  .control-panel > * + *, .import-panel > * + * { margin-top: 16px; }
   .control-panel > .card-header + *, .control-panel > .eyebrow + * { margin-top: 0; }
   .control-panel > .card-header { margin-bottom: 15px; }
   .control-panel > .section-heading:first-of-type { margin-top: 22px; }
+
+  // Grilles internes : écart garanti entre les cartes (sources, appareils, workflows).
+  .source-options, .device-grid, .workflow-options { row-gap: 12px; column-gap: 12px; }
+  .device-grid { margin-top: 14px; }
+  .device-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; color: var(--c-subtle); font-size: .75rem; }
+  .diarize-card { display: block; margin-top: 14px; padding: 13px 15px; border: 1px solid var(--c-border-soft); border-radius: 13px; background: var(--c-surface-raised); }
+  .normalization-gain-control { margin-top: 14px; }
+  .import-panel .workflow-options { margin-top: 16px; }
 
   // En-tête « eyebrow » utilisé hors card-header (panneau d'import).
   .control-panel > .eyebrow, .import-panel > .eyebrow { margin-bottom: 6px; }
