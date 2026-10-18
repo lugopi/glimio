@@ -825,51 +825,51 @@
 
 
 @layer components {
-  .common-processing-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 14px; }
-  .common-processing-fields > div, .common-processing-fields > label { min-width: 0; }
-  .session-processing-options { padding: 15px 0 0; border-top: 1px solid var(--c-border-soft); }
-  .detail-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-  .detail-section-heading h3 { margin: 0; }
-  .detail-section-heading .field-note { margin: 5px 0 0; }
-  .session-processing-options .settings-grid { margin-top: 12px; }
+  .common-processing-fields { @apply grid grid-cols-2 items-start gap-[14px]; }
+  .common-processing-fields > div, .common-processing-fields > label { @apply min-w-0; }
+  .session-processing-options { @apply border-t border-border-soft pt-[15px]; }
+  .detail-section-heading { @apply mb-3 flex items-start justify-between gap-3; }
+  .detail-section-heading h3 { @apply m-0; }
+  .detail-section-heading .field-note { @apply mt-[5px] mb-0; }
+  .session-processing-options .settings-grid { @apply mt-3; }
 
   // Sections empilées dans le panneau de détail d'une séance : respiration entre les blocs.
-  .detail-section + .detail-section { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--c-border-soft); }
-  .detail-section > h3 { margin: 0 0 12px; font-size: .8125rem; font-weight: 700; letter-spacing: -.2px; }
-  .detail-section h4 { margin: 16px 0 8px; font-size: .8125rem; font-weight: 700; color: var(--c-muted); }
+  .detail-section + .detail-section { @apply border-t border-border-soft pt-[18px] mt-5; }
+  .detail-section > h3 { @apply mb-3 text-[0.8125rem] font-bold tracking-[-.2px]; }
+  .detail-section h4 { @apply my-4 text-[0.8125rem] font-bold text-muted; }
 
   // Rangée d'actions de séance (Transcrire / Résumer / Refaire le résumé / Traiter).
-  .session-action-row { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 0 0 18px; }
+  .session-action-row { @apply mb-[18px] flex flex-wrap items-center gap-2.5; }
 
   // Liens des documents disponibles.
-  .artifact-links { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 4px; }
+  .artifact-links { @apply mb-1 flex flex-wrap items-center gap-3.5; }
 
   // Pied de pagination de la liste des séances.
-  .library-pagination-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--c-border-soft); padding: 14px 16px; }
-  .library-pagination-footer .field-label { margin-bottom: 0; }
+  .library-pagination-footer { @apply flex flex-wrap items-center justify-between gap-3 border-t border-border-soft px-4 py-3.5; }
+  .library-pagination-footer .field-label { @apply mb-0; }
 
-  // Blocs empilés dans un panneau de contrôle (enregistreur, import).
-  .control-panel > * + *, .import-panel > * + * { margin-top: 16px; }
-  .control-panel > .card-header + *, .control-panel > .eyebrow + * { margin-top: 0; }
-  .control-panel > .card-header { margin-bottom: 15px; }
-  .control-panel > .section-heading:first-of-type { margin-top: 22px; }
+  // Blocs empilés dans un panneau de contrôle (enregistreur, import) : respiration standard entre chaque carte/champ/bouton.
+  .control-panel > * + *, .import-panel > * + * { @apply mt-4; }
+  .control-panel > .card-header + *, .control-panel > .eyebrow + * { @apply mt-0; }
+  .control-panel > .card-header { @apply mb-[15px]; }
+  .control-panel > .section-heading:first-of-type { @apply mt-[22px]; }
 
   // Grilles internes : écart garanti entre les cartes (sources, appareils, workflows).
-  .source-options, .device-grid, .workflow-options { row-gap: 12px; column-gap: 12px; }
-  .device-grid { margin-top: 14px; }
-  .device-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; color: var(--c-subtle); font-size: .75rem; }
-  .diarize-card { display: block; margin-top: 14px; padding: 13px 15px; border: 1px solid var(--c-border-soft); border-radius: 13px; background: var(--c-surface-raised); }
-  .normalization-gain-control { margin-top: 14px; }
-  .import-panel .workflow-options { margin-top: 16px; }
+  .source-options, .device-grid, .workflow-options { @apply gap-3; }
+  .device-grid { @apply mt-3.5; }
+  .device-meta { @apply mt-3 flex flex-wrap items-center justify-between gap-2.5 text-[0.75rem] text-subtle; }
+  .diarize-card { @apply mt-3.5 block rounded-[13px] border border-border-soft bg-surface-raised p-[13px_15px]; }
+  .normalization-gain-control { @apply mt-3.5; }
+  .import-panel .workflow-options { @apply mt-4; }
 
   // En-tête « eyebrow » utilisé hors card-header (panneau d'import).
-  .control-panel > .eyebrow, .import-panel > .eyebrow { margin-bottom: 6px; }
-  .import-panel > .eyebrow + * { margin-top: 0; }
+  .control-panel > .eyebrow, .import-panel > .eyebrow { @apply mb-1.5; }
+  .import-panel > .eyebrow + * { @apply mt-0; }
   // Le bouton d'action et la note finale respirent après les options.
-  .import-panel > .btn { margin-top: 18px; }
-  .import-panel > .field-note { margin: 10px 0 0; }
+  .import-panel > .btn { @apply mt-[18px]; }
+  .import-panel > .field-note { @apply mt-2.5 mb-0; }
 
   // Rangée d'actions finale d'un panneau (démarrer/arrêter, importer).
-  .card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--c-border-soft); }
+  .card-actions { @apply mt-[18px] flex flex-wrap items-center gap-2.5 border-t border-border-soft pt-4; }
   @media (max-width: 600px) { .common-processing-fields { grid-template-columns: minmax(0, 1fr); } .detail-section-heading { flex-direction: column; } .detail-section-heading .btn { width: 100%; } }
 }
