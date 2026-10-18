@@ -132,13 +132,13 @@ export class LibraryPageComponent implements OnInit {
     });
   }
 
-  runJob(action: 'transcribe' | 'summarize' | 'process', force = false): void {
+  runJob(action: 'transcribe' | 'summarize' | 'process'): void {
     const session = this.selected(); const settings = this.sessionSettings() ?? this.preferences.preferences()?.settings;
     if (!session || !settings) { this.toast.show('Les paramètres ne sont pas encore disponibles.', 'error'); return; }
     this.working.set(true);
     this.api.saveSessionSettings(session.id, settings).subscribe({
-      next: () => this.api.startSessionJob(action, session.id, this.settingsForJob(settings), force).subscribe({
-        next: () => { this.toast.show(force ? 'Régénération du résumé ajoutée à la file.' : 'Traitement ajouté à la file avec les options de cette séance.', 'success'); this.working.set(false); this.openSession(session.id); },
+      next: () => this.api.startSessionJob(action, session.id, this.settingsForJob(settings)).subscribe({
+        next: () => { this.toast.show('Traitement ajouté à la file avec les options de cette séance.', 'success'); this.working.set(false); this.openSession(session.id); },
         error: error => { this.toast.show(error.message, 'error'); this.working.set(false); },
       }),
       error: error => { this.toast.show(`Impossible d’enregistrer les options : ${error.message}`, 'error'); this.working.set(false); },

@@ -94,7 +94,7 @@ desktop.ini
 .sass-cache/
 connect.lock/
 coverage/
-libpeerconnection.log
+libpeerconnection.log/
 npm-debug.log
 testem.log
 typings/
@@ -106,5 +106,3 @@ e2e/*.map
 
 # System Files
 .DS_Store/
-*.pyc
-/dist/

@@ -13,8 +13,8 @@
           "builder": "@angular/build:application",
           "options": {
             "outputPath": {
-              "base": "../../../dist/glimio-web-ui",
-              "browser": ""
+              "base": "../static",
+              "browser": "."
             },
             "index": "src/index.html",
             "browser": "src/main.ts",
@@ -22,15 +22,9 @@
               "zone.js"
             ],
             "tsConfig": "tsconfig.app.json",
-            "assets": [
-              {
-                "glob": "**/*",
-                "input": "public",
-                "output": "/"
-              }
-            ],
             "styles": [
-              "src/styles/main.scss"
+              "../static/app.css",
+              "src/angular-overrides.css"
             ],
             "outputHashing": "all"
           },
@@ -49,7 +43,8 @@
                 }
               ],
               "optimization": true,
-              "sourceMap": false
+              "sourceMap": false,
+              "baseHref": "/angular/"
             },
             "development": {
               "optimization": false,

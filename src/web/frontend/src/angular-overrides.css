@@ -1,0 +1,20 @@
+/* Angular-specific adjustments; shared design tokens and component styles live in ../static/app.css. */
+.nav-link { text-decoration: none; }
+.nav-link .nav-icon { display: inline-flex; flex: 0 0 22px; align-items: center; justify-content: center; }
+.nav-icon .icon { width: 21px; height: 21px; }
+.mobile-nav-toggle .icon { width: 22px; height: 22px; }
+.brand-copy { min-width: 0; flex: 1 1 auto; }
+.toast { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.toast > button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; padding: 4px; color: inherit; border: 0; background: transparent; }
+.toast > button .icon { width: 18px; height: 18px; }
+.jobs-footer, .library-pagination-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-top: 16px; }
+.library-pagination-footer > .field-label { margin: 0; }
+.library-pagination-footer > .select { width: auto; min-width: 90px; }
+.artifact-content { max-height: 460px; overflow: auto; padding: 14px; border: 1px solid var(--c-border-soft); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--c-text); background: var(--c-surface-raised); font: .875rem/1.65 var(--font-code); }
+.session-action-row, .artifact-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 18px; }
+.session-progress-panel { display: flex; align-items: center; gap: 10px; margin: 12px 0; padding: 12px; border: 1px solid var(--c-border); border-radius: 8px; }
+@media (max-width: 850px) {
+  .brand-copy { flex-grow: 1; }
+  .mobile-nav-toggle { margin-left: auto; }
+  .jobs-footer, .library-pagination-footer { align-items: stretch; }
+}

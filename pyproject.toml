@@ -42,9 +42,13 @@ include = ["seance*", "web*"]
 
 [tool.setuptools.package-data]
 web = [
-    # Le build Angular vit hors du code source (<racine>/dist, ignoré par git) ;
-    # `python -m web` le génère à la demande. Aucun dossier src/web/static.
+    "static/*.html", "static/*.css", "static/brand/*.svg", "static/locales/*.json",
+    "static/js/*.js", "static/js/core/*.js",
+    "static/js/components/*.js", "static/js/pages/*.js",
     "frontend/package.json", "frontend/angular.json", "frontend/tsconfig*.json", "frontend/proxy.conf.json",
-    "frontend/src/**/*.scss", "frontend/src/**/*.html", "frontend/src/**/*.ts",
-    "frontend/public/**/*",
+    "frontend/src/*.css", "frontend/src/*.html", "frontend/src/*.ts",
+    "frontend/src/app/**/*.html", "frontend/src/app/**/*.scss",
+    "frontend/src/app/*.ts", "frontend/src/app/core/*.ts", "frontend/src/app/shared/*.ts",
+    "frontend/src/app/layout/*.ts", "frontend/src/app/pages/**/*.ts",
+    "static/angular/*", "static/vendor/heroicons/*", "static/vendor/heroicons/24/outline/*.svg",
 ]

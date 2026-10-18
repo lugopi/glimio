@@ -48,107 +48,8 @@ PROJECT_ROOT = discover_project_root(package_file=__file__)
 SESSION_ROOT = resolve_session_root(PROJECT_ROOT)
 
 WEB_DIR = Path(__file__).resolve().parent
-# The Angular 22 workspace is the only front end. Its production build lands
-# OUTSIDE the source tree, in <project root>/dist/glimio-web-ui/browser (see
-# angular.json outputPath). `python -m web` locates that folder directly; when
-# it is missing or stale it transparently runs `npm ci`/`npm install` +
-# `npm run build` so no manual npm step is ever required.
-FRONTEND_DIR = WEB_DIR / "frontend"
-# Canonical output folder (angular.json outputPath.base); the browser/ subdir
-# only appears when a different CLI version emits it — both are accepted.
-FRONTEND_DIST_ROOT = PROJECT_ROOT / "dist" / "glimio-web-ui"
-FRONTEND_DIST_DIR = FRONTEND_DIST_ROOT / "browser"
-
-
-def _dist_is_ready(path: Path) -> bool:
-    return path.is_dir() and (path / "index.html").is_file()
-
-
-def _resolve_dist_dir() -> Path | None:
-    """Locate the Angular production build under <root>/dist (browser/ or flat).
-
-    There is intentionally no src/web/static fallback anymore: the only front
-    end is the Angular build living outside the source tree.
-    """
-    for candidate in (FRONTEND_DIST_ROOT, FRONTEND_DIST_DIR):
-        if _dist_is_ready(candidate):
-            return candidate
-    return None
-
-
-def _dist_fingerprint(path: Path) -> float:
-    return max((f.stat().st_mtime for f in path.rglob("*") if f.is_file()), default=0.0)
-
-
-def _run_npm(*args: str) -> bool:
-    npm = shutil.which("npm")
-    if npm is None:
-        print("[frontend] npm introuvable dans le PATH (Node.js >= 22 requis).", flush=True)
-        return False
-    result = subprocess.run([npm, *args], cwd=FRONTEND_DIR, shell=(os.name == "nt"))
-    return result.returncode == 0
-
-
-def _install_frontend_dependencies() -> bool:
-    """Ensure node_modules matches package-lock.json (plain `npm i`).
-
-    Always runs `npm ci` (or `npm install` as fallback) when node_modules is
-    absent; when it exists but is older than package.json/package-lock.json,
-    runs `npm install` so newly added dependencies are picked up without a
-    manual step.
-    """
-    node_modules = FRONTEND_DIR / "node_modules"
-    lock = FRONTEND_DIR / "package-lock.json"
-    pkg = FRONTEND_DIR / "package.json"
-    def _mtime(path: Path) -> float:
-        try:
-            return path.stat().st_mtime
-        except OSError:
-            return 0.0
-    manifest_stamp = max(_mtime(pkg), _mtime(lock))
-    needs_install = not node_modules.is_dir() or _mtime(node_modules) < manifest_stamp
-    if not needs_install:
-        return True
-    print("[frontend] Installation des dépendances npm…", flush=True)
-    if not node_modules.is_dir():
-        if _run_npm("ci"):
-            return True
-    return _run_npm("install")
-
-
-def _ensure_angular_dist() -> Path | None:
-    """Return the Angular build directory, building it on demand.
-
-    The canonical location is <root>/dist/glimio-web-ui (ignored by git). When
-    it is missing, dependencies are installed (`npm ci`/`npm install`) and
-    `npm run build` is executed automatically before serving — no manual npm
-    step is ever required.
-    """
-    existing = _resolve_dist_dir()
-    if existing is not None:
-        return existing
-    if not FRONTEND_DIR.is_dir():
-        return None
-    print(f"[frontend] Build Angular automatique ({FRONTEND_DIR})…", flush=True)
-    if not _install_frontend_dependencies():
-        print("[frontend] Échec de l'installation des dépendances npm.", flush=True)
-        return None
-    # Clear the stale Angular cache and any previous output so a build can never
-    # be poisoned by an old configuration (e.g. a removed legacy CSS entry).
-    shutil.rmtree(FRONTEND_DIR / ".angular", ignore_errors=True)
-    for candidate in (FRONTEND_DIST_ROOT, FRONTEND_DIST_DIR):
-        if candidate.is_dir():
-            shutil.rmtree(candidate, ignore_errors=True)
-    if not _run_npm("run", "build"):
-        print("[frontend] Échec du build Angular.", flush=True)
-        return None
-    built = _resolve_dist_dir()
-    if built is not None:
-        print(f"[frontend] Interface prête : {built}", flush=True)
-    return built
-
-
-STATIC_DIR = _ensure_angular_dist() or FRONTEND_DIST_DIR
+STATIC_DIR = WEB_DIR / "static"
+ANGULAR_STATIC_DIR = STATIC_DIR / "angular"
 DEFAULT_WHISPER_MODEL = "models/asr/model.bin"
 DEFAULT_WHISPER_CLI = "bin/asr/whisper-cli.exe"
 DEFAULT_GGUF = "models/llm/model.gguf"
@@ -205,32 +106,26 @@ app = FastAPI(
     title="Glimio — Audio, transcription et notes", version="0.4.2",
     docs_url="/api/docs", redoc_url=None, lifespan=lifespan,
 )
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+# Optional Angular 22 preview. The stable production UI at "/" remains the fallback
+# until the Angular build passes the documented feature-parity and regression gates.
+if ANGULAR_STATIC_DIR.is_dir():
+    @app.get("/angular", include_in_schema=False)
+    @app.get("/angular/", include_in_schema=False)
+    def angular_preview_index() -> FileResponse:
+        return FileResponse(str(ANGULAR_STATIC_DIR / "index.html"))
 
-# The Angular build is the single front end: hashed assets under /static and a
-# SPA fallback for every non-API GET route (direct navigation and refreshes).
-if STATIC_DIR.is_dir():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-
-@app.get("/{spa_path:path}", include_in_schema=False)
-def angular_spa(spa_path: str) -> Response:
-    index_file = STATIC_DIR / "index.html"
-    if not index_file.is_file():
-        raise HTTPException(
-            status_code=503,
-            detail="Interface Angular absente : lancez « npm run build » dans src/web/frontend.",
-        )
-    candidate = (STATIC_DIR / spa_path).resolve() if spa_path else None
-    if candidate is not None and spa_path:
+    @app.get("/angular/{asset_path:path}", include_in_schema=False)
+    def angular_preview_asset(asset_path: str) -> Response:
+        candidate = (ANGULAR_STATIC_DIR / asset_path).resolve()
         try:
-            candidate.relative_to(STATIC_DIR.resolve())
+            candidate.relative_to(ANGULAR_STATIC_DIR.resolve())
         except ValueError as exc:
             raise HTTPException(status_code=404, detail="Ressource introuvable.") from exc
         if candidate.is_file():
             return FileResponse(str(candidate))
-    # Root URL and unknown paths serve the SPA entry point; the Angular router
-    # resolves the real route client-side.
-    return FileResponse(str(index_file))
+        # SPA route fallback for direct navigation and browser refreshes.
+        return FileResponse(str(ANGULAR_STATIC_DIR / "index.html"))
 
 
 class Settings(BaseModel):
@@ -290,8 +185,6 @@ class JobRequest(BaseModel):
     action: Literal["transcribe", "summarize", "process"]
     session_id: str
     settings: Settings = Field(default_factory=Settings)
-    # When true, ignore durable checkpoints and re-run the stage (e.g. "Refaire le résumé").
-    force: bool = False
 
 
 class RecordRequest(BaseModel):
@@ -771,10 +664,6 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str)
     """Run a session pipeline with durable checkpoints between model stages."""
     payload = _job_payload(job_id)
     checkpoint = payload.get("checkpoint")
-    force = bool(payload.get("force"))
-    if force:
-        # Explicit user re-run (e.g. "Refaire le résumé"): start from scratch for this action.
-        checkpoint = None
 
     def publish(message: str) -> None:
         folded = message.casefold()
@@ -792,10 +681,6 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str)
         current = _job_payload(job_id)
         current.update({"type": "session", "action": action, "session_id": folder.name,
                         "settings": _serialize_model(settings), "checkpoint": value})
-        if not force:
-            # A forced re-run is complete once it finishes; keep the flag so a crash
-            # recovery restarts the stage instead of trusting stale checkpoints.
-            current.pop("force", None)
         current.pop("resume_phase", None)
         _set_job(job_id, session_id=folder.name, _payload=current)
 
@@ -865,6 +750,11 @@ def _run_import_job(job_id: str) -> None:
         except OSError:
             pass
     _run_session_job(action, folder, settings, job_id)
+
+
+@app.get("/", include_in_schema=False)
+def index() -> FileResponse:
+    return FileResponse(str(STATIC_DIR / "index.html"))
 
 
 @app.get("/api/health")
@@ -1305,13 +1195,10 @@ def start_session_job(request: JobRequest) -> dict[str, Any]:
         _run_session_job(request.action, folder, request.settings, job_id)
 
     label = {"transcribe": "Transcription lancée", "summarize": "Résumé lancé", "process": "Traitement complet lancé"}[request.action]
-    if request.force and request.action == "summarize":
-        label = "Régénération du résumé lancée"
     return _start_job(
         request.action, label, worker, session_id=folder.name,
         payload={"type": "session", "action": request.action, "session_id": folder.name,
-                 "settings": _serialize_model(request.settings), "checkpoint": None,
-                 "force": request.force},
+                 "settings": _serialize_model(request.settings), "checkpoint": None},
     )
 
 
@@ -1817,60 +1704,11 @@ def ask_library(request: SearchRequest) -> dict[str, Any]:
     return {"query": request.query, "answer": answer, "sources": passages, "llm_error": None}
 
 
-def _ensure_frontend_build() -> None:
-    """Rebuild the Angular front end on demand before serving.
-
-    By default (GLIMIO_WEB_BUILD unset or "auto") a build is triggered only
-    when no usable dist exists — `python -m web` therefore never requires a
-    manual `npm run build`. With GLIMIO_WEB_BUILD=1/force (Rider's "Start -
-    Web" configuration) the front end is rebuilt on every launch, and sources
-    newer than the previous build also trigger a rebuild automatically.
-    """
-    global STATIC_DIR
-    mode = os.environ.get("GLIMIO_WEB_BUILD", "auto").strip().casefold()
-    force = mode in {"1", "true", "yes", "force"}
-    current = _resolve_dist_dir()
-    fresh = current is not None and current.is_relative_to(FRONTEND_DIST_ROOT)
-    if fresh and not force:
-        # Rebuild when frontend sources are newer than the built bundles.
-        stamp_file = FRONTEND_DIST_ROOT / ".source-stamp"
-        source_stamp = max(
-            (f.stat().st_mtime for f in FRONTEND_DIR.rglob("*")
-             if f.is_file() and "node_modules" not in f.parts and "dist" not in f.parts),
-            default=0.0,
-        )
-        try:
-            fresh = float(stamp_file.read_text(encoding="utf-8")) == source_stamp
-        except (OSError, ValueError):
-            fresh = False
-        if not fresh:
-            print("[frontend] Sources modifiées depuis le dernier build : rebuild…", flush=True)
-    if fresh and not force:
-        return
-    resolved = _ensure_angular_dist()
-    if resolved is None:
-        print("[frontend] Aucun build Angular exploitable ; le serveur démarre quand même.", flush=True)
-        return
-    STATIC_DIR = resolved
-    app.router.routes = [r for r in app.router.routes
-                         if getattr(r, "name", None) != "static"]
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-    source_stamp = max(
-        (f.stat().st_mtime for f in FRONTEND_DIR.rglob("*")
-         if f.is_file() and "node_modules" not in f.parts and "dist" not in f.parts),
-        default=0.0,
-    )
-    FRONTEND_DIST_ROOT.mkdir(parents=True, exist_ok=True)
-    (FRONTEND_DIST_ROOT / ".source-stamp").write_text(str(source_stamp), encoding="utf-8")
-    print(f"[frontend] Interface servie depuis : {STATIC_DIR}", flush=True)
-
-
 def main() -> None:
     try:
         import uvicorn
     except ImportError as exc:
         raise SystemExit('Dépendances web absentes. Installe-les avec : python -m pip install -e ".[web]"') from exc
-    _ensure_frontend_build()
     host = os.environ.get("GLIMIO_WEB_HOST", os.environ.get("SEANCE_WEB_HOST", "127.0.0.1"))
     try:
         port = int(os.environ.get("GLIMIO_WEB_PORT", os.environ.get("SEANCE_WEB_PORT", "8765")))

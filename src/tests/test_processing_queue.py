@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import threading
 import time
 import unittest
@@ -11,17 +10,14 @@ from web.app import _enqueue_job, _get_job_or_404, _start_job
 
 class SerialProcessingQueueTests(unittest.TestCase):
     def test_processing_state_does_not_hide_or_lock_the_record_button(self) -> None:
-        # Full Angular : le contrat est vérifié sur la page recording (le bouton
-        # « Démarrer l'enregistrement » n'est jamais lié à un job de traitement).
-        app = Path(__file__).resolve().parents[1] / "web" / "frontend" / "src" / "app"
-        html = (app / "pages" / "recording" / "recording.page.html").read_text(encoding="utf-8")
-        ts = (app / "pages" / "recording" / "recording.page.ts").read_text(encoding="utf-8")
-        self.assertIn("Démarrer l'enregistrement", html)
-        start_btn = re.search(r'\[disabled\]="([^"]*)"[^>]*\(click\)="startRecording', html)
-        self.assertIsNotNone(start_btn, "Missing startRecording button")
-        for forbidden in ("processingJob", "activeJob"):
-            self.assertNotIn(forbidden, start_btn.group(1), f"Start button locked by {forbidden}")
-        self.assertIn("activeRecording", ts)  # seul l'état d'enregistrement actif pilote la UI
+        project = Path(__file__).resolve().parents[1]
+        jobs_js = (project / "web" / "static" / "js" / "pages" / "jobs.js").read_text(encoding="utf-8")
+        recording_js = (project / "web" / "static" / "js" / "pages" / "recording.js").read_text(encoding="utf-8")
+        state_js = (project / "web" / "static" / "js" / "core" / "state.js").read_text(encoding="utf-8")
+        self.assertIn("state.processingJob = data.queue?.running || null", jobs_js)
+        self.assertIn("state.activeJob = data.active || null", jobs_js)
+        self.assertIn("active recording only", state_js)
+        self.assertIn("const globalJobActive = Boolean(state.activeJob", recording_js)
 
     def test_jobs_run_fifo_and_only_one_processing_worker_runs_at_a_time(self) -> None:
         first_started = threading.Event()

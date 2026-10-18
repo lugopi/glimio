@@ -9,7 +9,7 @@ import re
 import sys
 from pathlib import Path
 
-TOKENS = Path(__file__).resolve().parents[1] / "src" / "web" / "frontend" / "src" / "styles" / "tokens.scss"
+TOKENS = Path(__file__).resolve().parents[1] / "src" / "web" / "frontend" / "src" / "tokens.css"
 TEXT_KEYS = ("--c-text", "--c-muted", "--c-subtle", "--c-success", "--c-warning", "--c-danger")
 
 
