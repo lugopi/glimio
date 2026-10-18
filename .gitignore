@@ -107,3 +107,4 @@ e2e/*.map
 # System Files
 .DS_Store/
 *.pyc
+/dist/
