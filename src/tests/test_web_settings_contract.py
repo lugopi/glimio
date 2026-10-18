@@ -25,19 +25,22 @@ class WebSettingsContractTests(unittest.TestCase):
 
 
     def test_settings_form_paths_match_backend_defaults(self) -> None:
-        html = (Path(__file__).parents[1] / "web" / "static" / "index.html").read_text(encoding="utf-8")
+        # Full Angular : le formulaire ne code plus les chemins en dur ; il
+        # affiche settings.* renvoyé par GET /api/preferences. Contrat : chaque
+        # clé a un champ [ngModel]="value.<clé>" et le modèle du backend fournit
+        # les valeurs par défaut attendues.
+        html = (Path(__file__).parents[1] / "web" / "frontend" / "src" / "app"
+                / "pages" / "settings" / "settings.page.html").read_text(encoding="utf-8")
         expected = {
             "model": DEFAULT_WHISPER_MODEL,
             "whisper_cli": DEFAULT_WHISPER_CLI,
             "gguf": DEFAULT_GGUF,
             "llama_completion": DEFAULT_LLAMA_COMPLETION,
-            "diarization_segmentation_model": "models/diarization/segmentation.onnx",
-            "diarization_embedding_model": "models/diarization/embedding.onnx",
         }
+        defaults = Settings()
         for key, path in expected.items():
-            match = re.search(rf'data-setting="{re.escape(key)}"[^>]*value="([^"]*)"', html)
-            self.assertIsNotNone(match, f"Missing UI field for {key}")
-            self.assertEqual(match.group(1), path, f"UI default mismatch for {key}")
+            self.assertIn(f'[ngModel]="value.{key}"', html, f"Missing UI field for {key}")
+            self.assertEqual(getattr(defaults, key), path, f"Backend default mismatch for {key}")
 
     def test_cli_fallbacks_use_upstream_executable_names(self) -> None:
         src_root = Path(__file__).parents[1]

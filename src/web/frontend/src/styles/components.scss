@@ -727,7 +727,7 @@
   .diarization-settings { padding: 15px 14px 16px; }
 }
 
-/* Glimio 0.4.2 review — keep the source component styles aligned with static/app.css. */
+/* Glimio 0.4.2 review — component styles for the Angular front end (Tailwind v4 layers). */
 @layer components {
   .nav-icon svg { display: block; width: 18px; height: 18px; flex: 0 0 18px; }
   .mobile-nav-toggle .icon { width: 20px; height: 20px; flex: 0 0 20px; }

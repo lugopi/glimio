@@ -42,9 +42,8 @@ include = ["seance*", "web*"]
 
 [tool.setuptools.package-data]
 web = [
-    # The Angular build output mirrored by web.app._sync_angular_build():
-    # hashed JS/CSS bundles, index.html and public/ assets (brand SVG included).
-    "static/*", "static/**/*",
+    # Le build Angular vit hors du code source (<racine>/dist, ignoré par git) ;
+    # `python -m web` le génère à la demande. Aucun dossier src/web/static.
     "frontend/package.json", "frontend/angular.json", "frontend/tsconfig*.json", "frontend/proxy.conf.json",
     "frontend/src/**/*.scss", "frontend/src/**/*.html", "frontend/src/**/*.ts",
     "frontend/public/**/*",
