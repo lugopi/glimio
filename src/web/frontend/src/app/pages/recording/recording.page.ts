@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectorRef, ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Subscription, interval, startWith, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
@@ -29,7 +29,22 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
   readonly formats = ['auto', 'summary', 'daily', 'technical', 'formal', 'brainstorm'];
   readonly speakerCounts = Array.from({ length: 16 }, (_, index) => index + 1);
   readonly visibleJobs = computed(() => this.jobs().slice((this.jobsPage() - 1) * this.pageSize, this.jobsPage() * this.pageSize));
-  readonly activeRecording = computed(() => this.jobsResponse()?.active?.kind === 'recording' ? this.jobsResponse()?.active : this.jobs().find(job => job.kind === 'recording' && ['running', 'stopping'].includes(job.state)) ?? null);
+  readonly activeRecording = computed(() => this.jobsResponse()?.active?.kind === 'recording' ? this.jobsResponse()?.active : this.jobs().find(job => job.kind === 'recording' && ['queued', 'running', 'stopping'].includes(job.state)) ?? null);
+  /** Libellé d'état de l'enregistrement actif (affiché dans la pastille de statut). */
+  readonly recordingStatusText = computed(() => {
+    const job = this.activeRecording();
+    if (!job) return '';
+    if (job.phase === 'preparing') return 'Préparation du micro…';
+    if (job.phase === 'finalizing') return 'Finalisation de la séance…';
+    if (job.state === 'stopping') return 'Arrêt en cours…';
+    return 'Enregistrement en cours';
+  });
+  /** Temps écoulé depuis le début de l'enregistrement, affiché mm:ss (hh:mm:ss au-delà d'une heure). */
+  readonly elapsedLabel = signal('00:00');
+  private elapsedStartMs: number | null = null;
+  private elapsedTick?: Subscription;
+  private lastActiveJobId: string | null = null;
+  private readonly cdr = inject(ChangeDetectorRef);
   readonly starting = signal(false);
   readonly importing = signal(false);
   readonly selectedFile = signal<File | null>(null);
@@ -59,12 +74,63 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
     this.refreshDevices();
     this.refreshJobs();
     this.polling = interval(1500).pipe(startWith(0), switchMap(() => this.api.jobs())).subscribe({
-      next: data => this.jobsResponse.set(data),
+      next: data => { this.jobsResponse.set(data); this.syncElapsedTimer(data); },
       error: error => this.toast.show(`Impossible de récupérer les activités : ${error.message}`, 'error'),
     });
   }
 
-  ngOnDestroy(): void { this.polling?.unsubscribe(); }
+  ngOnDestroy(): void {
+    this.polling?.unsubscribe();
+    this.elapsedTick?.unsubscribe();
+  }
+
+  /** Démarre/arrête le chronomètre d'enregistrement selon l'état du job actif. */
+  private syncElapsedTimer(data: JobsResponse): void {
+    const active = (data.active?.kind === 'recording' ? data.active : null)
+      ?? data.items.find(job => job.kind === 'recording' && ['queued', 'running', 'stopping'].includes(job.state))
+      ?? null;
+    if (!active) {
+      if (this.lastActiveJobId !== null) { this.lastActiveJobId = null; this.resetElapsed(); }
+      return;
+    }
+    if (active.id !== this.lastActiveJobId) {
+      // Nouvel enregistrement : on repart de zéro et on (re)démarre le tick horloge.
+      this.lastActiveJobId = active.id;
+      this.elapsedStartMs = active.started_at ? Date.parse(active.started_at) : null;
+      this.startElapsedTicker();
+      return;
+    }
+    if (!this.elapsedStartMs && active.started_at) {
+      // La capture vient juste de démarrer (started_at rempli par le backend).
+      this.elapsedStartMs = Date.parse(active.started_at);
+    }
+    if (!this.elapsedTick) this.startElapsedTicker();
+  }
+
+  private startElapsedTicker(): void {
+    this.elapsedTick?.unsubscribe();
+    this.updateElapsedLabel();
+    this.elapsedTick = interval(1000).subscribe(() => { this.updateElapsedLabel(); this.cdr.markForCheck(); });
+  }
+
+  private resetElapsed(): void {
+    this.elapsedTick?.unsubscribe();
+    this.elapsedTick = undefined;
+    this.elapsedStartMs = null;
+    this.elapsedLabel.set('00:00');
+  }
+
+  private updateElapsedLabel(): void {
+    let seconds = 0;
+    if (this.elapsedStartMs !== null && Number.isFinite(this.elapsedStartMs)) {
+      seconds = Math.max(0, Math.floor((Date.now() - this.elapsedStartMs) / 1000));
+    }
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    const pad = (value: number) => String(value).padStart(2, '0');
+    this.elapsedLabel.set(hours > 0 ? `${hours}:${pad(minutes)}:${pad(secs)}` : `${pad(minutes)}:${pad(secs)}`);
+  }
 
   private applyPreferences(): void {
     const ui = this.preferences.preferences()?.ui;

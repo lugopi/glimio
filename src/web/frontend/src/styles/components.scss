@@ -846,15 +846,26 @@
   // Liens des documents disponibles.
   .artifact-links { @apply mb-1 flex flex-wrap items-center gap-3.5; }
 
-  // Pied de pagination de la liste des séances.
-  .library-pagination-footer { @apply flex flex-wrap items-center justify-between gap-3 border-t border-border-soft px-4 py-3.5; }
-  .library-pagination-footer .field-label { @apply mb-0; }
+  // Pied de pagination de la liste des séances : discret (petit texte, bordure douce).
+  .library-pagination-footer { @apply flex flex-wrap items-center justify-between gap-3 border-t border-border-soft px-4 py-3.5 text-[0.75rem] text-subtle; }
+  .library-pagination-footer .field-label { @apply mb-0 text-[0.75rem] font-medium text-muted; }
+  // Contrôle « Séances par page » compact et accessible (cible ≥ 32px, libellé associé).
+  .library-pagination-footer .select { @apply min-h-[32px] w-auto shrink-0 rounded-[8px] px-2.5 py-1 text-[0.75rem]; }
 
   // Blocs empilés dans un panneau de contrôle (enregistreur, import) : respiration standard entre chaque carte/champ/bouton.
   .control-panel > * + *, .import-panel > * + * { @apply mt-4; }
   .control-panel > .card-header + *, .control-panel > .eyebrow + * { @apply mt-0; }
   .control-panel > .card-header { @apply mb-[15px]; }
   .control-panel > .section-heading:first-of-type { @apply mt-[22px]; }
+
+  // Panneau de détail de la séance : padding aligné sur la norme du projet (21px comme .card-pad / .import-panel).
+  .session-detail-panel { @apply p-[21px]; }
+  // Espacement standard entre les blocs directs du détail (en-tête, actions, sections).
+  .session-detail-panel > * + * { @apply mt-4; }
+  .session-detail-panel > .detail-header + * { @apply mt-0; }
+  .session-processing-options { @apply rounded-xl bg-surface-raised p-4; }
+  .artifact-content { @apply mt-3; }
+  .audio-track-list > * + * { @apply mt-3; }
 
   // Grilles internes : écart garanti entre les cartes (sources, appareils, workflows).
   .source-options, .device-grid, .workflow-options { @apply gap-3; }

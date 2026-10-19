@@ -25,12 +25,23 @@
           </div>
           <div class="card-actions">
             @if (activeRecording()) {
-              <button class="btn btn--danger" type="button" [disabled]="activeRecording()?.phase !== 'recording'" (click)="stopRecording()">Arrêter l'enregistrement</button>
+              <!-- Rangée unique : pastille + état + timer + bouton Arrêter (régression post-migration corrigée). -->
+              <div class="record-status"
+                   [class.is-recording]="activeRecording()?.state === 'running' && activeRecording()?.phase === 'recording'"
+                   [class.is-stopping]="activeRecording()?.state === 'stopping' || activeRecording()?.phase === 'finalizing'"
+                   [class.is-processing]="activeRecording()?.phase === 'preparing'"
+                   role="status" aria-live="polite">
+                <span class="status-dot" aria-hidden="true"></span>
+                <span id="record-status-text">{{ recordingStatusText() }}</span>
+                <strong>{{ elapsedLabel() }}</strong>
+                <button class="btn btn--danger btn--small" id="stop-recording" type="button"
+                        [disabled]="activeRecording()?.phase !== 'recording'" (click)="stopRecording()">Arrêter</button>
+              </div>
             } @else {
               <button class="btn btn--primary" type="button" [disabled]="starting() || (!captureMicrophone && !captureWindows)" (click)="startRecording()">@if (starting()) { Préparation… } @else { <glimio-icon name="microphone" /> Démarrer l'enregistrement }</button>
             }
           </div>
-          @if (activeRecording()) { <p class="field-note" aria-live="polite">{{ activeRecording()?.message || 'Enregistrement en cours…' }}</p> }
+          @if (activeRecording() && activeRecording()?.message) { <p class="field-note" aria-live="polite">{{ activeRecording()?.message }}</p> }
         </section>
 
         <section class="card control-panel import-panel">
