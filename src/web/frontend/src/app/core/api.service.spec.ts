@@ -29,7 +29,7 @@ describe('ApiService', () => {
     api.startSessionJob('transcribe', 'session-1', settings).subscribe(job => expect(job.id).toBe('job-1'));
     const request = http.expectOne('/api/jobs');
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ action: 'transcribe', session_id: 'session-1', settings });
+    expect(request.request.body).toEqual({ action: 'transcribe', session_id: 'session-1', settings, force: false });
     request.flush({ id: 'job-1', kind: 'transcribe', state: 'queued', phase: 'queued' });
   });
 });
