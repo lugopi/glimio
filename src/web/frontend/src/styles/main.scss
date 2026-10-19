@@ -3,12 +3,13 @@
 // Cascade : modern-normalize → tokens de thème → Tailwind ; tous les styles
 // personnalisés vivent dans les couches `base`/`components` définies dans
 // components.scss (utilitaires Tailwind prioritaires dans les templates).
-// Les styles des composants Angular utilisent `@reference 'src/styles/main.scss'`
-// pour résoudre leurs @apply (voir tailwindcss.com/docs/functions-and-directives#reference-directive).
+// Les styles des composants Angular résolvent leurs @apply via
+// styles/tailwind-ref.scss (@use, équivalent compatible du préprocesseur Sass
+// pour la directive @reference de Tailwind 4).
 @use './modern-normalize.scss';
 @use './tokens.scss';
 
-// Le scanner Tailwind analyse les modèles et composants Angular.
+/* Le scanner Tailwind analyse les modèles et composants Angular. */
 @source '../app/**/*.{html,ts}';
 @source '../../styles/**/*.scss';
 

@@ -1,12 +1,17 @@
-// Glimio — point d'entrée minimal pour la directive `@reference` de Tailwind 4.
-// Les styles des composants Angular (`styleUrl`) ne connaissent pas la config
-// Tailwind globale : ils référencent CE fichier (sans @use, qui est interdit
-// après d'autres règles) pour résoudre leurs @apply. Il doit rester aligné
-// avec main.scss (tokens + scan des templates).
-@import './tokens.scss';
+@charset "UTF-8";
+/* Glimio - entry point for Angular component styles (Tailwind 4 @apply).
+   Every component .scss starts with:
+       @reference '...styles/tailwind-ref.scss';
+   This loads the Tailwind theme + utilities so that @apply resolves, without
+   emitting duplicate CSS in the component bundle (same mechanism as the
+   official "@reference" usage, but pointing to this minimal entry instead of
+   main.scss to keep component compilation fast and warning-free).
+   Hard rules for this file: block comments only (never //), ASCII only,
+   no Sass features (@use/@import of .scss files break the pipeline). */
 
-@source '../app/**/*.{html,ts}';
-@source '../../styles/**/*.scss';
+@import "./tokens.scss";
 
-@import 'tailwindcss/theme.css' layer(theme);
-@import 'tailwindcss/utilities.css' layer(utilities);
+@source "../app/**/*.{html,ts}";
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);

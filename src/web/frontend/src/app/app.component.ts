@@ -29,9 +29,13 @@ export class AppComponent implements OnInit {
   readonly currentPage = signal('Enregistrement');
 
   /**
-   * Logo Glimio injecté en ligne (inline) : ses calques SVG utilisent
-   * currentColor et var(--brand-shadow), définis par .brand-mark selon le
+   * Logo Glimio injecté en ligne (inline) : ses calques « main » utilisent
+   * currentColor (couleur d'accent du thème) et son calque « shadows » la
+   * variable --brand-shadow, toutes deux définies par .brand-mark selon le
    * thème courant — le branding change donc de couleur avec le thème.
+   * Le fichier public/brand/glimio.svg est nettoyé des métadonnées Inkscape ;
+   * le nettoyage ci-dessous reste un repli défensif (déclaration XML,
+   * commentaires, attributs sodipodi:/inkscape:).
    */
   private readonly http = inject(HttpClient);
   private readonly sanitizer = inject(DomSanitizer);
@@ -39,10 +43,15 @@ export class AppComponent implements OnInit {
   readonly brandLogo = computed<SafeHtml | null>(() => {
     const svg = this.rawBrandLogo();
     if (!svg) return null;
-    // La déclaration XML et les commentaires Inkscape ne sont pas valides en HTML.
     const cleaned = svg
+      // Déclaration XML et commentaires (non valides en HTML inline).
       .replace(/<\?xml[^>]*\?>/g, '')
-      .replace(/<!--[\s\S]*?-->/g, '');
+      .replace(/<!--[\s\S]*?-->/g, '')
+      // Métadonnées Inkscape : éléments nommés…
+      .replace(/<(defs|metadata|namedview)\b[\s\S]*?<\/\1>/g, '')
+      .replace(/<(defs|metadata|namedview)\b[^>]*\/>/g, '')
+      // …et attributs d'espace de noms restants (sodipodi:, inkscape:).
+      .replace(/\s(?:sodipodi|inkscape):[a-zA-Z-]+="[^"]*"/g, '');
     return this.sanitizer.bypassSecurityTrustHtml(cleaned);
   });
 
