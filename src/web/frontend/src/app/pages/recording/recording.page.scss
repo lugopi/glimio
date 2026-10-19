@@ -2,6 +2,11 @@
 
 :host { @apply block min-w-0; }
 :host .control-grid > *, :host .device-grid > * { @apply min-w-0; }
+
+:host .common-processing-fields > div { @apply min-w-0; }
+:host .common-processing-fields .field-label { @apply mb-2; }
+:host .common-processing-fields .field-note { @apply mt-2; }
+:host .common-processing-fields .diarize-card { @apply mt-0 items-start; }
 :host .audio-source-builder { @apply mt-2 grid min-w-0 gap-3; }
 :host .source-add-row { display: grid; grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr) auto; align-items: end; gap: 10px; min-width: 0; }
 :host .source-add-row > * { min-width: 0; }

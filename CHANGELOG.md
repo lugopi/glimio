@@ -1,5 +1,16 @@
 # Changelog
 
+## Passe complémentaire UI, Sass et tests — 2026-10-19
+
+- Bibliothèque : dimensions explicites pour l’icône de durée, badge d’état aligné sur la première ligne du texte, panneaux des onglets encadrés et arrondis de façon cohérente.
+- Pagination : plage visible aussi avec plusieurs pages, résumé aligné à droite quand il n’y a qu’une page, commandes compactées en fonction de la largeur réelle du composant et choix du nombre d’extraits par page dans la recherche.
+- Recherche intelligente : extraits présentés comme des cartes de séance, espaces homogènes, pagination et taille de page cohérentes.
+- Formulaires et mise en page : cases/radios alignés sur la première ligne de leur libellé, hauteur/marge de « Nombre d’interlocuteurs » normalisée et titre de page plus compact.
+- Styles : entrée Tailwind 4 isolée dans un fichier CSS simple, composition Sass via `@use`, styles Markdown partagés, règles de la Bibliothèque réduites pour rester sous le budget de style de composant.
+- Paramètres : les trois poids tiers ouvrent désormais leur page/release manuelle plutôt que de dépendre d’une URL directe de téléchargement ; les confirmations de licence/conditions restent nécessaires.
+- Outillage : Node.js minimal indiqué explicitement (`22.22.3` sur la branche 22), import de `web.app` sans build frontend implicite, et configuration de lancement IDE ramenée à des chemins de projet plutôt qu’à des chemins locaux figés.
+- Tests : suppression de trois assertions visuelles/structurelles trop fragiles et ajout de contrats centrés sur les comportements partagés. Validation Python : 111 tests réussis, `compileall` et vérification des paires de jetons de contraste réussis. Le build Angular n’a pas été validé dans cet environnement : il fournit Node `22.16.0` (trop ancien pour Angular 22.2.3), et `npm ci` n’a pas terminé correctement.
+
 ## Correctifs prioritaires build Angular et modèles — 2026-10-19
 
 - Compilation : ajout explicite de `IconComponent` aux imports de `PaginationComponent`, supprimant la cause des erreurs `NG8001` du composant de pagination ; suppression du `?? []` redondant ciblé par `NG8102`.

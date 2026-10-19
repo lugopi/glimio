@@ -1,20 +1,7 @@
-// Glimio — feuille de style globale (Angular + Tailwind 4 via @tailwindcss/postcss).
-//
-// Cascade : modern-normalize → tokens de thème → Tailwind ; tous les styles
-// personnalisés vivent dans les couches `base`/`components` définies dans
-// components.scss (utilitaires Tailwind prioritaires dans les templates).
-// Les styles des composants Angular résolvent leurs @apply via
-// styles/tailwind-ref.scss (@use, équivalent compatible du préprocesseur Sass
-// pour la directive @reference de Tailwind 4).
+// Global Sass styles and tokens; Tailwind CSS utilities are generated in tailwind.css.
 @use './modern-normalize.scss';
 @use './tokens.scss';
+@use './components.scss';
 
-/* Le scanner Tailwind analyse les modèles et composants Angular. */
-@source '../app/**/*.{html,ts}';
-@source '../../styles/**/*.scss';
-
-@import 'tailwindcss';
-
-@layer base, tokens, components;
-
-@import './components.scss';
+// Make Tailwind's theme/utilities available to global @apply rules without a deprecated Sass @import.
+@reference './tailwind-ref.scss';

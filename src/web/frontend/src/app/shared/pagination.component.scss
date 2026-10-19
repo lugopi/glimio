@@ -1,10 +1,10 @@
 @reference '../../styles/tailwind-ref.scss';
 
-:host { @apply block min-w-0; }
-.pagination { @apply flex min-w-0 items-center justify-between gap-3; }
-.pagination-summary { @apply m-0 text-xs text-muted; font-variant-numeric: tabular-nums; }
-.pagination-controls { @apply flex w-full min-w-0 flex-nowrap items-center justify-end gap-1.5; }
-.pagination-pages { @apply flex flex-nowrap items-center gap-1; }
+:host { @apply block min-w-0; container-type: inline-size; }
+.pagination { @apply flex w-full min-w-0 flex-nowrap items-center justify-end gap-3; }
+.pagination-summary { @apply m-0 shrink-0 whitespace-nowrap text-xs text-muted; font-variant-numeric: tabular-nums; }
+.pagination-controls { @apply flex min-w-0 flex-1 flex-nowrap items-center justify-end gap-1.5; }
+.pagination-pages { @apply flex min-w-0 flex-nowrap items-center gap-1; }
 .pagination-arrow, .pagination-page { @apply inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface-raised px-2 text-xs font-semibold text-text; }
 .pagination-arrow { @apply px-2.5; }
 .pagination-arrow glimio-icon { @apply inline-flex size-4 shrink-0 items-center justify-center; font-size: 1rem; }
@@ -14,13 +14,28 @@
 .pagination-page.is-current { @apply border-accent bg-accent-soft text-accent; }
 .pagination-page[aria-current="page"] { outline: 1px solid color-mix(in srgb, var(--c-accent) 35%, transparent); outline-offset: 1px; }
 .pagination-arrow:focus-visible, .pagination-page:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
-.pagination-ellipsis { @apply inline-flex min-h-9 min-w-5 items-center justify-center text-muted; }
+.pagination-ellipsis { @apply inline-flex min-h-9 min-w-4 items-center justify-center text-muted; }
 @media (max-width: 520px) {
-  .pagination { @apply min-w-0; }
-  .pagination-controls { @apply w-full justify-between gap-1; }
-  .pagination-arrow { @apply px-2; }
+  .pagination { @apply gap-2; }
+  .pagination-summary { @apply text-[0.6875rem]; }
+  .pagination-controls { @apply flex-1 gap-0.5; }
+  .pagination-arrow { @apply min-w-8 px-1.5; }
   .pagination-arrow span { @apply sr-only; }
-  .pagination-pages { @apply min-w-0 gap-0.5; }
-  .pagination-page { @apply min-w-8 px-1; }
-  .pagination-ellipsis { @apply min-w-3; }
+  .pagination-pages { @apply gap-0; }
+  .pagination-page { @apply min-w-7 px-1; }
+  .pagination-ellipsis { @apply min-w-2; }
+}
+
+/* Component-width queries handle narrow cards as well as narrow viewports. */
+@container (max-width: 400px) {
+  .pagination { @apply gap-1.5; }
+  .pagination-arrow { @apply min-w-7 px-1; }
+  .pagination-arrow span { @apply sr-only; }
+  .pagination-page { @apply min-w-7 px-1; }
+}
+@container (max-width: 300px) {
+  .pagination { @apply gap-1; }
+  .pagination-summary { @apply text-[0.625rem]; }
+  .pagination-controls { @apply gap-1; }
+  .pagination-pages { display: none; }
 }

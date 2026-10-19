@@ -8,7 +8,8 @@
   button:disabled { @apply cursor-not-allowed opacity-50; }
   input, select, textarea { color: inherit; }
   input[type="checkbox"], input[type="radio"] {
-    @apply size-4 shrink-0 accent-accent;
+    @apply inline-block size-4 shrink-0 accent-accent;
+    margin: 0;
     vertical-align: middle;
   }
   a { color: var(--c-accent); text-decoration: none; }
@@ -44,7 +45,7 @@
   .sidebar-path { @apply overflow-hidden px-2.5; }
   .sidebar-path small { @apply mb-[7px] block font-mono text-[0.75rem] tracking-[1px] text-subtle; }
   .sidebar-path code { @apply font-mono text-[0.75rem] text-muted; overflow-wrap: anywhere; }
-  .main-area { @apply col-start-2 mx-auto grid w-full min-w-0 max-w-[1780px] content-start gap-[18px] px-[34px] pb-8; }
+  .main-area { @apply col-start-2 mx-auto grid w-full min-w-0 max-w-[1780px] content-start gap-3 px-[34px] pb-8; }
   .topbar { @apply mb-0 flex min-h-[68px] items-center justify-between gap-5 border-b border-border-soft; }
   .breadcrumbs { @apply flex items-center gap-[9px] text-xs text-subtle; }
   .breadcrumbs strong { @apply font-semibold text-text; }
@@ -55,10 +56,10 @@
   .language-select { @apply min-h-[35px] px-2 py-[7px]; width: 95px; max-width: 105px; }
   .view { @apply hidden pb-11; }
   .view.is-active { @apply block; }
-  .page-heading { @apply mb-[27px] flex items-end justify-between gap-5; }
-  .eyebrow { @apply mb-[9px] text-accent; }
+  .page-heading { @apply mb-3 flex items-end justify-between gap-4; }
+  .eyebrow { @apply mb-1 text-accent; }
   .page-heading h1 { margin: 0; font-size: clamp(1.5625rem, 2.1vw, 2rem); font-weight: 750; letter-spacing: -1px; line-height: 1.2; }
-  .subheading { @apply mt-2.5 text-[0.8125rem] leading-[1.65] text-muted; max-width: 740px; }
+  .subheading { @apply mt-1.5 text-[0.8125rem] leading-[1.65] text-muted; max-width: 740px; }
   .btn { @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-[10px] border border-transparent px-[15px] py-2.5 text-center text-xs font-semibold leading-[1.2] whitespace-nowrap transition; }
   .btn:hover:not(:disabled) { @apply -translate-y-px; }
   .btn:disabled:not(.is-loading) { @apply cursor-not-allowed; }
@@ -213,7 +214,7 @@
   .source-options { @apply grid grid-cols-2 gap-[9px]; }
   .source-card, .choice-card, .diarize-card { @apply flex min-w-0 cursor-pointer items-start gap-2.5 rounded-[11px] border border-border bg-surface-raised p-[13px]; }
   .source-card:has(input:checked), .choice-card:has(input:checked), .diarize-card:has(input:checked) { border-color: color-mix(in srgb, var(--c-accent) 52%, var(--c-border)); background: var(--c-accent-soft); }
-  .source-card input, .choice-card input, .diarize-card input { @apply mt-[3px] accent-accent; margin-bottom: 0; }
+  .source-card input, .choice-card input, .diarize-card input { @apply mt-0.5 accent-accent; margin-bottom: 0; }
   .source-card strong, .choice-card strong, .diarize-card strong { display: block; font-size: .8125rem; font-weight: 700; }
   .source-card small, .choice-card small, .diarize-card small { @apply mt-[5px] block text-[0.75rem] leading-[1.55] text-muted; }
   .is-disabled-source { opacity: .52; }
@@ -696,7 +697,7 @@
   .session-list-wrap, .session-detail { min-height: 480px; }
   .session-detail { display: flex; flex-direction: column; }
   .shared-processing-content { grid-template-columns: minmax(0, 1fr) minmax(220px, .65fr); align-items: stretch; }
-  .shared-processing-content .diarize-card { height: 100%; align-items: center; }
+  .shared-processing-content .diarize-card { height: 100%; margin-top: 0; align-items: flex-start; }
   .processing-settings-hint { align-self: center; }
   .license-notice { width: 100%; min-width: 0; }
   .settings-footer + .license-notice { margin-top: 12px; padding-top: 23px; border-top: 1px solid var(--c-border-soft); }
@@ -985,18 +986,29 @@
 .artifact-rendered th { background: var(--c-surface); color: var(--c-text); font-weight: 700; }
 .artifact-rendered tbody tr:last-child td { border-bottom: 0; }
   .artifact-rendered img, .artifact-rendered video, .artifact-rendered svg { max-width: 100%; height: auto; }
+  .available-documents .artifact-content-pane { @apply min-w-0 rounded-b-xl border border-border-soft bg-surface-raised p-4; overflow-wrap: anywhere; }
+  .available-documents .artifact-content-pane > .artifact-rendered { @apply m-0 rounded-none border-0 bg-transparent p-0; }
+  .available-documents .artifact-content-pane > .artifact-loading { @apply py-1; }
 }
 
 
 /* Final alignment pass: controls, job badges and compact pagination follow the same baseline. */
 @layer components {
-  .source-card > input[type="checkbox"], .choice-card > input[type="radio"],
-  .diarize-card > input[type="checkbox"], .settings-license-check > input[type="checkbox"] {
-    @apply mt-1 shrink-0;
-    margin-bottom: 0;
-    align-self: flex-start;
+  label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) {
+    @apply flex items-start gap-2.5;
   }
-  .settings-license-check { @apply items-start; }
+  label:has(> input[type="checkbox"]) > input,
+  label:has(> input[type="radio"]) > input {
+    @apply mt-0.5 shrink-0 self-start;
+    margin-bottom: 0;
+    flex: 0 0 1rem;
+  }
+  label:has(> input[type="checkbox"]) > span,
+  label:has(> input[type="radio"]) > span {
+    @apply min-w-0 flex-1;
+  }
+  .source-card, .choice-card, .diarize-card, .settings-license-check { @apply items-start gap-2.5; }
+  .source-card > span, .choice-card > span, .diarize-card > span, .settings-license-check > span { @apply min-w-0 flex-1; }
   .job-row { @apply items-center; }
   .job-row > .job-icon, .job-row > .job-main, .job-row > .job-state { @apply self-center; }
   .job-row-delete { top: 50%; transform: translateY(-50%); }

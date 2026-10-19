@@ -36,12 +36,12 @@
               <span class="session-card-description">{{ session.summary_excerpt || (session.transcript ? 'Transcription disponible' : session.audio ? 'Audio disponible' : 'Aucun document reconnu pour le moment.') }}</span>
             </button>
             @if (session.processing; as processing) {
-              <button class="session-card-progress session-card-status-button" type="button" (click)="openSession(session.id)" [attr.aria-label]="'Ouvrir la séance ' + session.title + ' — ' + processingStateLabel(processing.state)" aria-live="polite" aria-atomic="true" [class.is-error]="processing.state === 'error'" [class.is-completed]="processing.state === 'completed'">
+              <div class="session-card-progress session-card-status" role="status" aria-live="polite" aria-atomic="true" [class.is-error]="processing.state === 'error'" [class.is-completed]="processing.state === 'completed'">
                 @if (processing.active) { <span class="spinner" aria-hidden="true"></span> }
                 @else if (processing.state === 'completed') { <glimio-icon name="check-circle" /> }
                 @else if (processing.state === 'error') { <glimio-icon name="information-circle" /> }
                 <span><strong>{{ processingStateLabel(processing.state) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processing.error) { <span> · {{ processing.error }}</span> }</span>
-              </button>
+              </div>
             }
           </article>
         } @empty {
@@ -105,7 +105,7 @@
               @if (session.summary) { <button id="artifact-tab-summary" class="artifact-tab" role="tab" type="button" aria-controls="artifact-content-pane" [attr.tabindex]="artifactKind() === 'summary' ? 0 : -1" [attr.aria-selected]="artifactKind() === 'summary'" [class.is-active]="artifactKind() === 'summary'" (keydown)="onArtifactTabKeydown($event, 'summary')" (click)="loadArtifact('summary')"><glimio-icon name="sparkles" /> Résumé</button> }
               @if (session.transcript) { <button id="artifact-tab-transcript" class="artifact-tab" role="tab" type="button" aria-controls="artifact-content-pane" [attr.tabindex]="artifactKind() === 'transcript' ? 0 : -1" [attr.aria-selected]="artifactKind() === 'transcript'" [class.is-active]="artifactKind() === 'transcript'" (keydown)="onArtifactTabKeydown($event, 'transcript')" (click)="loadArtifact('transcript')"><glimio-icon name="document-text" /> Transcription</button> }
             </div>
-            <div id="artifact-content-pane" role="tabpanel" tabindex="0" [attr.aria-labelledby]="artifactKind() === 'transcript' ? 'artifact-tab-transcript' : 'artifact-tab-summary'">
+            <div class="artifact-content-pane" id="artifact-content-pane" role="tabpanel" tabindex="0" [attr.aria-labelledby]="artifactKind() === 'transcript' ? 'artifact-tab-transcript' : 'artifact-tab-summary'">
               @if (artifactLoading()) { <div class="artifact-loading" role="status"><span class="spinner" aria-hidden="true"></span> Chargement du contenu…</div> }
               @else if (artifactContent()) { <article class="artifact-rendered" [innerHTML]="artifactHtml()"></article> }
             </div>

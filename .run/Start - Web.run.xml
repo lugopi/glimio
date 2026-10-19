@@ -1,4 +1,4 @@
-﻿<component name="ProjectRunConfigurationManager">
+<component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Start - Web" type="PythonConfigurationType" factoryName="Python">
     <module name="rider.module" />
     <option name="ENV_FILES" value="" />
@@ -6,12 +6,11 @@
     <option name="PARENT_ENVS" value="true" />
     <envs>
       <env name="PYTHONUNBUFFERED" value="1" />
-      <env name="GLIMIO_WEB_BUILD" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="L:\Documents\ChatGPT\glimio_A\.venv" />
-    <option name="WORKING_DIRECTORY" value="L:\Documents\ChatGPT\audioText" />
-    <option name="IS_MODULE_SDK" value="false" />
+    <option name="SDK_NAME" value="" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="IS_MODULE_SDK" value="true" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <option name="DEBUG_JUST_MY_CODE" value="false" />
@@ -23,8 +22,6 @@
     <option name="MODULE_MODE" value="true" />
     <option name="REDIRECT_INPUT" value="false" />
     <option name="INPUT_FILE" value="" />
-    <method v="2">
-      <option name="NPM_SCRIPT" packageName="$PROJECT_DIR$/src/web/frontend/package.json" scriptName="build" cliArguments="" />
-    </method>
+    <method v="2" />
   </configuration>
 </component>

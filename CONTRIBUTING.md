@@ -6,13 +6,12 @@ Merci de contribuer. Glimio est encore en développement ; les interfaces et les
 
 1. Décris le problème et le changement visible/utilisateur.
 2. Ajoute des tests pour tout comportement modifié.
-3. Lance `python -m unittest discover -s src/tests -v` depuis la racine.
-4. Vérifie les modules JavaScript modifiés avec `node --check <fichier.js>`.
-5. Si tu changes l'interface, garde synchronisés le CSS runtime (`src/web/static/app.css`) et ses sources (`src/web/frontend/src/`).
-6. Si tu ajoutes une chaîne d'interface, ajoute-la à `src/web/static/locales/fr.json` et `en.json`. Ne traduis pas le contenu utilisateur, les transcriptions ou les citations.
+3. Lance `python -m pytest -q src/tests` depuis la racine.
+4. Pour tout changement Angular, depuis `src/web/frontend`, exécute `npm ci`, `npm run typecheck`, `npm test` et `npm run build`.
+5. Ajoute des tests qui protègent le comportement observable : règles métier, réponses API, import/normalisation audio, persistance, pagination, navigation et licences. Évite les snapshots qui figent des détails de CSS ou des métadonnées SVG sans impact utilisateur.
+6. Les composants Angular séparent logique, template et styles. Utilise les utilitaires Tailwind 4 via `@reference`/`@apply` et `src/styles/tailwind.css` ; conserve les règles réellement partagées dans `src/styles/components.scss`. Suis aussi les conventions et commandes de [`docs/ANGULAR_22_MIGRATION.md`](docs/ANGULAR_22_MIGRATION.md).
 7. N'ajoute pas de poids IA, d'exécutables, de captures audio utilisateur, de données de séance ou de secrets dans un commit.
 8. Mets à jour `CHANGELOG.md` et incrémente la version `0.x` dans `pyproject.toml`, `src/web/app.py` et `src/web/frontend/package.json` quand c'est pertinent.
-9. Pour la migration Angular 22, suis `docs/ANGULAR_22_MIGRATION.md` et ne remplace pas la page d'entrée stable avant que les tests de parité, d'accessibilité et de non-régression soient tous passés.
 
 ## Modèles et dépendances
 

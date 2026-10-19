@@ -22,7 +22,7 @@ Glimio est une application de bureau locale avec une interface web qui aide à e
 - **Diarisation facultative** : segmentation et regroupement de voix avec des modèles ONNX configurables.
 - **Résumés et notes** : génération locale par llama.cpp et un modèle GGUF.
 - **Bibliothèque** : recherche, filtres, pagination, audio, résumés, transcriptions, options de traitement par séance, renommage et suppression.
-- **Interface cohérente** : les icônes fonctionnelles utilisent le sprite local Heroicons v2 Outline (`src/web/static/vendor/heroicons/heroicons.svg`) ; le menu mobile possède une grande cible tactile et se ferme avec Échap ou après navigation.
+- **Interface cohérente** : les icônes fonctionnelles utilisent `glimio-icon` et `@ng-icons/heroicons` ; les commandes partagées conservent un focus clavier visible et des libellés accessibles.
 - **Recherche multi-séances** : retrouve des passages et prépare une réponse à partir des sources correspondantes.
 - **Interface bilingue** : français et anglais, avec préférence persistée dans le navigateur et catalogues hors ligne.
 - **Traitements durables** : file d’attente, état des tâches et points de reprise conservés en SQLite.
@@ -32,6 +32,7 @@ Les transcriptions et résumés issus de modèles peuvent être erronés. Vérif
 ## Prérequis
 
 - Python **3.10+** et `pip`.
+- Node.js **22.22.3+** (branche 22) ou une version compatible plus récente pour compiler l’interface Angular ; la version cible est définie dans `src/web/frontend/.nvmrc`.
 - Windows recommandé pour la capture de l’audio système ; les possibilités dépendent du système et des pilotes.
 - FFmpeg sur le `PATH` pour les imports nécessitant une conversion.
 - whisper.cpp et son modèle Whisper pour la transcription.
@@ -98,7 +99,7 @@ La capture et l’analyse audio peuvent traiter des informations personnelles. O
 
 ### Structure des composants Angular
 
-Les composants Angular sont séparés en trois fichiers : `*.component.ts` ou `*.page.ts` pour la logique, le fichier `.html` associé pour le template et le fichier `.scss` associé pour les styles propres au composant. Les styles partagés de l’interface restent dans les feuilles globales tant que leur migration composant par composant n’a pas été vérifiée visuellement. Les composants doivent utiliser le composant partagé `glimio-icon` pour les icônes Heroicons ; le logo de marque est l’asset vectoriel `src/web/static/brand/glimio.svg`.
+Les composants Angular sont séparés en fichiers `*.ts`, `*.html` et `*.scss`. Les styles partagés restent dans `src/web/frontend/src/styles/components.scss` ; les utilitaires Tailwind CSS 4 sont générés depuis l’entrée CSS `src/styles/tailwind.css`, et les composants utilisent `@reference` puis `@apply` pour réutiliser ces utilitaires. Les composants doivent utiliser le composant partagé `glimio-icon` pour les icônes Heroicons ; le logo Angular est servi depuis `src/web/frontend/public/brand/`.
 
 ## Développement et tests
 
@@ -114,30 +115,20 @@ Contrôle de contraste des principaux jetons de thème :
 .\.venv\Scripts\python.exe scripts/check_theme_contrast.py
 ```
 
-Vérification JavaScript (Node.js requis) :
+### Interface web — Angular 22, Tailwind CSS 4
+
+L’interface servie à `/` est l’application Angular 22 ; FastAPI fournit l’API `/api/*` et sert le build Angular depuis `dist/glimio-web-ui`. Lorsqu’on démarre le serveur via le point d’entrée du projet, le build de l’interface est vérifié et reconstruit si nécessaire. Un simple import de `web.app` n’installe toutefois pas les dépendances et ne lance pas npm : les tests API peuvent s’exécuter indépendamment du build frontend.
+
+Utilise Node.js `22.22.3+` dans la branche 22 (ou une version compatible de la branche 24/26 ; la version cible 22.22.3 est dans `.nvmrc`). Les versions plus anciennes peuvent produire des avertissements `EBADENGINE` et ne constituent pas un environnement pris en charge. Depuis `src/web/frontend`, installe les dépendances verrouillées et exécute les contrôles dans cet ordre :
 
 ```powershell
-node --check src/web/static/js/app.js
-node --check src/web/static/js/pages/recording.js
-node --check src/web/static/js/pages/library.js
-```
-
-### Interface web — migration Angular 22 en cours
-
-L’interface actuellement servie à `/` reste la version stable en JavaScript pendant que l’application Angular 22 est portée et vérifiée. Le backend demeure en FastAPI/Python. Voir [`docs/ANGULAR_22_MIGRATION.md`](docs/ANGULAR_22_MIGRATION.md) pour l’architecture cible, les contraintes de versions et les critères de bascule.
-
-Angular 22 requiert Node.js `22.22.3+` dans la branche 22 (ou une version compatible de la branche 24/26). Depuis `src/web/frontend` :
-
-```powershell
-npm install
+npm ci
 npm run typecheck
 npm test
 npm run build
 ```
 
-Le build Angular est disponible en aperçu à `/angular/` après redémarrage du serveur FastAPI. Il ne remplace pas encore l’interface stable : la bascule n’aura lieu qu’après validation de la parité fonctionnelle et des tests de non-régression. Pour régénérer le CSS de la version stable pendant cette transition, utilise `npm run build:legacy-css`.
-
-Garde le CSS livré (`src/web/static/app.css`) synchronisé avec ses sources Tailwind. Pour les nouvelles chaînes UI de la version stable, modifie les catalogues `src/web/static/locales/fr.json` et `en.json` et ajoute un test. La suite automatisée ne remplace pas des essais manuels sur le matériel audio, les navigateurs et les lecteurs d’écran. La conformité WCAG AAA n’est pas certifiée. Le rapport [`ACCESSIBILITY_AUDIT.md`](ACCESSIBILITY_AUDIT.md) détaille les vérifications et les limites ; Glimio ne revendique pas une conformité WCAG globale certifiée.
+La suite Python se lance séparément à la racine avec `python -m pytest -q src/tests`. Les sources sous `src/web/static/` sont des fichiers historiques et ne constituent pas le point d’entrée de l’application Angular. La suite automatisée ne remplace pas les essais manuels sur le matériel audio, les navigateurs et les lecteurs d’écran. La conformité WCAG AAA n’est pas certifiée. Le rapport [`ACCESSIBILITY_AUDIT.md`](ACCESSIBILITY_AUDIT.md) détaille les vérifications et les limites ; Glimio ne revendique pas une conformité WCAG globale certifiée.
 
 ## Git et contribution
 

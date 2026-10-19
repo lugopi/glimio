@@ -96,7 +96,7 @@ def _build_frontend() -> None:
     except (OSError, subprocess.CalledProcessError) as exc:
         raise SystemExit(
             f"Le build Angular a échoué : {exc}\n"
-            "Vérifiez que Node.js (>= 22) et npm sont installés et sur le PATH."
+            "Vérifiez que Node.js 22.22.3+ (ou une version compatible 24/26) et npm sont installés et sur le PATH."
         ) from exc
 
 
@@ -192,9 +192,9 @@ app = FastAPI(
     title="Glimio — Audio, transcription et notes", version="0.4.2",
     docs_url="/api/docs", redoc_url=None, lifespan=lifespan,
 )
-# The Angular SPA is the whole front-end. Resolve its build (auto npm ci + ng build
-# on first run) and mount it directly; there is no legacy static folder anymore.
-ANGULAR_DIST_DIR = _ensure_angular_dist()
+# Keep module imports side-effect free: tests and tooling may import the API without
+# Node.js installed. ``main()`` ensures the Angular build before starting the server.
+# The Angular SPA is mounted from ``dist/glimio-web-ui``; there is no legacy UI.
 
 
 def _angular_file(relative: str) -> Path | None:

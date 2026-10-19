@@ -1,0 +1,27 @@
+/* Tailwind CSS v4 entrypoint: this must remain plain CSS. */
+@import "tailwindcss";
+@source "../app/**/*.{html,ts}";
+@source "./**/*.scss";
+
+@theme inline {
+  --color-canvas: var(--c-canvas);
+  --color-sidebar: var(--c-sidebar);
+  --color-surface: var(--c-surface);
+  --color-surface-raised: var(--c-surface-raised);
+  --color-surface-hover: var(--c-surface-hover);
+  --color-border: var(--c-border);
+  --color-border-soft: var(--c-border-soft);
+  --color-text: var(--c-text);
+  --color-muted: var(--c-muted);
+  --color-subtle: var(--c-subtle);
+  --color-accent: var(--c-accent);
+  --color-accent-contrast: var(--c-accent-contrast);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-success: var(--c-success);
+  --color-warning: var(--c-warning);
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --shadow-panel: var(--c-shadow);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
+}

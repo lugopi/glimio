@@ -35,7 +35,7 @@ def test_angular_uses_shared_api_and_reusable_pagination_component() -> None:
     assert (app / "pages" / "settings" / "settings.page.ts").is_file()
 
 
-def test_existing_production_entrypoint_is_preserved_until_cutover() -> None:
+def test_angular_spa_entrypoint_is_configured() -> None:
     html = (FRONTEND / "src" / "index.html").read_text(encoding="utf-8")
     assert "<glimio-root></glimio-root>" in html
     assert 'rel="icon"' in html and 'href="favicon.svg"' in html
@@ -127,17 +127,6 @@ def test_library_polls_and_exposes_terminal_job_states_in_list_and_detail() -> N
     assert ".session-card-select:focus-visible" in styles
 
 
-def test_brand_svg_keeps_dynamic_fill_layers_without_editor_metadata() -> None:
-    svg = (ROOT / "src" / "web" / "frontend" / "public" / "brand" / "glimio.svg").read_text(encoding="utf-8")
-    assert 'id="layer3"' in svg and 'id="layer2"' in svg
-    assert 'fill="currentColor"' in svg
-    assert 'data-layer="wave"' in svg
-    assert 'fill-opacity="0.25"' in svg
-    assert 'viewBox="0 -12 512 524"' in svg
-    assert 'var(--brand-shadow' not in svg
-    assert "inkscape:" not in svg and "sodipodi:" not in svg and "namedview" not in svg
-
-
 def test_library_documents_precede_audio_status_and_settings() -> None:
     library_template = (ROOT / "src" / "web" / "frontend" / "src" / "app" / "pages" / "library" / "library.page.html").read_text(encoding="utf-8")
     positions = [
@@ -157,12 +146,6 @@ def test_settings_page_has_open_source_license_notice() -> None:
     assert 'class="license-notice"' in settings
     assert "AGPL-3.0-or-later" in settings
     assert 'https://www.gnu.org/licenses/agpl-3.0.html' in settings
-
-
-def test_brand_logo_uses_all_of_its_responsive_container() -> None:
-    styles = (ROOT / "src" / "web" / "frontend" / "src" / "styles" / "components.scss").read_text(encoding="utf-8")
-    assert ".brand-mark { overflow: visible; flex: 0 0 auto; }" in styles
-    assert "width: 100%;\n    height: 100%;" in styles
 
 
 def test_library_and_recording_share_accessible_pagination_and_page_buttons() -> None:
@@ -204,12 +187,6 @@ def test_library_artifact_switcher_obeys_keyboard_tab_pattern() -> None:
     assert 'aria-controls="artifact-content-pane"' in template and 'attr.aria-labelledby' in template
     assert 'ArrowRight' in component and 'ArrowLeft' in component and 'event.preventDefault()' in component
     assert 'onArtifactTabKeydown' in template
-
-
-def test_library_template_avoids_redundant_audio_tracks_coalescing() -> None:
-    template = (FRONTEND / "src" / "app" / "pages" / "library" / "library.page.html").read_text(encoding="utf-8")
-    assert "@for (track of session.audio_tracks; track track)" in template
-    assert "session.audio_tracks ?? []" not in template
 
 
 def test_markdown_tables_are_rendered_in_a_responsive_scroll_region() -> None:

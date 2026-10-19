@@ -11,7 +11,39 @@
         @if (running()) { <article class="answer-card ai-progress-card"><div class="result-card-head"><h2>Recherche dans les archives</h2><span class="badge badge--accent">EN COURS</span></div><p class="answer-text live-progress"><span class="spinner"></span> {{ result()?.message || 'Préparation de la recherche…' }} @if (result()?.sessions_total) { · {{ result()?.sessions_scanned || 0 }}/{{ result()?.sessions_total }} séance(s) analysée(s) }</p></article> }
         @if (result()?.answer) { <article class="answer-card"><div class="result-card-head"><h2>Synthèse générale</h2></div><div class="answer-text artifact-rendered search-answer-markdown" data-no-translate="true" [innerHTML]="answerHtml()"></div></article> }
         @if (result()?.llm_error) { <article class="answer-card"><div class="result-card-head"><h2>Synthèse indisponible</h2><span class="badge">INFO</span></div><p class="answer-text">{{ result()?.llm_error }}</p></article> }
-        @if (sources().length > 0) { <section class="search-source-results" aria-labelledby="search-sources-title"><div class="result-card-head"><h2 id="search-sources-title">Passages retrouvés</h2><span class="badge">{{ sources().length }} SOURCE(S)</span></div><div class="session-list search-source-list">@for (source of visibleSources(); track source.source_number + source.session_id + source.filename) { <article class="session-card search-source-card"><div class="session-card-top"><span class="session-date">{{ source.session_id }}</span><span class="session-markers"><span class="badge">Source {{ source.source_number }}</span><span class="badge">{{ source.kind }}</span></span></div><strong>{{ source.title }}</strong><p class="session-card-description search-source-excerpt">{{ source.text }}</p><div class="search-source-meta">{{ source.filename }}</div><a class="btn btn--secondary btn--small source-open" [routerLink]="['/library']" [queryParams]="{ session: source.session_id }">Ouvrir la séance</a></article> }</div><glimio-pagination class="search-source-pagination" [page]="page()" [pageSize]="pageSize" [totalItems]="sources().length" label="Pagination des passages retrouvés" (pageChange)="page.set($event)" /></section> }
+        @if (sources().length > 0) {
+          <section class="search-source-results" aria-labelledby="search-sources-title">
+            <div class="result-card-head">
+              <h2 id="search-sources-title">Extraits pertinents</h2>
+              <span class="badge">{{ sources().length }} EXTRAIT(S)</span>
+            </div>
+            <div class="session-list search-source-list">
+              @for (source of visibleSources(); track source.source_number + source.session_id + source.filename) {
+                <article class="session-card search-source-card">
+                  <div class="session-card-top">
+                    <span class="session-date">{{ source.session_id }}</span>
+                    <span class="session-markers"><span class="badge">Source {{ source.source_number }}</span><span class="badge">{{ source.kind }}</span></span>
+                  </div>
+                  <strong>{{ source.title }}</strong>
+                  <p class="session-card-description search-source-excerpt">{{ source.text }}</p>
+                  <div class="search-source-footer">
+                    <span class="search-source-meta">{{ source.filename }}</span>
+                    <a class="btn btn--secondary btn--small source-open" [routerLink]="['/library']" [queryParams]="{ session: source.session_id }">Ouvrir la séance</a>
+                  </div>
+                </article>
+              }
+            </div>
+            <div class="search-source-pagination-footer">
+              <div class="page-size-control">
+                <label class="field-label" for="search-source-page-size">Extraits par page</label>
+                <select class="select" id="search-source-page-size" [ngModel]="pageSize()" (ngModelChange)="changePageSize($event)">
+                  <option [ngValue]="5">5</option><option [ngValue]="10">10</option><option [ngValue]="25">25</option><option [ngValue]="50">50</option>
+                </select>
+              </div>
+              <glimio-pagination [page]="page()" [pageSize]="pageSize()" [totalItems]="sources().length" label="Pagination des extraits pertinents" (pageChange)="page.set($event)" />
+            </div>
+          </section>
+        }
         @if (!running() && !result()) { <div class="panel-placeholder"><div class="placeholder-icon"><glimio-icon name="magnifying-glass" /></div><h2>Explorez vos séances</h2><p>Posez une question pour réunir des informations issues de plusieurs séances.</p></div> }
       </div>
     </section>

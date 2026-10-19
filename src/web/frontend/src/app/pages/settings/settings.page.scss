@@ -24,15 +24,12 @@
 :host .settings-download-item code { @apply rounded border border-border-soft bg-surface-raised px-1 py-0.5 text-xs; overflow-wrap: anywhere; }
 :host .settings-download-item > .btn { @apply shrink-0; }
 :host .settings-license-check { @apply mt-3 flex items-start gap-2 text-sm leading-6 text-muted; }
-:host .settings-license-check input { @apply mt-1 shrink-0; accent-color: var(--c-accent); }
+:host .settings-license-check input { @apply mt-0.5 shrink-0 self-start; flex: 0 0 1rem; margin-bottom: 0; accent-color: var(--c-accent); }
 :host .settings-license-check a { color: var(--c-accent); text-decoration: underline; text-underline-offset: 3px; }
-:host .settings-download-item .btn.is-disabled { opacity: .5; cursor: not-allowed; }
+:host .settings-download-item .btn.is-disabled, :host .settings-download-item .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 @media (max-width: 640px) {
   :host .settings-download-item { @apply flex-col; }
   :host .settings-download-item > .btn { @apply w-full justify-center; }
 }
 
 
-/* Use the same official-source action style for every optional model download. */
-:host .settings-download-item > .btn { @apply shrink-0 border-border bg-surface-raised text-text; }
-:host .settings-download-item > .btn:hover:not(:disabled) { background: var(--c-surface-hover); }

@@ -1,8 +1,7 @@
 @if (totalItems() > 0) {
   <nav class="pagination" [attr.aria-label]="label()">
-    @if (totalPages() === 1) {
-      <p class="pagination-summary" aria-live="polite">{{ rangeStart() }}–{{ rangeEnd() }} sur {{ totalItems() }} éléments</p>
-    } @else {
+    <p class="pagination-summary" aria-live="polite">{{ rangeStart() }}–{{ rangeEnd() }} sur {{ totalItems() }} éléments</p>
+    @if (totalPages() > 1) {
       <div class="pagination-controls">
         <button class="pagination-arrow" type="button" [disabled]="page() <= 1" (click)="selectPage(page() - 1)" aria-label="Page précédente"><glimio-icon name="chevron-left" size="fill" /><span>Précédent</span></button>
         <div class="pagination-pages" aria-label="Choisir une page">

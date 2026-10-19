@@ -20,17 +20,24 @@ export class SearchPageComponent {
   readonly searchId = this.state.searchId;
   readonly result = this.state.result;
   readonly page = signal(1);
-  readonly pageSize = 5;
+  readonly pageSize = signal(10);
   readonly sources = computed(() => this.result()?.sources ?? []);
   readonly visibleSources = computed(() => {
-    const start = (this.page() - 1) * this.pageSize;
-    return this.sources().slice(start, start + this.pageSize);
+    const start = (this.page() - 1) * this.pageSize();
+    return this.sources().slice(start, start + this.pageSize());
   });
   readonly answerHtml = computed(() => renderMarkdownToHtml(this.result()?.answer ?? ''));
 
   runSearch(): void {
     this.page.set(1);
     this.state.runSearch();
+  }
+
+  changePageSize(value: number | string): void {
+    const nextSize = Number(value);
+    if (![5, 10, 25, 50].includes(nextSize)) return;
+    this.pageSize.set(nextSize);
+    this.page.set(1);
   }
 
   cancelSearch(): void { this.state.cancelSearch(); }
