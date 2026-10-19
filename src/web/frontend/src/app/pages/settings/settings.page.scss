@@ -15,21 +15,13 @@
 }
 
 
-:host .settings-download-intro { @apply mb-4 w-full max-w-none; }
-:host .settings-download-list { @apply mt-4 grid gap-3; }
-:host .settings-download-item { @apply flex min-w-0 items-start justify-between gap-4 rounded-xl border border-border-soft bg-surface p-4; }
-:host .settings-download-item > div { @apply min-w-0 flex-1; }
-:host .settings-download-item strong { @apply block text-sm font-semibold text-text; }
-:host .settings-download-item p { @apply mb-0 mt-1 text-sm leading-6 text-muted; overflow-wrap: anywhere; }
-:host .settings-download-item code { @apply rounded border border-border-soft bg-surface-raised px-1 py-0.5 text-xs; overflow-wrap: anywhere; }
-:host .settings-download-item > .btn { @apply shrink-0; }
-:host .settings-license-check { @apply mt-3 flex items-start gap-2 text-sm leading-6 text-muted; }
-:host .settings-license-check input { @apply mt-0.5 shrink-0 self-start; flex: 0 0 1rem; margin-bottom: 0; accent-color: var(--c-accent); }
-:host .settings-license-check a { color: var(--c-accent); text-decoration: underline; text-underline-offset: 3px; }
-:host .settings-download-item .btn.is-disabled, :host .settings-download-item .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
-@media (max-width: 640px) {
-  :host .settings-download-item { @apply flex-col; }
-  :host .settings-download-item > .btn { @apply w-full justify-center; }
-}
+:host .settings-model-field { @apply grid min-w-0 content-start gap-2; }
+:host .settings-model-field .field-label,
+:host .settings-model-field .field-note { @apply m-0; }
+:host .settings-model-field .field-note { @apply block; }
+:host .settings-model-field code { @apply rounded border border-border-soft bg-surface-raised px-1 py-0.5 text-xs; overflow-wrap: anywhere; }
+:host .settings-model-links { @apply flex flex-wrap items-center gap-x-3 gap-y-1; }
+:host .settings-model-links .text-link-button { @apply min-h-[30px] p-0 text-[0.75rem]; }
+:host .settings-path-action { @apply w-fit max-w-full whitespace-normal text-left; }
 
 

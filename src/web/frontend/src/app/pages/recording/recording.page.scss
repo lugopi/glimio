@@ -6,7 +6,16 @@
 :host .common-processing-fields > div { @apply min-w-0; }
 :host .common-processing-fields .field-label { @apply mb-2; }
 :host .common-processing-fields .field-note { @apply mt-2; }
+:host .common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-label,
+:host .common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-note { @apply m-0; }
 :host .common-processing-fields .diarize-card { @apply mt-0 items-start; }
+:host .common-processing-fields .diarization-option { @apply grid content-start gap-3; }
+:host .common-processing-fields .speaker-count-field { @apply grid gap-2; }
+:host .common-processing-fields .diarization-option .field-label,
+:host .common-processing-fields .diarization-option .field-note { @apply m-0; }
+:host .common-processing-fields .normalization-gain-control { @apply mt-3 grid gap-2 border-0 bg-transparent p-0; }
+:host .common-processing-fields .normalization-gain-control .field-label { @apply m-0 flex-wrap justify-between gap-2; }
+:host .common-processing-fields .normalization-gain-control .range-input { @apply m-0 block w-full; }
 :host .audio-source-builder { @apply mt-2 grid min-w-0 gap-3; }
 :host .source-add-row { display: grid; grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr) auto; align-items: end; gap: 10px; min-width: 0; }
 :host .source-add-row > * { min-width: 0; }

@@ -850,6 +850,14 @@
 @layer components {
   .common-processing-fields { @apply grid grid-cols-2 items-start gap-[14px]; }
   .common-processing-fields > div, .common-processing-fields > label { @apply min-w-0; }
+  .common-processing-fields > div:not(.normalization-option) { @apply grid content-start gap-2; }
+  .common-processing-fields > div:not(.normalization-option) > .field-label,
+  .common-processing-fields > div:not(.normalization-option) > .field-note { @apply m-0; }
+  .session-processing-options .session-processing-column { @apply grid content-start gap-4; }
+  .session-processing-options .session-processing-column > div { @apply grid content-start gap-2; }
+  .session-processing-options .session-processing-column .field-label,
+  .session-processing-options .session-processing-column .field-note,
+  .session-processing-options .session-processing-column .diarize-card { @apply m-0; }
   .session-processing-options { @apply border-t border-border-soft pt-[15px]; }
   .detail-section-heading { @apply mb-3 flex items-start justify-between gap-3; }
   .detail-section-heading h3 { @apply m-0; }
@@ -999,7 +1007,8 @@
   }
   label:has(> input[type="checkbox"]) > input,
   label:has(> input[type="radio"]) > input {
-    @apply mt-0.5 shrink-0 self-start;
+    @apply shrink-0 self-start;
+    margin-top: .2em;
     margin-bottom: 0;
     flex: 0 0 1rem;
   }

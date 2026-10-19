@@ -49,10 +49,10 @@
 :host .detail-section-heading { @apply flex flex-wrap items-start justify-between gap-3; }
 :host .detail-section-heading h3 { margin: 0; }
 :host .detail-section-heading .field-note { margin: 5px 0 0; }
-:host .artifact-tabs { @apply mt-0 flex flex-wrap items-stretch gap-0 rounded-t-xl border border-b-0 border-border-soft bg-surface-raised; }
+:host .artifact-tabs { @apply mt-0 flex flex-wrap items-stretch gap-0 border border-b-0 border-border-soft bg-surface-raised; border-radius: 11px 0 0 0; }
 :host .artifact-tab { @apply inline-flex min-h-11 items-center justify-center gap-2 border-0 border-b-2 border-transparent px-4 py-2 text-left text-sm font-semibold text-muted; background: transparent; cursor: pointer; }
 :host .artifact-tab:first-child { border-top-left-radius: 11px; }
-:host .artifact-tab:last-child { border-top-right-radius: 11px; }
+:host .artifact-tab:last-child { border-top-right-radius: 0; }
 :host .artifact-tab[tabindex="-1"] { outline: none; }
 :host .artifact-tab:hover { color: var(--c-text); background: var(--c-surface-raised); }
 :host .artifact-tab.is-active { color: var(--c-accent); border-bottom-color: var(--c-accent); background: var(--c-accent-soft); }
@@ -64,11 +64,13 @@
 :host .documents-empty > glimio-icon { @apply mt-0.5 shrink-0 text-accent; width: 20px; height: 20px; }
 :host .documents-empty strong { display: block; color: var(--c-text); }
 :host .documents-empty p { margin: .25rem 0 0; line-height: 1.6; }
-:host .session-card-top { align-items: flex-start; }
-:host .session-markers { @apply items-center justify-end; }
-:host .session-markers .badge { @apply inline-flex min-h-6 shrink-0 items-center justify-center gap-1.5; }
+:host .session-card-top { @apply min-w-0 flex-row items-center gap-1.5; }
+:host .session-date { @apply shrink-0 whitespace-nowrap; }
+:host .session-markers { @apply min-w-0 flex-nowrap items-center justify-end gap-1; }
+:host .session-markers .badge { @apply inline-flex min-h-6 shrink-0 items-center justify-center gap-1; padding: 3px 5px; font-size: .6875rem; }
 :host .session-markers .badge > glimio-icon { display: inline-flex; flex: 0 0 12px; align-items: center; justify-content: center; width: 12px; height: 12px; min-width: 12px; min-height: 12px; }
 :host .session-markers .badge > glimio-icon .icon, :host .session-markers .badge > glimio-icon svg { display: block; flex: 0 0 12px; width: 12px; height: 12px; min-width: 12px; min-height: 12px; }
+
 
 @media (max-width: 640px) {
   :host .library-pagination-footer { @apply grid-cols-1; }
