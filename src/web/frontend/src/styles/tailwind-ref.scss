@@ -1,0 +1,17 @@
+@charset "UTF-8";
+/* Glimio - entry point for Angular component styles (Tailwind 4 @apply).
+   Every component .scss starts with:
+       @reference '...styles/tailwind-ref.scss';
+   This loads the Tailwind theme + utilities so that @apply resolves, without
+   emitting duplicate CSS in the component bundle (same mechanism as the
+   official "@reference" usage, but pointing to this minimal entry instead of
+   main.scss to keep component compilation fast and warning-free).
+   Hard rules for this file: block comments only (never //), ASCII only,
+   no Sass features (@use/@import of .scss files break the pipeline). */
+
+@import "./tokens.scss";
+
+@source "../app/**/*.{html,ts}";
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);

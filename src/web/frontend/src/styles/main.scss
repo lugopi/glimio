@@ -1,30 +1,20 @@
 // Glimio — feuille de style globale (Angular + Tailwind 4 via @tailwindcss/postcss).
 //
-// Ordre de cascade : modern-normalize (base) → tokens de thème → composants,
-// puis Tailwind. Les styles personnalisés sont compilés AVANT l'import de
-// Tailwind afin que les @apply des couches base/components soient résolus par
-// @tailwindcss/postcss et que le scanner voie toutes les classes utilisées.
+// Cascade : modern-normalize → tokens de thème → Tailwind ; tous les styles
+// personnalisés vivent dans les couches `base`/`components` définies dans
+// components.scss (utilitaires Tailwind prioritaires dans les templates).
+// Les styles des composants Angular résolvent leurs @apply via
+// styles/tailwind-ref.scss (@use, équivalent compatible du préprocesseur Sass
+// pour la directive @reference de Tailwind 4).
 @use './modern-normalize.scss';
 @use './tokens.scss';
-@use './components.scss';
 
-// L'ordre est important : normalisation → tokens → utilitaires Tailwind → composants.
-// Les styles personnalisés sont compilés AVANT l'import de Tailwind : ainsi les
-// @apply des couches base/components sont résolus par @tailwindcss/postcss et le
-// scanner voit toutes les classes utilisées dans les composants.
-@layer base, tokens, components;
-
-// Le scanner Tailwind analyse les modèles et composants Angular.
-@source '../**/*.{html,ts}';
+/* Le scanner Tailwind analyse les modèles et composants Angular. */
+@source '../app/**/*.{html,ts}';
+@source '../../styles/**/*.scss';
 
 @import 'tailwindcss';
 
-// La marque Glimio change de teinte selon le thème pour rester visible sans perdre ses détails.
-.brand-mark {
-  --brand-primary: var(--c-accent);
-  --brand-secondary: var(--c-accent-contrast);
-}
-[data-theme='light'] .brand-mark {
-  --brand-primary: var(--c-accent);
-  --brand-secondary: #ffffff;
-}
+@layer base, tokens, components;
+
+@import './components.scss';

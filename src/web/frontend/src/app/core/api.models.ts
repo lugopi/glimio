@@ -108,6 +108,8 @@ export interface Job {
   session_id?: string | null;
   created_at?: string;
   updated_at?: string;
+  started_at?: string | null;
+  finished_at?: string | null;
   queue_position?: number | null;
 }
 

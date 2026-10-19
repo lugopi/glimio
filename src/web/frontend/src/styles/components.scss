@@ -19,8 +19,9 @@
   .app-shell { @apply grid min-h-screen; grid-template-columns: 250px minmax(0, 1fr); }
   .sidebar { @apply fixed inset-y-0 left-0 z-20 flex w-[250px] flex-col border-r border-border-soft; padding: 25px 15px 18px; background: var(--c-sidebar); }
   .brand { @apply flex items-center gap-[12px] px-[11px] pb-[33px]; }
-  .brand-mark { @apply flex size-[48px] items-center justify-center gap-[3px]; border: 0; background: transparent; }
-  .brand-mark img { display: block; width: 40px; height: 40px; object-fit: contain; }
+  .brand-mark { @apply flex size-[48px] items-center justify-center gap-[3px] text-accent; border: 0; background: transparent; }
+  /* Logo injecté en ligne : sizing via .brand-logo (svg) et repli img. */
+  .brand-mark .brand-logo, .brand-mark img { @apply block size-10 shrink-0; object-fit: contain; }
   .brand-name { @apply block text-[1.5rem] font-extrabold italic leading-none tracking-[-.04em]; }
   .brand-caption { @apply mt-[5px] block font-mono text-[0.75rem] tracking-[1.5px] text-subtle; }
   .side-label, .eyebrow, .section-mini-title { @apply font-mono text-[0.75rem] font-medium tracking-[1.25px] text-subtle; }
@@ -39,7 +40,7 @@
   .sidebar-path { @apply overflow-hidden px-2.5; }
   .sidebar-path small { @apply mb-[7px] block font-mono text-[0.75rem] tracking-[1px] text-subtle; }
   .sidebar-path code { @apply font-mono text-[0.75rem] text-muted; overflow-wrap: anywhere; }
-  .main-area { @apply col-start-2 mx-auto w-full min-w-0 px-[34px]; max-width: 1780px; }
+  .main-area { @apply col-start-2 mx-auto grid w-full min-w-0 max-w-[1780px] content-start gap-[18px] px-[34px] pb-8; }
   .topbar { @apply mb-[31px] flex min-h-[68px] items-center justify-between gap-5 border-b border-border-soft; }
   .breadcrumbs { @apply flex items-center gap-[9px] text-xs text-subtle; }
   .breadcrumbs strong { @apply font-semibold text-text; }
@@ -108,6 +109,8 @@
   .library-recording-banner .btn { flex: 0 0 auto; }
 
   .library-toolbar { @apply mb-[15px] flex items-center gap-2.5; }
+  /* Le champ de recherche et le filtre respirent comme les champs standards du projet. */
+  .library-toolbar .input, .library-toolbar .select { @apply min-h-[42px]; }
   #library-filter { width: auto; min-width: 180px; }
   .page-size-control { @apply flex shrink-0 items-center gap-2 text-[0.8125rem] text-muted; }
   .page-size-control .select { @apply min-h-[40px] px-2.5 py-2; width: 84px; min-width: 84px; }
@@ -142,8 +145,10 @@
   .panel-placeholder h2 { @apply mb-2 mt-0 text-[0.9375rem] font-bold; }
   .panel-placeholder p { @apply m-0 text-xs leading-[1.7] text-muted; }
   .session-detail { min-height: 480px; padding: 22px; }
-  .detail-header { margin-bottom: 17px; padding-bottom: 16px; border-bottom: 1px solid var(--c-border-soft); }
-  .detail-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 17px; }
+  .detail-header { @apply mb-[17px] flex flex-col gap-4 border-b border-border-soft pb-4; }
+  .detail-header-top { @apply flex items-start justify-between gap-[17px]; }
+  /* L'eyebrow du détail est un libellé compact : pas de marge héritée de .eyebrow global. */
+  .detail-header .eyebrow { @apply mb-0 text-[0.6875rem]; }
   .detail-title { margin: 0 0 7px; font-size: 1.1875rem; font-weight: 750; line-height: 1.35; letter-spacing: -.4px; overflow-wrap: anywhere; }
   .detail-date { @apply font-mono text-[0.75rem] text-subtle; overflow-wrap: anywhere; }
   .detail-actions { @apply flex flex-wrap items-center justify-end gap-1.5; }
@@ -152,9 +157,11 @@
   .session-actions-toggle::-webkit-details-marker { display: none; }
   .session-actions-toggle:hover, .session-actions-toggle:focus-visible, .session-actions-menu[open] > .session-actions-toggle { border-color: var(--c-accent); background: var(--c-accent-soft); }
   .session-actions-toggle:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
-  .session-actions-panel { position: absolute; z-index: 50; top: calc(100% + .375rem); right: 0; display: flex; min-width: 11rem; flex-direction: column; gap: 3px; padding: .375rem; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-surface-raised); }
+  .session-actions-panel { position: absolute; z-index: 50; top: calc(100% + .375rem); right: 0; display: flex; min-width: 11rem; flex-direction: column; gap: 3px; padding: .375rem; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-surface-raised); box-shadow: 0 8px 28px rgb(0 0 0 / .10); }
   .session-actions-panel .btn { width: 100%; justify-content: flex-start; white-space: nowrap; }
   .session-actions-panel .btn-label { flex: 1; text-align: left; }
+  .session-actions-panel .btn.is-danger { color: var(--c-danger); }
+  .session-actions-panel .btn.is-danger:hover:not(:disabled) { background: var(--c-danger-soft, color-mix(in srgb, var(--c-danger) 10%, transparent)); }
   .detail-tabs { @apply mb-3 flex flex-wrap gap-[5px] border-b border-border-soft; }
   .detail-tab { padding: 10px 9px; border: 0; border-bottom: 2px solid transparent; color: var(--c-muted); background: transparent; font-size: .8125rem; }
   .detail-tab.is-active { color: var(--c-accent); border-bottom-color: var(--c-accent); }
@@ -218,6 +225,13 @@
   .record-status.is-recording .status-dot { background: var(--c-danger); box-shadow: 0 0 8px color-mix(in srgb, var(--c-danger) 50%, transparent); animation: pulse 1.2s infinite; }
   .record-status.is-processing .status-dot { background: var(--c-accent); }
   .record-status.is-stopping .status-dot { background: var(--c-warning); }
+  /* Bouton « Arrêter » : état + timer sur une seule rangée (régression post-migration). */
+  .stop-recording-button { min-height: 42px; flex: 1 1 auto; justify-content: flex-start; padding-inline: 16px; text-align: left; white-space: normal; }
+  .stop-recording-button .btn-label { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; text-align: left; }
+  .stop-recording-button strong { margin-left: auto; color: inherit; font: .75rem var(--font-code); letter-spacing: .3px; }
+  .stop-recording-button .stop-separator { opacity: .65; }
+  .stop-recording-button.is-processing .status-dot, .stop-recording-button.is-stopping .status-dot { animation: none; background: var(--c-warning); }
+  .stop-recording-button.is-recording .status-dot { background: #fff; box-shadow: 0 0 8px rgb(255 255 255 / .6); animation: pulse 1.2s infinite; }
   .privacy-note { @apply mt-[13px] text-[0.75rem] leading-[1.65] text-subtle; }
   .import-panel { @apply p-[21px]; }
   .shared-processing-panel { min-width: 0; margin: 15px 0; padding: 21px; }
@@ -326,10 +340,11 @@
 }
 @media (max-width: 850px) {
   .app-shell { display: block; }
+  .main-area { @apply col-auto gap-0 pb-6; }
   .sidebar { position: sticky; inset: 0 0 auto; z-index: 30; width: 100%; height: auto; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--c-border); }
-  .brand { padding: 0 5px 10px; }
-  .brand-mark { width: 34px; height: 34px; border-radius: 9px; }
-  .brand-mark img { width: 28px; height: 28px; }
+  .brand { @apply gap-2.5 px-[5px] pb-2.5; }
+  .brand-mark { @apply size-[34px] overflow-hidden rounded-[9px]; }
+  .brand-mark .brand-logo, .brand-mark img { @apply size-7 shrink-0; }
   .brand-name { font-size: 1.25rem; }
   .brand-caption { font-size: .75rem; }
   .side-label, .sidebar-bottom { display: none; }
@@ -740,8 +755,8 @@
   .btn-icon-text svg { display: block; width: 18px; height: 18px; }
   .search-box > span svg { display: block; width: 17px; height: 17px; }
   .placeholder-icon svg { display: block; width: 23px; height: 23px; }
-  .brand-mark { overflow: hidden; }
-  .brand-mark img { width: 40px; height: 40px; }
+  .brand-mark { @apply overflow-hidden; }
+  .brand-mark .brand-logo, .brand-mark img { @apply size-10 shrink-0; }
   .diarization-settings { gap: 13px; padding: 18px 20px 20px; }
   .diarization-settings > .field-note { margin: 0; line-height: 1.6; }
   .diarization-settings .auto-speakers-toggle { margin: 0; padding: 10px 12px; }
@@ -844,15 +859,31 @@
   // Liens des documents disponibles.
   .artifact-links { @apply mb-1 flex flex-wrap items-center gap-3.5; }
 
-  // Pied de pagination de la liste des séances.
-  .library-pagination-footer { @apply flex flex-wrap items-center justify-between gap-3 border-t border-border-soft px-4 py-3.5; }
-  .library-pagination-footer .field-label { @apply mb-0; }
+  // Pied de pagination de la liste des séances : discret (petit texte, bordure douce).
+  .library-pagination-footer { @apply flex flex-wrap items-center justify-between gap-3 border-t border-border-soft px-4 py-3.5 text-[0.75rem] text-subtle; }
+  .library-pagination-footer .field-label { @apply mb-0 text-[0.75rem] font-medium text-muted; }
+  // Contrôle « Séances par page » compact et accessible (cible ≥ 32px, libellé associé).
+  .library-pagination-footer .select { @apply min-h-[32px] w-auto shrink-0 rounded-[8px] px-2.5 py-1 text-[0.75rem]; }
 
   // Blocs empilés dans un panneau de contrôle (enregistreur, import) : respiration standard entre chaque carte/champ/bouton.
-  .control-panel > * + *, .import-panel > * + * { @apply mt-4; }
+  .control-panel > * + *, .import-panel > * + *, .library-list-panel > * + * { @apply mt-4; }
+  // La toolbar et les stats ouvrent la carte : pas de marge au-dessus ; le menu de liste garde son rythme propre.
+  .library-list-panel > :first-child { @apply mt-0; }
+  .library-list-panel > .session-list { @apply mt-0; }
+  .library-list-panel > .library-toolbar + .library-stats { @apply mt-3; }
+  .library-list-panel > .library-stats + .session-list { @apply mt-0; }
   .control-panel > .card-header + *, .control-panel > .eyebrow + * { @apply mt-0; }
   .control-panel > .card-header { @apply mb-[15px]; }
   .control-panel > .section-heading:first-of-type { @apply mt-[22px]; }
+
+  // Panneau de détail de la séance : padding aligné sur la norme du projet (21px comme .card-pad / .import-panel).
+  .session-detail-panel { @apply p-[21px]; }
+  // Espacement standard entre les blocs directs du détail (en-tête, actions, sections).
+  .session-detail-panel > * + * { @apply mt-4; }
+  .session-detail-panel > .detail-header + * { @apply mt-0; }
+  .session-processing-options { @apply border-t border-border-soft px-0 pb-1 pt-[18px]; }
+  .artifact-content { @apply mt-3; }
+  .audio-track-list > * + * { @apply mt-3; }
 
   // Grilles internes : écart garanti entre les cartes (sources, appareils, workflows).
   .source-options, .device-grid, .workflow-options { @apply gap-3; }
@@ -869,7 +900,38 @@
   .import-panel > .btn { @apply mt-[18px]; }
   .import-panel > .field-note { @apply mt-2.5 mb-0; }
 
+  // « Importer et traiter » respire aussi après les options de workflow (gap standard).
+  .import-panel .workflow-options + .btn { @apply mt-[18px]; }
+  // Le bouton Arrêter (état + timer) prend la largeur utile du bloc d'actions.
+  .card-actions .stop-recording-button { @apply w-full; }
+
   // Rangée d'actions finale d'un panneau (démarrer/arrêter, importer).
   .card-actions { @apply mt-[18px] flex flex-wrap items-center gap-2.5 border-t border-border-soft pt-4; }
   @media (max-width: 600px) { .common-processing-fields { grid-template-columns: minmax(0, 1fr); } .detail-section-heading { flex-direction: column; } .detail-section-heading .btn { width: 100%; } }
+}
+
+/* Glimio — espacement vertical standard des blocs empilés dans les vues (gap/padding/marge). */
+@layer components {
+  // Les vues Angular empilent leurs <section> directement sous router-outlet :
+  // un écart constant remplace l'absence de marge entre cartes successives.
+  .view > section + section,
+  .view > div + section,
+  .view > section + div { @apply mt-4; }
+  .settings-section > .settings-grid { @apply mt-4; }
+  .settings-section > .diarization-settings-section { @apply mt-4; }
+  .card-pad > * + * { @apply mt-4; }
+  .card-pad > .card-header + *, .card-pad > .eyebrow + * { @apply mt-0; }
+  .jobs-panel > .jobs-list { @apply mt-3; }
+  .search-results > * + * { @apply mt-3; }
+}
+
+/* Glimio — branding : le logo SVG injecté en ligne (public/brand/glimio.svg)
+   change de couleur avec le thème. Ses calques principaux utilisent currentColor
+   (couleur d'accent du thème) et son calque « shadows » utilise --brand-shadow
+   (couleur contrastante du thème, semi-transparente). */
+@layer base {
+  .brand-mark {
+    color: var(--c-accent);
+    --brand-shadow: color-mix(in srgb, var(--c-accent-contrast) 55%, transparent);
+  }
 }

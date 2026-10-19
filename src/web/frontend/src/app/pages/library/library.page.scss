@@ -1,41 +1,39 @@
+@reference '../../../styles/tailwind-ref.scss';
+
 :host {
-  display: block;
-  min-width: 0;
+  @apply block min-w-0;
 }
 
-/* Espacement interne de la carte « Options de traitement de cette séance » :
-   respiration entre le titre, les champs et les actions (complète les règles globales). */
+/* Espacement interne des cartes de la bibliothèque :
+   respiration entre le titre, les champs et les actions (complète les règles globales).
+   Norme projet (page Paramètres) : padding de carte 21px, rythme vertical mt-4, gap de grille 14px. */
 :host {
+  .library-layout > * { @apply min-w-0; }
+
+  /* Carte liste : padding norme projet (21px, comme les panneaux Paramètres/Enregistrement). */
+  .library-list-panel { @apply p-[21px]; }
+
   .session-processing-options {
-    padding: 18px 0 4px;
+    /* Bloc surélevé dans le détail : padding interne harmonisé avec la norme (p-5 = 20px). */
+    @apply p-5;
 
-    > .detail-section-heading { margin-bottom: 16px; }
-    > .settings-grid { margin-top: 0; }
-    .common-processing-fields { row-gap: 18px; column-gap: 16px; }
-    .diarize-card { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; }
-    .field-note { margin-top: 6px; }
+    > .detail-section-heading { @apply mb-4; }
+    > .settings-grid { @apply mt-0; }
+    .common-processing-fields { @apply mt-4 gap-x-[16px] gap-y-[18px]; }
+    .diarize-card { @apply mt-0 flex items-start gap-3 border border-border-soft bg-surface p-[14px_16px]; }
+    .field-label { @apply mb-2; }
+    .field-note { @apply mt-2; }
   }
 
-  .session-action-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin: 14px 0 18px;
-  }
+  /* Le menu burger remplace l'ancienne rangée d'actions : pas de rangée visible. */
+  .session-action-row { @apply hidden; }
 
-  .detail-section + .detail-section { margin-top: 20px; }
+  .detail-section + .detail-section { @apply mt-5; }
 
-  .artifact-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
-  .card-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .artifact-links { @apply mt-3 flex flex-wrap items-center gap-2.5; }
+  .card-actions { @apply mt-4 flex flex-wrap items-center gap-2.5; }
 
   .library-pagination-footer {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px solid var(--c-border-soft);
+    @apply mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-3.5;
   }
 }
