@@ -4,20 +4,25 @@
   @apply block min-w-0;
 }
 
-/* Espacement interne de la carte « Options de traitement de cette séance » :
-   respiration entre le titre, les champs et les actions (complète les règles globales). */
+/* Espacement interne des cartes de la bibliothèque :
+   respiration entre le titre, les champs et les actions (complète les règles globales).
+   Norme projet (page Paramètres) : padding de carte 21px, rythme vertical mt-4, gap de grille 14px. */
 :host {
   .library-layout > * { @apply min-w-0; }
-  .session-detail > * + * { @apply mt-0; }
+
+  /* Carte liste : padding norme projet (21px, comme les panneaux Paramètres/Enregistrement). */
+  .library-list-panel { @apply p-[21px]; }
 
   .session-processing-options {
-    @apply px-0 pt-[18px] pb-1;
+    /* Bloc surélevé dans le détail : padding interne harmonisé avec la norme (p-5 = 20px). */
+    @apply p-5;
 
     > .detail-section-heading { @apply mb-4; }
     > .settings-grid { @apply mt-0; }
-    .common-processing-fields { row-gap: 18px; column-gap: 16px; }
-    .diarize-card { @apply flex items-start gap-3 p-[12px_14px]; }
-    .field-note { @apply mt-1.5; }
+    .common-processing-fields { @apply mt-4 gap-x-[16px] gap-y-[18px]; }
+    .diarize-card { @apply mt-0 flex items-start gap-3 border border-border-soft bg-surface p-[14px_16px]; }
+    .field-label { @apply mb-2; }
+    .field-note { @apply mt-2; }
   }
 
   /* Le menu burger remplace l'ancienne rangée d'actions : pas de rangée visible. */

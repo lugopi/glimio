@@ -866,7 +866,12 @@
   .library-pagination-footer .select { @apply min-h-[32px] w-auto shrink-0 rounded-[8px] px-2.5 py-1 text-[0.75rem]; }
 
   // Blocs empilés dans un panneau de contrôle (enregistreur, import) : respiration standard entre chaque carte/champ/bouton.
-  .control-panel > * + *, .import-panel > * + * { @apply mt-4; }
+  .control-panel > * + *, .import-panel > * + *, .library-list-panel > * + * { @apply mt-4; }
+  // La toolbar et les stats ouvrent la carte : pas de marge au-dessus ; le menu de liste garde son rythme propre.
+  .library-list-panel > :first-child { @apply mt-0; }
+  .library-list-panel > .session-list { @apply mt-0; }
+  .library-list-panel > .library-toolbar + .library-stats { @apply mt-3; }
+  .library-list-panel > .library-stats + .session-list { @apply mt-0; }
   .control-panel > .card-header + *, .control-panel > .eyebrow + * { @apply mt-0; }
   .control-panel > .card-header { @apply mb-[15px]; }
   .control-panel > .section-heading:first-of-type { @apply mt-[22px]; }
@@ -876,7 +881,7 @@
   // Espacement standard entre les blocs directs du détail (en-tête, actions, sections).
   .session-detail-panel > * + * { @apply mt-4; }
   .session-detail-panel > .detail-header + * { @apply mt-0; }
-  .session-processing-options { @apply rounded-xl bg-surface-raised p-4; }
+  .session-processing-options { @apply border-t border-border-soft px-0 pb-1 pt-[18px]; }
   .artifact-content { @apply mt-3; }
   .audio-track-list > * + * { @apply mt-3; }
 
