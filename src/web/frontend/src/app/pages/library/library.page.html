@@ -18,8 +18,25 @@
 
         <article class="card session-detail-panel" id="session-detail">
           @if (selected()) {
-            <div class="detail-header"><div><div class="eyebrow">DÉTAIL DE LA SÉANCE</div><h2 class="card-title">{{ selected()?.title }}</h2><p class="field-note">{{ dateLabel(selected()?.started_at, selected()?.id || '') }}</p></div><div class="detail-actions"><button class="btn btn--secondary btn--icon" type="button" aria-label="Renommer la séance" title="Renommer" (click)="renameSession()"><glimio-icon name="pencil-square" /></button><button class="btn btn--secondary btn--icon" type="button" aria-label="Supprimer la séance" title="Supprimer" (click)="deleteSession()"><glimio-icon name="trash" /></button></div></div>
-            <div class="session-action-row"><button class="btn btn--secondary btn--small" type="button" [disabled]="working()" (click)="runJob('transcribe')">Transcrire</button><button class="btn btn--secondary btn--small" type="button" [disabled]="working()" (click)="runJob('summarize')">Résumer</button><button class="btn btn--primary btn--small" type="button" [disabled]="working()" (click)="runJob('process')">Traiter complètement</button><button class="btn btn--secondary btn--small" type="button" [disabled]="working()" title="Relancer la synthèse même si un résumé existe déjà" (click)="runJob('summarize', true)"><glimio-icon name="arrow-path" /> Refaire le résumé</button></div>
+            <div class="detail-header">
+              <div class="detail-header-top">
+                <div><div class="eyebrow">DÉTAIL DE LA SÉANCE</div><h2 class="card-title">{{ selected()?.title }}</h2><p class="field-note">{{ dateLabel(selected()?.started_at, selected()?.id || '') }}</p></div>
+                <!-- Menu burger des actions (préservé de l'interface pré-migration). -->
+                <div class="detail-actions">
+                  <details class="session-actions-menu" #sessionActionsMenu>
+                    <summary class="session-actions-toggle" role="button" aria-label="Actions sur la séance"><glimio-icon name="bars-3" /></summary>
+                    <div class="session-actions-panel">
+                      <button class="btn btn--ghost btn--small" type="button" (click)="renameSession(); sessionActionsMenu.open = false"><glimio-icon name="pencil-square" /><span class="btn-label">Renommer</span></button>
+                      <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" (click)="runJob('transcribe'); sessionActionsMenu.open = false"><span class="btn-label">Transcrire</span></button>
+                      <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" (click)="runJob('summarize'); sessionActionsMenu.open = false"><span class="btn-label">Résumer</span></button>
+                      <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" title="Relancer la synthèse même si un résumé existe déjà" (click)="runJob('summarize', true); sessionActionsMenu.open = false"><glimio-icon name="arrow-path" /><span class="btn-label">Refaire le résumé</span></button>
+                      <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" (click)="runJob('process'); sessionActionsMenu.open = false"><span class="btn-label">Traiter complètement</span></button>
+                      <button class="btn btn--ghost btn--small is-danger" type="button" (click)="deleteSession(); sessionActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer</span></button>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </div>
             @if (sessionSettings(); as options) {
               <section class="detail-section session-processing-options" aria-labelledby="session-processing-options-title">
                 <div class="detail-section-heading"><div><h3 id="session-processing-options-title">Options de traitement de cette séance</h3><p class="field-note">Ces choix sont enregistrés avec la séance et utilisés lors des prochains traitements.</p></div><button class="btn btn--secondary btn--small" type="button" [disabled]="working()" (click)="saveSessionSettings()">Enregistrer les options</button></div>

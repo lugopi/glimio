@@ -20,7 +20,8 @@
     .field-note { @apply mt-1.5; }
   }
 
-  .session-action-row { @apply my-[14px] mb-[18px] flex flex-wrap gap-2.5; }
+  /* Le menu burger remplace l'ancienne rangée d'actions : pas de rangée visible. */
+  .session-action-row { @apply hidden; }
 
   .detail-section + .detail-section { @apply mt-5; }
 

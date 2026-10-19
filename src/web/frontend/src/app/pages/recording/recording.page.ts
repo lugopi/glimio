@@ -30,14 +30,19 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
   readonly speakerCounts = Array.from({ length: 16 }, (_, index) => index + 1);
   readonly visibleJobs = computed(() => this.jobs().slice((this.jobsPage() - 1) * this.pageSize, this.jobsPage() * this.pageSize));
   readonly activeRecording = computed(() => this.jobsResponse()?.active?.kind === 'recording' ? this.jobsResponse()?.active : this.jobs().find(job => job.kind === 'recording' && ['queued', 'running', 'stopping'].includes(job.state)) ?? null);
-  /** Libellé d'état de l'enregistrement actif (affiché dans la pastille de statut). */
+  /** Libellé d'état complet affiché dans le bouton d'arrêt (état + sources actives). */
   readonly recordingStatusText = computed(() => {
     const job = this.activeRecording();
     if (!job) return '';
-    if (job.phase === 'preparing') return 'Préparation du micro…';
-    if (job.phase === 'finalizing') return 'Finalisation de la séance…';
-    if (job.state === 'stopping') return 'Arrêt en cours…';
-    return 'Enregistrement en cours';
+    // Les sources capturées ne sont pas exposées par /api/jobs : on reprend la
+    // sélection de l'interface (persistée au démarrage de l'enregistrement).
+    const sources: string[] = [];
+    if (this.captureMicrophone) sources.push('microphone');
+    if (this.captureWindows) sources.push('audio Windows');
+    const suffix = sources.length ? ` · capture de ${sources.join(' + ')}` : '';
+    if (job.phase === 'preparing') return `Préparation${suffix}…`;
+    if (job.phase === 'finalizing' || job.state === 'stopping') return `Arrêt en cours${suffix}…`;
+    return `Enregistrement en cours${suffix}`;
   });
   /** Temps écoulé depuis le début de l'enregistrement, affiché mm:ss (hh:mm:ss au-delà d'une heure). */
   readonly elapsedLabel = signal('00:00');

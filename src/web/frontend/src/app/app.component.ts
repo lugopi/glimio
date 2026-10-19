@@ -35,7 +35,7 @@ export class AppComponent implements OnInit {
    * thème courant — le branding change donc de couleur avec le thème.
    * Le fichier public/brand/glimio.svg est nettoyé des métadonnées Inkscape ;
    * le nettoyage ci-dessous reste un repli défensif (déclaration XML,
-   * commentaires, attributs sodipodi:/inkscape:).
+   * commentaires, attributs sodipodi:/inkscape:, width/height absolus).
    */
   private readonly http = inject(HttpClient);
   private readonly sanitizer = inject(DomSanitizer);
@@ -43,7 +43,7 @@ export class AppComponent implements OnInit {
   readonly brandLogo = computed<SafeHtml | null>(() => {
     const svg = this.rawBrandLogo();
     if (!svg) return null;
-    const cleaned = svg
+    let cleaned = svg
       // Déclaration XML et commentaires (non valides en HTML inline).
       .replace(/<\?xml[^>]*\?>/g, '')
       .replace(/<!--[\s\S]*?-->/g, '')
@@ -52,6 +52,17 @@ export class AppComponent implements OnInit {
       .replace(/<(defs|metadata|namedview)\b[^>]*\/>/g, '')
       // …et attributs d'espace de noms restants (sodipodi:, inkscape:).
       .replace(/\s(?:sodipodi|inkscape):[a-zA-Z-]+="[^"]*"/g, '');
+    // Force l'SVG à remplir exactement son conteneur (.brand-mark) : sans
+    // cette étape les width/height natifs (512px) débordent du cadre et une
+    // partie du logo est masquée.
+    cleaned = cleaned.replace(/<svg\b[^>]*/g, tag => {
+      if (tag.includes('viewBox') && !/\sclass="/.test(tag)) {
+        return tag + ' class="brand-logo" width="100%" height="100%" preserveAspectRatio="xMidYMid meet"';
+      }
+      const withBox = tag.replace(/\swidth="[^"]*"/, ' width="100%"').replace(/\sheight="[^"]*"/, ' height="100%"');
+      const boxed = /viewBox=/.test(withBox) ? withBox : withBox + ' viewBox="0 0 512 512"';
+      return boxed + ' preserveAspectRatio="xMidYMid meet"';
+    });
     return this.sanitizer.bypassSecurityTrustHtml(cleaned);
   });
 

@@ -25,23 +25,22 @@
           </div>
           <div class="card-actions">
             @if (activeRecording()) {
-              <!-- Rangée unique : pastille + état + timer + bouton Arrêter (régression post-migration corrigée). -->
-              <div class="record-status"
-                   [class.is-recording]="activeRecording()?.state === 'running' && activeRecording()?.phase === 'recording'"
-                   [class.is-stopping]="activeRecording()?.state === 'stopping' || activeRecording()?.phase === 'finalizing'"
-                   [class.is-processing]="activeRecording()?.phase === 'preparing'"
-                   role="status" aria-live="polite">
+              <!-- Rangée unique : bouton Arrêter portant l'état + le timer, comme avant la migration. -->
+              <button class="btn btn--danger stop-recording-button" id="stop-recording" type="button" role="status" aria-live="polite"
+                      [class.is-recording]="activeRecording()?.state === 'running' && activeRecording()?.phase === 'recording'"
+                      [class.is-stopping]="activeRecording()?.state === 'stopping' || activeRecording()?.phase === 'finalizing'"
+                      [class.is-processing]="activeRecording()?.phase === 'preparing'"
+                      [disabled]="activeRecording()?.phase !== 'recording'" (click)="stopRecording()">
                 <span class="status-dot" aria-hidden="true"></span>
-                <span id="record-status-text">{{ recordingStatusText() }}</span>
+                <span class="btn-label">{{ recordingStatusText() }}</span>
                 <strong>{{ elapsedLabel() }}</strong>
-                <button class="btn btn--danger btn--small" id="stop-recording" type="button"
-                        [disabled]="activeRecording()?.phase !== 'recording'" (click)="stopRecording()">Arrêter</button>
-              </div>
+                <span class="stop-separator" aria-hidden="true">·</span>
+                <span>Arrêter</span>
+              </button>
             } @else {
               <button class="btn btn--primary" type="button" [disabled]="starting() || (!captureMicrophone && !captureWindows)" (click)="startRecording()">@if (starting()) { Préparation… } @else { <glimio-icon name="microphone" /> Démarrer l'enregistrement }</button>
             }
           </div>
-          @if (activeRecording() && activeRecording()?.message) { <p class="field-note" aria-live="polite">{{ activeRecording()?.message }}</p> }
         </section>
 
         <section class="card control-panel import-panel">
