@@ -11,7 +11,7 @@ Merci de contribuer. Glimio est encore en développement ; les interfaces et les
 5. Ajoute des tests qui protègent le comportement observable : règles métier, réponses API, import/normalisation audio, persistance, pagination, navigation et licences. Évite les snapshots qui figent des détails de CSS ou des métadonnées SVG sans impact utilisateur.
 6. Les composants Angular séparent logique, template et styles. Utilise Tailwind CSS 4 via `@reference`/`@apply` et privilégie ses utilitaires standards. Suis les conventions et commandes de [`docs/FRONTEND.md`](docs/FRONTEND.md).
 7. N'ajoute pas de poids IA, d'exécutables, de captures audio utilisateur, de données de séance ou de secrets dans un commit.
-8. Mets à jour `CHANGELOG.md` et incrémente la version `0.x` dans `pyproject.toml`, `src/web/app.py` et `src/web/frontend/package.json` quand c'est pertinent.
+8. Pour une release, suis [`docs/RELEASING.md`](docs/RELEASING.md) et garde la même version dans `pyproject.toml`, `src/seance/__init__.py`, `src/web/app.py`, `src/web/frontend/package.json` et la racine de `src/web/frontend/package-lock.json`.
 
 ## Modèles et dépendances
 

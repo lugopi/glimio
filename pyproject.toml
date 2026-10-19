@@ -24,6 +24,9 @@ web = [
 dev = [
     "pytest>=9.0",
 ]
+bundle = [
+    "pyinstaller>=6.0",
+]
 
 [project.scripts]
 # Glimio commands; legacy aliases are retained for existing scripts.

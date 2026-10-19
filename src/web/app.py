@@ -8,6 +8,7 @@ import queue
 import subprocess
 import tempfile
 import shutil
+import sys
 import threading
 import uuid
 import webbrowser
@@ -51,7 +52,12 @@ WEB_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = WEB_DIR / "frontend"
 # The Angular application is the only UI. Its production build lives outside the
 # source tree, at <project root>/dist/glimio-web-ui, and is served directly.
-ANGULAR_DIST_DIR = PROJECT_ROOT / "dist" / "glimio-web-ui"
+if os.environ.get("GLIMIO_ANGULAR_DIST_DIR"):
+    ANGULAR_DIST_DIR = Path(os.environ["GLIMIO_ANGULAR_DIST_DIR"]).expanduser().resolve()
+elif getattr(sys, "frozen", False):
+    ANGULAR_DIST_DIR = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)) / "angular"
+else:
+    ANGULAR_DIST_DIR = PROJECT_ROOT / "dist" / "glimio-web-ui"
 
 
 def _npm_command(args: list[str]) -> list[str]:
@@ -105,6 +111,8 @@ def _ensure_angular_dist() -> Path:
     index_path = ANGULAR_DIST_DIR / "index.html"
     if index_path.is_file():
         return ANGULAR_DIST_DIR
+    if getattr(sys, "frozen", False):
+        raise SystemExit(f"Frontend Glimio empaqueté introuvable : {index_path}")
     if not FRONTEND_DIR.is_dir():
         raise SystemExit(
             f"Dossier front introuvable : {FRONTEND_DIR}. Impossible de construire l'UI."
@@ -2045,7 +2053,10 @@ def main() -> None:
         raise SystemExit("GLIMIO_WEB_PORT (ou SEANCE_WEB_PORT) doit être un entier.") from exc
     # Keep the served UI fresh: rebuild when sources changed (or when forced).
     try:
-        if os.environ.get("GLIMIO_WEB_BUILD", "").casefold() in {"1", "true", "yes"} or _sources_newer_than_build():
+        if not getattr(sys, "frozen", False) and (
+            os.environ.get("GLIMIO_WEB_BUILD", "").casefold() in {"1", "true", "yes"}
+            or _sources_newer_than_build()
+        ):
             _install_frontend_dependencies()
             _build_frontend()
     except SystemExit as exc:

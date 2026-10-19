@@ -1,0 +1,150 @@
+name: Build and release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Valider la version taguée
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: src/web/frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: src/web/frontend/package-lock.json
+      - name: Installer le projet et les dépendances de test
+        run: python -m pip install -e ".[web,dev]"
+      - name: Tests Python
+        run: python -m pytest -q src/tests
+      - name: Installer les dépendances Angular verrouillées
+        working-directory: src/web/frontend
+        run: npm ci
+      - name: Vérifier les types Angular
+        working-directory: src/web/frontend
+        run: npm run typecheck
+      - name: Tests Angular
+        working-directory: src/web/frontend
+        run: npm test
+      - name: Compiler Angular en production
+        working-directory: src/web/frontend
+        run: npm run build
+      - uses: actions/upload-artifact@v5
+        with:
+          name: angular-production-build
+          path: dist/glimio-web-ui
+          if-no-files-found: error
+          retention-days: 2
+
+  build:
+    name: Build ${{ matrix.edition }} (Windows x64)
+    runs-on: windows-latest
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - edition: cli
+            extras: bundle
+          - edition: web
+            extras: web,bundle
+          - edition: web-diarization
+            extras: web,diarization,bundle
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Valider le tag et installer les dépendances Python
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_EXTRAS: ${{ matrix.extras }}
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw "Tag SemVer invalide : $env:RELEASE_TAG" }
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[${env:RELEASE_EXTRAS}]"
+      - name: Compiler le frontend Angular pour les éditions Web
+        if: matrix.edition != 'cli'
+        uses: actions/download-artifact@v6
+        with:
+          name: angular-production-build
+          path: dist/glimio-web-ui
+      - name: Compiler les exécutables et l’archive portable
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          python scripts/build_windows_release.py --edition "${{ matrix.edition }}" --version $version
+      - name: Installer Inno Setup
+        run: choco install innosetup --yes --no-progress
+      - name: Construire l’installateur Windows
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_EDITION: ${{ matrix.edition }}
+        run: |
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          $payload = (Resolve-Path "dist/release/$env:RELEASE_EDITION/payload").Path
+          $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe introuvable : $iscc" }
+          & $iscc "/DAppVersion=$version" "/DEdition=$env:RELEASE_EDITION" "/DPayloadDir=$payload" "scripts/package/installer.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup a échoué avec le code $LASTEXITCODE" }
+      - name: Vérifier les exécutables et préparer les fichiers de release
+        env:
+          RELEASE_EDITION: ${{ matrix.edition }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          $release = "dist/release/$env:RELEASE_EDITION"
+          $cli = Get-ChildItem "$release/payload/GlimioCLI/GlimioCLI.exe" -ErrorAction Stop
+          & $cli.FullName --help | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Le CLI empaqueté ne démarre pas" }
+          if ($env:RELEASE_EDITION -ne 'cli') {
+            & "$release/payload/GlimioWeb/GlimioWeb.exe" --check-bundle | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Le frontend Web empaqueté est incomplet" }
+          }
+          $portable = Get-ChildItem "$release/Glimio-$env:RELEASE_EDITION-$version-Windows-x64-portable.zip" -ErrorAction Stop
+          $setup = Get-ChildItem "$release/Glimio-$env:RELEASE_EDITION-$version-Windows-x64-Setup.exe" -ErrorAction Stop
+          $assets = "artifacts/$env:RELEASE_EDITION"
+          New-Item -ItemType Directory -Force -Path $assets | Out-Null
+          Copy-Item $portable.FullName, $setup.FullName -Destination $assets
+      - uses: actions/upload-artifact@v5
+        with:
+          name: release-${{ matrix.edition }}-windows-x64
+          path: artifacts/${{ matrix.edition }}/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Create draft GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: release-*-windows-x64
+          path: dist/release-assets
+          merge-multiple: true
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: |
+          cd dist/release-assets
+          sha256sum Glimio-* > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Glimio ${{ github.ref_name }}
+          draft: true
+          generate_release_notes: true
+          files: dist/release-assets/*

@@ -1,12 +1,11 @@
 # Changelog
 
-## Unreleased — Angular 22 migration groundwork
+## Unreleased — éditions Windows et publication GitHub
 
-- Added a standalone Angular 22 workspace with strict TypeScript and strict template checks, lazy page routes, a typed FastAPI client, shared preferences/toast state, and reusable icon/pagination components.
-- Added a locally served Heroicons SVG sprite; Angular icons do not depend on a CDN.
-- Added an optional `/angular/` preview route that only exists when a production Angular build is present. The existing `/` UI remains unchanged until feature parity, build, accessibility, and regression gates pass.
-- Documented Angular 22 toolchain requirements and frontend conventions in `docs/FRONTEND.md`.
-- Validation: the existing Python suite and migration contract tests pass. The Angular production build could not be run in this environment because the installed Node.js version is below Angular 22's supported range and npm registry DNS is unavailable.
+- Ajout d’un CLI pour enregistrer, transcrire, résumer ou traiter un fichier audio/vidéo ou une séance depuis le terminal.
+- Préparation de trois éditions Windows x64 (CLI, Web, Web avec diarisation), chacune en installateur et archive portable ; les exécutables natifs et poids de modèles restent séparés.
+- Ajout des workflows CI et de création d’une release brouillon déclenchée par un tag `vX.Y.Z`, avec contrôle des versions, tests, sommes SHA-256 et publication des six paquets.
+- Les builds empaquetés servent le frontend Angular inclus et stockent les données sous `%LOCALAPPDATA%`; le workflow de développement depuis les sources conserve son build Angular habituel.
 
 ## Unreleased — mise development toolchain
 

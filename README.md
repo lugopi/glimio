@@ -43,6 +43,14 @@ Les poids IA et exécutables natifs sont volontairement exclus du dépôt Git. L
 
 ## Installation
 
+### Télécharger une édition Windows
+
+Dans la page **Releases** du dépôt GitHub, télécharge l’installateur `Setup.exe` pour une installation classique, ou l’archive `portable.zip` si tu préfères extraire et lancer l’application sans installateur. Les deux formats existent pour chacune des éditions : **CLI**, **Web** et **Web avec diarisation**. L’édition Web inclut aussi le CLI et son interface Angular précompilée ; Node.js n’est pas nécessaire pour l’utiliser.
+
+Les exécutables Whisper/llama.cpp, FFmpeg et les poids de modèles ne sont pas inclus. Configure leurs emplacements dans **Paramètres** après l’installation ; les modèles et leurs conditions restent documentés dans [`docs/MODELS.md`](docs/MODELS.md). Les données de l’application empaquetée sont conservées dans `%LOCALAPPDATA%\Glimio\Data` et séparées du dossier d’installation.
+
+### Installer depuis les sources
+
 Depuis la racine du dépôt complet, avec Python 3.10 ou plus récent :
 
 ```powershell
@@ -66,6 +74,8 @@ Démarre l’application :
 ```
 
 L’interface locale est normalement ouverte à `http://127.0.0.1:8765`. Le serveur écoute sur la boucle locale par défaut. Ne l’expose pas sur un réseau non fiable : Glimio n’implémente actuellement pas d’authentification.
+
+Le CLI peut enregistrer avec `glimio record` (Ctrl+C pour arrêter) et accepte aussi un fichier audio/vidéo ou un dossier de séance : `glimio process chemin\vers\fichier.wav`, `glimio transcribe chemin\vers\seance` ou `glimio summarize chemin\vers\seance`. Utilise `glimio --help` pour les options et chemins de modèles.
 
 ## Modèles et exécutables
 
@@ -132,7 +142,7 @@ La suite Python se lance séparément à la racine avec `python -m pytest -q src
 
 Le `.gitignore` exclut l’état local, les séances, les poids de modèles, les exécutables et les binaires compilés. Avant le premier push, vérifie `git status --ignored` et assure-toi qu’aucun poids IA, exécutable, fichier audio de test privé, base SQLite ou secret n’est inclus. Si de tels fichiers ont déjà été indexés par Git, `.gitignore` ne les retire pas de l’index : suis les étapes de [`docs/GIT_PREPARATION.md`](docs/GIT_PREPARATION.md).
 
-Les contributions doivent inclure des tests et documenter les nouveaux modèles/dépendances. Voir [`CONTRIBUTING.md`](CONTRIBUTING.md) et [`SECURITY.md`](SECURITY.md). Les changements notables se trouvent dans [`CHANGELOG.md`](CHANGELOG.md).
+Les contributions doivent inclure des tests et documenter les nouveaux modèles/dépendances. Voir [`CONTRIBUTING.md`](CONTRIBUTING.md) et [`SECURITY.md`](SECURITY.md). Pour créer les paquets et publier une version, suivre [`docs/RELEASING.md`](docs/RELEASING.md) ; les changements notables sont consignés dans [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Licence
 
