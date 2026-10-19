@@ -10,8 +10,17 @@ from pathlib import Path
 from .layout import ensure_session_layout, metadata_output_path
 
 
-def import_audio_file(path: str | Path, directory: str | Path = "seances", *, ffmpeg: str = "ffmpeg") -> Path:
-    """Convert an audio/video source to a mono PCM WAV and return its session folder."""
+def import_audio_file(
+    path: str | Path,
+    directory: str | Path = "seances",
+    *,
+    ffmpeg: str = "ffmpeg",
+    normalize: bool = True,
+    max_gain_db: float = 30.0,
+) -> Path:
+    """Convert a source to mono PCM WAV, optionally normalize it, and persist metadata."""
+    if not 0.0 <= float(max_gain_db) <= 30.0:
+        raise ValueError("max_gain_db must be between 0 and 30 dB")
     source = Path(path).expanduser().resolve()
     if not source.is_file():
         raise FileNotFoundError(f"Fichier audio/vidéo introuvable : {source}")
@@ -47,6 +56,15 @@ def import_audio_file(path: str | Path, directory: str | Path = "seances", *, ff
         if result.returncode != 0 or not output.is_file() or output.stat().st_size <= 44:
             detail = (result.stderr or result.stdout or "aucune piste audio exploitable").strip()
             raise RuntimeError(f"Impossible de convertir le fichier avec FFmpeg : {detail[-3000:]}")
+        # Reuse the same peak-normalization implementation as Windows loopback
+        # capture so imported files obey the user's shared audio-level preference.
+        from .audio import _normalize_wav_peak
+
+        normalization_info = _normalize_wav_peak(
+            output,
+            enabled=normalize,
+            max_gain_db=max_gain_db,
+        )
         metadata = {
             "title": source.stem.strip() or "Audio importé",
             "title_source": "filename",
@@ -56,6 +74,7 @@ def import_audio_file(path: str | Path, directory: str | Path = "seances", *, ff
             "source_type": source.suffix.lower().lstrip("."),
             "audio_bitrate_kbps": 256,
             "captured_tracks": ["audio_import"],
+            "audio_import_normalization": normalization_info,
         }
         metadata_output_path(folder).write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return folder

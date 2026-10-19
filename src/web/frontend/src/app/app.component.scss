@@ -1,3 +1,5 @@
+@reference '../styles/tailwind-ref.scss';
+
 :host {
   display: block;
   min-height: 100dvh;
@@ -5,8 +7,8 @@
 
 .brand-logo {
   display: block;
-  width: 31px;
-  height: 31px;
+  width: 40px;
+  height: 40px;
   object-fit: contain;
 }
 

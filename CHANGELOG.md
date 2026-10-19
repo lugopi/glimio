@@ -1,5 +1,55 @@
 # Changelog
 
+## Unreleased — Angular 22 migration groundwork
+
+- Added a standalone Angular 22 workspace with strict TypeScript and strict template checks, lazy page routes, a typed FastAPI client, shared preferences/toast state, and reusable icon/pagination components.
+- Added a locally served Heroicons SVG sprite; Angular icons do not depend on a CDN.
+- Added an optional `/angular/` preview route that only exists when a production Angular build is present. The existing `/` UI remains unchanged until feature parity, build, accessibility, and regression gates pass.
+- Documented Angular 22 toolchain requirements and frontend conventions in `docs/FRONTEND.md`.
+- Validation: the existing Python suite and migration contract tests pass. The Angular production build could not be run in this environment because the installed Node.js version is below Angular 22's supported range and npm registry DNS is unavailable.
+
+## Unreleased — mise development toolchain
+
+- Added root `mise.toml` pinning Python 3.14, Node.js 26, and `npm:@angular/cli` 22, with the project virtual environment at `.venv`.
+- Added a `dev` optional dependency group for pytest and documented the setup and verification commands.
+- Environment note: this execution container has no `mise` binary and cannot resolve `mise.jdx.dev`; the suite was therefore checked with the available Python 3.13 environment, not the requested Python 3.14 / Node 26 toolchain.
+
+## Unreleased — Angular 22.2 / TypeScript 6 build fixes
+
+- Aligned frontend dependency ranges with Angular 22.2.3, TypeScript 6.0.3, Vitest 5, jsdom 30, Node type definitions 26, and Zone.js 0.16.3.
+- Removed the deprecated TypeScript `baseUrl` option; no path aliases are configured, so it was unnecessary.
+- Fixed the search button's signal access (`query()`), tightened the bitrate selector to its supported literal union, and removed an unnecessary optional chain in the guarded library template.
+- Confirmed `angular.json` uses the Angular application builder and Angular's unit-test builder. A production build still needs to be run with the pinned Node.js 26 toolchain and installed npm dependencies.
+
+## Passe complémentaire UI, Sass et tests — 2026-10-19
+
+- Bibliothèque : dimensions explicites pour l’icône de durée, badge d’état aligné sur la première ligne du texte, panneaux des onglets encadrés et arrondis de façon cohérente.
+- Pagination : plage visible aussi avec plusieurs pages, résumé aligné à droite quand il n’y a qu’une page, commandes compactées en fonction de la largeur réelle du composant et choix du nombre d’extraits par page dans la recherche.
+- Recherche intelligente : extraits présentés comme des cartes de séance, espaces homogènes, pagination et taille de page cohérentes.
+- Formulaires et mise en page : cases/radios alignés sur la première ligne de leur libellé, hauteur/marge de « Nombre d’interlocuteurs » normalisée et titre de page plus compact.
+- Styles : entrée Tailwind 4 isolée dans un fichier CSS simple, composition Sass via `@use`, styles Markdown partagés, règles de la Bibliothèque réduites pour rester sous le budget de style de composant.
+- Paramètres : les trois poids tiers ouvrent désormais leur page/release manuelle plutôt que de dépendre d’une URL directe de téléchargement ; les confirmations de licence/conditions restent nécessaires.
+- Outillage : Node.js minimal indiqué explicitement (`22.22.3` sur la branche 22), import de `web.app` sans build frontend implicite, et configuration de lancement IDE ramenée à des chemins de projet plutôt qu’à des chemins locaux figés.
+- Tests : suppression de trois assertions visuelles/structurelles trop fragiles et ajout de contrats centrés sur les comportements partagés. Validation Python : 111 tests réussis, `compileall` et vérification des paires de jetons de contraste réussis. Le build Angular n’a pas été validé dans cet environnement : il fournit Node `22.16.0` (trop ancien pour Angular 22.2.3), et `npm ci` n’a pas terminé correctement.
+
+## Correctifs prioritaires build Angular et modèles — 2026-10-19
+
+- Compilation : ajout explicite de `IconComponent` aux imports de `PaginationComponent`, supprimant la cause des erreurs `NG8001` du composant de pagination ; suppression du `?? []` redondant ciblé par `NG8102`.
+- Bibliothèque : rendu Markdown des tableaux en HTML accessible avec défilement horizontal et focus clavier ; confirmation renforcée lors de la suppression de la dernière piste audio et message correct si aucun audio ne reste.
+- Modèles : liens officiels dédiés pour les modèles Whisper, LFM2.5, segmentation pyannote et embedding 3D-Speaker ; les liens LFM, pyannote et 3D-Speaker sont conditionnés à une confirmation de lecture des licences/conditions. Glimio n’exécute pas automatiquement de binaires tiers.
+- Thèmes et ressources : vérification des contrastes documentés dans les six thèmes et mise à jour des contrats autour du favicon SVG.
+- Validation ciblée : 39 tests de contrat/API/audio passés et `py_compile` réussi. Build Angular non exécuté dans cet environnement faute du binaire `ng` ; les avertissements de dépréciation Sass `@import` restent non bloquants et devront être retirés par une migration globale vérifiée.
+
+## Correctifs UI, états de séance et capture audio — 2026-10-19
+
+- Bibliothèque Angular : ajout d’un rafraîchissement périodique (2 s) de la liste et du détail de la séance pour refléter les transitions d’état des jobs, sans réinitialiser les aperçus d’artefacts ni les paramètres de traitement en cours d’édition. Le polling résiste aux erreurs réseau passagères et évite les requêtes concurrentes.
+- Bibliothèque : affichage explicite des états En attente / En cours / Terminé / Échec, et des messages d’erreur quand disponibles, dans la liste et dans le panneau de détail. Le panneau de détail réutilise le composant partagé `session-live-progress`.
+- Accessibilité : la carte de séance n’imbrique plus des éléments de type bloc dans un `<button>` ; la zone de sélection est un bouton dédié avec état `aria-pressed` et focus visible, le message de traitement étant son voisin dans la carte.
+- Branding : SVG public sans métadonnées Inkscape/Sodipodi, calques conservés sous `layer3` (wave) et `layer2` (forme principale), les deux utilisant `currentColor` ; la vague se distingue uniquement par une opacité de 25 %.
+- Capture audio : correspondance exacte et insensible à la casse en priorité ; les anciennes préférences à correspondance partielle restent acceptées uniquement si le résultat est unique. Les sélections ambiguës et noms exactement dupliqués sont refusés avec un message explicite. Un log met en évidence les noms identiques des deux endpoints Bluetooth sans désactiver arbitrairement l’une des deux pistes.
+- SCSS : normalisation du padding des cartes principales sur `p-5` (20 px), retrait d’un bloc de styles en doublon pour les contrôles d’activité et tests de contrat ciblant le rafraîchissement des états et le SVG. Le vérificateur de contraste référence maintenant le véritable fichier `styles/tokens.scss` au lieu d’un `tokens.css` inexistant.
+- Validation : les tests de `test_audio_streaming.py` passent (6 tests) et les fichiers Python modifiés passent `py_compile`. Le build Angular n’a pas pu être exécuté ici : les dépendances npm ne sont pas intégralement disponibles hors ligne, `ng` reste absent, et la version Node fournie (22.16.0) est inférieure à la version minimale annoncée par Angular 22.2.3 (22.22.3). Tester la compilation complète avec une version Node compatible avant fusion.
+
 ## Correctifs fonctionnels — options par séance et diarisation
 
 - Ajout du module manquant `seance.diarization` avec chargement WAV, exécution locale sherpa-onnx, alignement des segments de voix sur la transcription horodatée, sauvegarde JSON et sauvegardes de la transcription d’origine. Un message explicite indique l’extra Python ou les modèles ONNX manquants.
@@ -10,12 +60,10 @@
 - Chemins par défaut des exécutables : `bin/asr/whisper-cli.exe` et `bin/llm/llama-completion.exe`.
 - Documentation README et chemins de modèles mis à jour.
 
-
 ## Corrections complémentaires — 2026-10-18
 
 - Les exécutables par défaut utilisent maintenant les noms amont standards : `bin/whisper/whisper-cli.exe` et `bin/llama-cpp/llama-completion.exe`, de façon cohérente entre backend, traitements CLI, interface statique et documentation. Les anciennes valeurs génériques enregistrées sont migrées vers ces chemins lorsqu’elles ne pointent pas vers un fichier existant.
 - Harmonisation des icônes SVG, des espacements internes de la diarisation, du menu mobile, du menu d’actions de séance et de l’indication discrète de sauvegarde automatique. Les activités terminées/échouées peuvent être effacées individuellement par une croix ou en lot avec « Effacer l’historique » ; les tâches en cours et en attente restent protégées.
-
 
 ## 0.4.2 — Réorganisation de l’interface et navigation mobile
 
@@ -31,6 +79,43 @@
 - Menu : chemin complet du dossier des séances visible, repliable sur mobile avec le menu, et action de copie ; indicateur de traitement alimenté par le mode de configuration au lieu d’une promesse statique de fonctionnement hors cloud.
 - Version API, paquet frontend et projet alignés sur `0.4.2`.
 
+## Interface et maintenance — 0.4.2
+
+### Options de diarisation
+
+- Harmonisation des marges, du padding et du fond du champ de nombre d’interlocuteurs.
+- Seuil de regroupement toujours disponible dans Paramètres, quel que soit le mode automatique ou manuel choisi sur la page Enregistrement.
+- Clarification des aides en français et en anglais pour les options communes, le nombre d’interlocuteurs et le seuil de regroupement.
+
+- Harmonisation des marges des activités, pagination de l’historique et effacement des activités terminées (les tâches actives/en attente sont conservées).
+- Icônes SVG intégrées inspirées du style Heroicons, sans dépendance distante, et symbole Glimio distinctif.
+- Barre de marque mobile extensible, avec le bouton de navigation maintenu à l’extrémité de la ligne.
+- Chemins proposés dans Paramètres alignés sur les valeurs par défaut réellement utilisées par le backend.
+- Dépendance FastAPI portée à la version minimale 0.143.4.
+
+## UI follow-up — Heroicons, pagination partagée et espacements
+
+- Remplacement des trois balises `<i>` du menu d’actions de la bibliothèque par l’icône `bars-3` de Heroicons v2 Outline, intégrée localement sans CDN. Ajout des mentions de licence MIT.
+- Harmonisation du bouton de menu mobile avec le même composant Heroicons partagé. Correction du bug qui remplaçait son SVG par du texte (`☰` / `×`) lors du clic et pouvait donc masquer l’icône.
+- Déplacement de la croix de suppression des activités dans le coin supérieur droit de la carte, avec une zone de contenu réservée pour éviter les chevauchements.
+- Création d’un composant de pagination réutilisable (`paginationMarkup` + `updatePagination`) partagé entre Activités et Bibliothèque, au lieu de maintenir deux structures séparées.
+- Ajout de padding intérieur cohérent à la section de diarisation et aux cartes d’activité, dans les CSS sources et les CSS statiques servis.
+- Ajout de tests de contrat UI pour les icônes locales, la pagination partagée et la position de la suppression.
+
+## UI follow-up — 2026-10-19
+
+- Prevented responsive brand mark clipping and aligned the translucent `wave` SVG layer with `currentColor`.
+- Expanded the library session action menu with Heroicons and consistent button controls.
+- Prioritized session documents, then audio tracks, processing status, and per-session settings.
+- Restored an understated AGPL-3.0-or-later license notice in Settings.
+- Standardized spacing for the intelligent-search explanatory text and added contract coverage.
+
+## Refactorisation Angular et identité de marque
+
+- Extraction des templates Angular dans des fichiers HTML et des styles locaux dans des fichiers SCSS.
+- Remplacement du pictogramme temporaire par le SVG de marque Glimio dans les interfaces Angular et legacy.
+- Inclusion des nouveaux fichiers HTML/SCSS et de l’asset de marque dans les fichiers distribués.
+
 ## 0.4.1 — Options de traitement partagées
 
 - Enregistrement et import : déplacement des options communes dans une carte autonome « Options de traitement », placée avant les deux parcours pour la consulter avant de démarrer un enregistrement ou un import, puis l’activité apparaît séparément en dessous. Elle est visible sans chevron/accordéon, cohérente avec les cartes du reste de l’interface.
@@ -42,7 +127,7 @@
 ## 0.4.0 — Paramètres centralisés, qualité audio et licence copyleft
 
 - Ajout d’une page **Paramètres** dédiée qui centralise les chemins des modèles et exécutables, le moteur FFmpeg, la langue de transcription, les options OpenVINO, les budgets de génération, les réglages de diarisation et les préférences de qualité audio.
-- Les chemins par défaut du code sont génériques et basés sur le rôle du fichier (`models/asr/model.bin`, `models/llm/model.gguf`, `models/diarization/segmentation.onnx`, `models/diarization/embedding.onnx`, `bin/asr/transcriber.exe`, `bin/llm/inference.exe`). Les sources et noms upstream restent documentés dans `docs/MODELS.md`.
+- Les chemins par défaut du code sont génériques et basés sur le rôle du fichier (`models/asr/model.bin`, `models/llm/model.gguf`, `models/diarization/segmentation/segmentation.onnx`, `models/diarization/embedding/embedding.onnx`, `bin/asr/transcriber.exe`, `bin/llm/inference.exe`). Les sources et noms upstream restent documentés dans `docs/MODELS.md`.
 - Ajout du choix de débit d’enregistrement PCM mono 16 bits (128/256/384/512/768 kbps, correspondant à 8/16/24/32/48 kHz) ; les métadonnées de séance conservent le débit et la fréquence choisis.
 - Passage à la licence `AGPL-3.0-or-later` pour le code Glimio. Ajout d’une note expliquant les droits de revente, le copyleft réseau, la distinction entre licence Open Source et restriction commerciale, et la séparation de la marque et des licences de modèles tiers.
 
@@ -154,58 +239,3 @@ Les changements notables sont regroupés par version. Les versions sont celles d
 - Ajout d’un lien de saut vers le contenu principal, d’un landmark principal ciblable au clavier, et de la relation `aria-controls` sur les réglages avancés.
 - Nouvelles variables `GLIMIO_*` prioritaires, avec prise en charge des variables `SEANCE_*` historiques.
 - Conservation des corrections UI/UX précédentes : gestion des séances, pagination, titres automatiques, états conditionnels, contrôle du nombre de participants et des seuils, alignements et styles cohérents.
-
-
-### Follow-up — diarisation controls and copy
-
-- Added spacing, padding, and an inset surface around the manual participant-count field.
-- Kept the speaker-grouping threshold visible and editable in Settings regardless of the automatic/manual participant-count choice on the Recording page.
-- Clarified the French and English helper text for shared processing options, participant count, and the grouping threshold.
-
-
-## Interface et maintenance — 0.4.2
-
-- Harmonisation des marges des activités, pagination de l’historique et effacement des activités terminées (les tâches actives/en attente sont conservées).
-- Icônes SVG intégrées inspirées du style Heroicons, sans dépendance distante, et symbole Glimio distinctif.
-- Barre de marque mobile extensible, avec le bouton de navigation maintenu à l’extrémité de la ligne.
-- Chemins proposés dans Paramètres alignés sur les valeurs par défaut réellement utilisées par le backend.
-- Dépendance FastAPI portée à la version minimale 0.143.4.
-
-## UI follow-up — Heroicons, pagination partagée et espacements
-
-- Remplacement des trois balises `<i>` du menu d’actions de la bibliothèque par l’icône `bars-3` de Heroicons v2 Outline, intégrée localement sans CDN. Ajout des mentions de licence MIT.
-- Harmonisation du bouton de menu mobile avec le même composant Heroicons partagé. Correction du bug qui remplaçait son SVG par du texte (`☰` / `×`) lors du clic et pouvait donc masquer l’icône.
-- Déplacement de la croix de suppression des activités dans le coin supérieur droit de la carte, avec une zone de contenu réservée pour éviter les chevauchements.
-- Création d’un composant de pagination réutilisable (`paginationMarkup` + `updatePagination`) partagé entre Activités et Bibliothèque, au lieu de maintenir deux structures séparées.
-- Ajout de padding intérieur cohérent à la section de diarisation et aux cartes d’activité, dans les CSS sources et les CSS statiques servis.
-- Ajout de tests de contrat UI pour les icônes locales, la pagination partagée et la position de la suppression.
-
-## Unreleased — Angular 22 migration groundwork
-
-- Added a standalone Angular 22 workspace with strict TypeScript and strict template checks, lazy page routes, a typed FastAPI client, shared preferences/toast state, and reusable icon/pagination components.
-- Added a locally served Heroicons SVG sprite; Angular icons do not depend on a CDN.
-- Added an optional `/angular/` preview route that only exists when a production Angular build is present. The existing `/` UI remains unchanged until feature parity, build, accessibility, and regression gates pass.
-- Documented Angular 22 toolchain requirements and the safe cutover checklist in `docs/ANGULAR_22_MIGRATION.md`.
-- Validation: the existing Python suite and migration contract tests pass. The Angular production build could not be run in this environment because the installed Node.js version is below Angular 22's supported range and npm registry DNS is unavailable.
-
-
-## Unreleased — mise development toolchain
-
-- Added root `mise.toml` pinning Python 3.14, Node.js 26, and `npm:@angular/cli` 22, with the project virtual environment at `.venv`.
-- Added a `dev` optional dependency group for pytest and documented the setup and verification commands.
-- Environment note: this execution container has no `mise` binary and cannot resolve `mise.jdx.dev`; the suite was therefore checked with the available Python 3.13 environment, not the requested Python 3.14 / Node 26 toolchain.
-
-
-## Unreleased — Angular 22.2 / TypeScript 6 build fixes
-
-- Aligned frontend dependency ranges with Angular 22.2.3, TypeScript 6.0.3, Vitest 5, jsdom 30, Node type definitions 26, and Zone.js 0.16.3.
-- Removed the deprecated TypeScript `baseUrl` option; no path aliases are configured, so it was unnecessary.
-- Fixed the search button's signal access (`query()`), tightened the bitrate selector to its supported literal union, and removed an unnecessary optional chain in the guarded library template.
-- Confirmed `angular.json` uses the Angular application builder and Angular's unit-test builder. A production build still needs to be run with the pinned Node.js 26 toolchain and installed npm dependencies.
-
-
-## Refactorisation Angular et identité de marque
-
-- Extraction des templates Angular dans des fichiers HTML et des styles locaux dans des fichiers SCSS.
-- Remplacement du pictogramme temporaire par le SVG de marque Glimio dans les interfaces Angular et legacy.
-- Inclusion des nouveaux fichiers HTML/SCSS et de l’asset de marque dans les fichiers distribués.

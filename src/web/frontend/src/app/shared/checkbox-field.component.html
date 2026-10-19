@@ -1,0 +1,7 @@
+<div class="checkbox-field">
+  <button class="field-label checkbox-field-heading" [id]="fieldId() + '-label'" type="button" (click)="checkbox.focus()">{{ title() }}</button>
+  <label class="input checkbox-field-control">
+    <input #checkbox [id]="fieldId()" type="checkbox" [checked]="checked()" [disabled]="disabled()" [attr.aria-labelledby]="fieldId() + '-label'" [attr.aria-describedby]="fieldId() + '-description'" (change)="checkedChange.emit(checkbox.checked)">
+    <small [id]="fieldId() + '-description'">{{ description() }}</small>
+  </label>
+</div>

@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, throwError } from 'rxjs';
 import {
-  AppConfig, AudioDevices, GlimioSettings, JobsResponse, JobAction, Job,
+  AppConfig, AudioDevices, AudioSourceSelection, GlimioSettings, JobsResponse, JobAction, Job,
   PreferencesPayload, SearchResult, SessionDetail, SessionPage,
 } from './api.models';
 
@@ -51,6 +51,18 @@ export class ApiService {
     return this.http.delete<{ deleted: string }>(`/api/sessions/${encodeURIComponent(id)}`).pipe(catchError(this.normalizeError));
   }
 
+  setAudioTrackDisabled(id: string, filename: string, disabled: boolean): Observable<{ id: string; filename: string; disabled_audio_tracks: string[]; metadata: Record<string, unknown> }> {
+    return this.http.patch<{ id: string; filename: string; disabled_audio_tracks: string[]; metadata: Record<string, unknown> }>(
+      `/api/sessions/${encodeURIComponent(id)}/audio/${encodeURIComponent(filename)}`, { disabled },
+    ).pipe(catchError(this.normalizeError));
+  }
+
+  deleteAudioTrack(id: string, filename: string): Observable<{ id: string; filename: string; audio_tracks: string[]; metadata: Record<string, unknown>; warnings: string[] }> {
+    return this.http.delete<{ id: string; filename: string; audio_tracks: string[]; metadata: Record<string, unknown>; warnings: string[] }>(
+      `/api/sessions/${encodeURIComponent(id)}/audio/${encodeURIComponent(filename)}`,
+    ).pipe(catchError(this.normalizeError));
+  }
+
   saveSessionSettings(id: string, settings: GlimioSettings): Observable<{ id: string; settings: GlimioSettings; metadata: Record<string, unknown> }> {
     return this.http.put<{ id: string; settings: GlimioSettings; metadata: Record<string, unknown> }>(`/api/sessions/${encodeURIComponent(id)}/settings`, { settings }).pipe(catchError(this.normalizeError));
   }
@@ -67,13 +79,14 @@ export class ApiService {
     return this.http.delete<{ deleted: number }>('/api/jobs/history').pipe(catchError(this.normalizeError));
   }
 
-  startSessionJob(action: JobAction, sessionId: string, settings: GlimioSettings): Observable<Job> {
-    return this.http.post<Job>('/api/jobs', { action, session_id: sessionId, settings }).pipe(catchError(this.normalizeError));
+  startSessionJob(action: JobAction, sessionId: string, settings: GlimioSettings, force = false): Observable<Job> {
+    return this.http.post<Job>('/api/jobs', { action, session_id: sessionId, settings, force }).pipe(catchError(this.normalizeError));
   }
 
   startRecording(payload: {
     title: string; microphone: string; output: string; capture_microphone: boolean;
     capture_windows: boolean; normalize_windows: boolean; normalize_windows_max_gain_db: number;
+    sources?: AudioSourceSelection[];
     auto_transcribe: boolean; auto_pv: boolean; settings: GlimioSettings;
   }): Observable<Job> {
     return this.http.post<Job>('/api/recording/start', payload).pipe(catchError(this.normalizeError));
@@ -83,11 +96,13 @@ export class ApiService {
     return this.http.post<Job>('/api/recording/stop', {}).pipe(catchError(this.normalizeError));
   }
 
-  importFile(file: File, settings: GlimioSettings, action: 'process' | 'transcribe'): Observable<Job> {
+  importFile(file: File, settings: GlimioSettings, action: 'process' | 'transcribe', normalizeWindows = true, normalizeGainDb = 30): Observable<Job> {
     const body = new FormData();
     body.append('file', file, file.name);
     body.append('settings_json', JSON.stringify(settings));
     body.append('action', action);
+    body.append('normalize_windows', String(normalizeWindows));
+    body.append('normalize_windows_max_gain_db', String(normalizeGainDb));
     return this.http.post<Job>('/api/import', body).pipe(catchError(this.normalizeError));
   }
 

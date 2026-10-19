@@ -58,8 +58,8 @@ def _resample(audio: np.ndarray, source_rate: int, target_rate: int) -> np.ndarr
 
 def _combined_audio(folder: Path, target_rate: int) -> np.ndarray:
     tracks: list[np.ndarray] = []
-    for filename in ("micro.wav", "windows.wav", "audio_import.wav"):
-        path = get_audio_path(folder, filename)
+    from .layout import list_enabled_audio_paths
+    for path in list_enabled_audio_paths(folder):
         if not path.is_file():
             continue
         samples, sample_rate = _read_wav(path)
@@ -122,8 +122,8 @@ def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backu
     if not json_path.is_file():
         raise SystemExit(f"Transcription horodatée introuvable : {json_path}. Relancez Whisper avant la diarisation.")
 
-    segmentation_model = Path(getattr(args, "diarization_segmentation_model", "models/diarization/segmentation.onnx")).expanduser().resolve()
-    embedding_model = Path(getattr(args, "diarization_embedding_model", "models/diarization/embedding.onnx")).expanduser().resolve()
+    segmentation_model = Path(getattr(args, "diarization_segmentation_model", "models/diarization/segmentation/segmentation.onnx")).expanduser().resolve()
+    embedding_model = Path(getattr(args, "diarization_embedding_model", "models/diarization/embedding/embedding.onnx")).expanduser().resolve()
     for label, path in (("segmentation", segmentation_model), ("embedding", embedding_model)):
         if not path.is_file():
             raise SystemExit(f"Modèle de diarisation {label} introuvable : {path}")

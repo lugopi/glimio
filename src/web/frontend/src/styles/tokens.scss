@@ -42,6 +42,7 @@
   --c-danger: #ffadb4;
   --c-danger-soft: #342025;
   --c-shadow: none;
+
   --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-code: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   --radius-panel: 12px;
@@ -67,6 +68,7 @@
   --c-danger: #922337;
   --c-danger-soft: #fff0f2;
   --c-shadow: none;
+
 }
 
 :root[data-theme="midnight"] {
@@ -89,6 +91,7 @@
   --c-danger: #ffadb4;
   --c-danger-soft: #342025;
   --c-shadow: none;
+
 }
 
 :root[data-theme="forest"] {
@@ -111,4 +114,58 @@
   --c-danger: #ffadb4;
   --c-danger-soft: #342025;
   --c-shadow: none;
+
+}
+
+
+/* Dracula: purple accent, high-contrast text and restrained surfaces. */
+:root[data-theme="dracula"] {
+  color-scheme: dark;
+  --c-canvas: #282a36;
+  --c-sidebar: #21222c;
+  --c-surface: #30323f;
+  --c-surface-raised: #3a3d4d;
+  --c-surface-hover: #45485a;
+  --c-border: #626579;
+  --c-border-soft: #45485a;
+  --c-text: #f8f8f2;
+  --c-muted: #d0d0dc;
+  --c-subtle: #e1e2eb;
+  --c-accent: #d1b3ff;
+  --c-accent-contrast: #282a36;
+  --c-accent-soft: color-mix(in srgb, var(--c-accent) 17%, transparent);
+  --c-success: #72f1a6;
+  --c-warning: #f1fa8c;
+  --c-danger: #ffc4cb;
+  --c-danger-soft: #492d3a;
+  --c-shadow: none;
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-code: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  --radius-panel: 12px;
+}
+
+/* Monokai: warm charcoal surfaces, lime accent and readable muted text. */
+:root[data-theme="monokai"] {
+  color-scheme: dark;
+  --c-canvas: #272822;
+  --c-sidebar: #20211b;
+  --c-surface: #303129;
+  --c-surface-raised: #3a3b32;
+  --c-surface-hover: #48493e;
+  --c-border: #65665c;
+  --c-border-soft: #494a40;
+  --c-text: #f8f8f2;
+  --c-muted: #d2d2c7;
+  --c-subtle: #e3e4da;
+  --c-accent: #c4f05b;
+  --c-accent-contrast: #24251f;
+  --c-accent-soft: color-mix(in srgb, var(--c-accent) 16%, transparent);
+  --c-success: #c4f05b;
+  --c-warning: #f2e783;
+  --c-danger: #ffc2d0;
+  --c-danger-soft: #482b35;
+  --c-shadow: none;
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-code: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  --radius-panel: 12px;
 }

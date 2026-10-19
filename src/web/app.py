@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from seance.audio import _soundcard, audio_com_apartment, record
-from seance.layout import get_audio_path, get_transcript_path, has_audio
+from seance.layout import get_audio_path, get_transcript_path, has_audio, list_audio_paths
 from seance.pipeline import minutes_folder, process_folder, transcribe_folder
 from seance.llm import (
     LLMCancelled, LLMError, run_completion_resilient,
@@ -30,7 +30,7 @@ from seance.llm import (
 from .project_paths import discover_project_root, resolve_session_root
 from .services.library import (
     describe_session, list_sessions, list_sessions_page, read_artifact,
-    resolve_session_folder, retrieve_passages,
+    resolve_session_folder, retrieve_passages, summary_path, transcript_path,
 )
 from .services.sqlite_db import SQLiteDatabase, database_path
 from .services.job_store import JobStore
@@ -48,8 +48,94 @@ PROJECT_ROOT = discover_project_root(package_file=__file__)
 SESSION_ROOT = resolve_session_root(PROJECT_ROOT)
 
 WEB_DIR = Path(__file__).resolve().parent
-STATIC_DIR = WEB_DIR / "static"
-ANGULAR_STATIC_DIR = STATIC_DIR / "angular"
+FRONTEND_DIR = WEB_DIR / "frontend"
+# The Angular application is the only UI. Its production build lives outside the
+# source tree, at <project root>/dist/glimio-web-ui, and is served directly.
+ANGULAR_DIST_DIR = PROJECT_ROOT / "dist" / "glimio-web-ui"
+
+
+def _npm_command(args: list[str]) -> list[str]:
+    """Return a subprocess command for npm on Windows (npm is an .cmd shim)."""
+    if os.name == "nt":
+        return ["cmd", "/c", "npm", *args]
+    return ["npm", *args]
+
+
+def _install_frontend_dependencies() -> None:
+    """Install front-end dependencies before building (no manual npm step needed)."""
+    node_modules = FRONTEND_DIR / "node_modules"
+    lock = FRONTEND_DIR / "package-lock.json"
+    pkg = FRONTEND_DIR / "package.json"
+    needs_install = not node_modules.is_dir()
+    if not needs_install and pkg.is_file() and node_modules.is_dir():
+        mtime_node = node_modules.stat().st_mtime
+        newest_source = max(
+            (p.stat().st_mtime for p in (pkg, lock) if p.is_file()), default=0
+        )
+        needs_install = newest_source > mtime_node
+    if needs_install:
+        print("[web] Installation des dépendances du front (npm)…", flush=True)
+        commands = [["ci"] if lock.is_file() else ["install"], ["install"]]
+        last_error: Exception | None = None
+        for args in commands:
+            try:
+                subprocess.run(_npm_command(args), cwd=FRONTEND_DIR, check=True)
+                return
+            except (OSError, subprocess.CalledProcessError) as exc:
+                last_error = exc
+        raise SystemExit(f"Impossible d'installer les dépendances du front : {last_error}")
+
+
+def _build_frontend() -> None:
+    print("[web] Build du front Angular (npm run build)…", flush=True)
+    cache = FRONTEND_DIR / ".angular"
+    if cache.is_dir():
+        shutil.rmtree(cache, ignore_errors=True)
+    try:
+        subprocess.run(_npm_command(["run", "build"]), cwd=FRONTEND_DIR, check=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise SystemExit(
+            f"Le build Angular a échoué : {exc}\n"
+            "Vérifiez que Node.js 22.22.3+ (ou une version compatible 24/26) et npm sont installés et sur le PATH."
+        ) from exc
+
+
+def _ensure_angular_dist() -> Path:
+    """Guarantee the Angular build exists before serving; build it automatically."""
+    index_path = ANGULAR_DIST_DIR / "index.html"
+    if index_path.is_file():
+        return ANGULAR_DIST_DIR
+    if not FRONTEND_DIR.is_dir():
+        raise SystemExit(
+            f"Dossier front introuvable : {FRONTEND_DIR}. Impossible de construire l'UI."
+        )
+    _install_frontend_dependencies()
+    _build_frontend()
+    if not index_path.is_file():
+        raise SystemExit(
+            f"Build terminé mais introuvable : {index_path}. Relancez « npm run build » dans src/web/frontend."
+        )
+    return ANGULAR_DIST_DIR
+
+
+def _sources_newer_than_build() -> bool:
+    """True when front sources are newer than the current dist output."""
+    index_path = ANGULAR_DIST_DIR / "index.html"
+    if not index_path.is_file():
+        return True
+    built_at = index_path.stat().st_mtime
+    roots = [FRONTEND_DIR / "src", FRONTEND_DIR / "public",
+             FRONTEND_DIR / "angular.json", FRONTEND_DIR / "package.json",
+             FRONTEND_DIR / "package-lock.json", FRONTEND_DIR / "tsconfig.app.json"]
+    for root in roots:
+        if root.is_file():
+            if root.stat().st_mtime > built_at:
+                return True
+        elif root.is_dir():
+            for path in root.rglob("*"):
+                if path.is_file() and path.stat().st_mtime > built_at:
+                    return True
+    return False
 DEFAULT_WHISPER_MODEL = "models/asr/model.bin"
 DEFAULT_WHISPER_CLI = "bin/asr/whisper-cli.exe"
 DEFAULT_GGUF = "models/llm/model.gguf"
@@ -106,26 +192,19 @@ app = FastAPI(
     title="Glimio — Audio, transcription et notes", version="0.4.2",
     docs_url="/api/docs", redoc_url=None, lifespan=lifespan,
 )
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-# Optional Angular 22 preview. The stable production UI at "/" remains the fallback
-# until the Angular build passes the documented feature-parity and regression gates.
-if ANGULAR_STATIC_DIR.is_dir():
-    @app.get("/angular", include_in_schema=False)
-    @app.get("/angular/", include_in_schema=False)
-    def angular_preview_index() -> FileResponse:
-        return FileResponse(str(ANGULAR_STATIC_DIR / "index.html"))
+# Keep module imports side-effect free: tests and tooling may import the API without
+# Node.js installed. ``main()`` ensures the Angular build before starting the server.
+# The Angular SPA is mounted from ``dist/glimio-web-ui``; there is no legacy UI.
 
-    @app.get("/angular/{asset_path:path}", include_in_schema=False)
-    def angular_preview_asset(asset_path: str) -> Response:
-        candidate = (ANGULAR_STATIC_DIR / asset_path).resolve()
-        try:
-            candidate.relative_to(ANGULAR_STATIC_DIR.resolve())
-        except ValueError as exc:
-            raise HTTPException(status_code=404, detail="Ressource introuvable.") from exc
-        if candidate.is_file():
-            return FileResponse(str(candidate))
-        # SPA route fallback for direct navigation and browser refreshes.
-        return FileResponse(str(ANGULAR_STATIC_DIR / "index.html"))
+
+def _angular_file(relative: str) -> Path | None:
+    """Resolve a path inside the Angular dist without allowing traversal."""
+    candidate = (ANGULAR_DIST_DIR / relative).resolve()
+    try:
+        candidate.relative_to(ANGULAR_DIST_DIR.resolve())
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
 
 
 class Settings(BaseModel):
@@ -136,8 +215,8 @@ class Settings(BaseModel):
     openvino_device: str | None = None
     ffmpeg: str = "ffmpeg"
     diarize: bool = False
-    diarization_segmentation_model: str = "models/diarization/segmentation.onnx"
-    diarization_embedding_model: str = "models/diarization/embedding.onnx"
+    diarization_segmentation_model: str = "models/diarization/segmentation/segmentation.onnx"
+    diarization_embedding_model: str = "models/diarization/embedding/embedding.onnx"
     diarization_num_speakers: int = Field(default=-1, ge=-1, le=256)
     audio_bitrate_kbps: Literal[128, 256, 384, 512, 768] = 256
     diarization_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
@@ -177,6 +256,10 @@ class SessionSettingsRequest(BaseModel):
     settings: Settings
 
 
+class AudioTrackToggleRequest(BaseModel):
+    disabled: bool
+
+
 class RenameSessionRequest(BaseModel):
     title: str = Field(min_length=1, max_length=120)
 
@@ -185,14 +268,41 @@ class JobRequest(BaseModel):
     action: Literal["transcribe", "summarize", "process"]
     session_id: str
     settings: Settings = Field(default_factory=Settings)
+    force: bool = False
+
+
+class AudioSourceSelection(BaseModel):
+    kind: Literal["microphone", "output"]
+    device_id: str = Field(default="", max_length=1000)
+    device_name: str = Field(default="", max_length=500)
+
+
+class AudioDeviceInfo(BaseModel):
+    """Stable API representation of a selectable audio endpoint."""
+
+    id: str
+    name: str
+    key: str
+
+
+class AudioDevicesResponse(BaseModel):
+    """Legacy display-name lists and endpoint records exposed by /api/devices."""
+
+    microphones: list[str]
+    outputs: list[str]
+    microphone_devices: list[AudioDeviceInfo]
+    output_devices: list[AudioDeviceInfo]
 
 
 class RecordRequest(BaseModel):
     title: str = ""
+    # Legacy single-source fields remain supported for older clients/CLI workflows.
     microphone: str = ""
     output: str = ""
     capture_microphone: bool = True
     capture_windows: bool = True
+    # New clients can select multiple microphone and loopback endpoints.
+    sources: list[AudioSourceSelection] | None = Field(default=None, max_length=16)
     normalize_windows: bool = True
     normalize_windows_max_gain_db: float = Field(default=30.0, ge=0.0, le=30.0)
     auto_transcribe: bool = False
@@ -207,11 +317,12 @@ class SearchRequest(BaseModel):
 
 
 class UIPreferences(BaseModel):
-    theme: Literal["dark", "light", "midnight", "forest"] = "dark"
+    theme: Literal["dark", "light", "midnight", "forest", "dracula", "monokai"] = "dark"
     microphone: str = Field(default="", max_length=500)
     output: str = Field(default="", max_length=500)
     capture_microphone: bool = True
     capture_windows: bool = True
+    audio_sources: list[AudioSourceSelection] = Field(default_factory=list, max_length=16)
     normalize_windows: bool = True
     normalize_windows_max_gain_db: float = Field(default=30.0, ge=0.0, le=30.0)
     recording_workflow: Literal["none", "transcribe", "summary"] = "summary"
@@ -386,6 +497,20 @@ def _worker_from_payload_from_record(job: dict[str, Any]) -> Any:
     raise ValueError("type de tâche inconnu")
 
 
+def _warmup_persistence() -> None:
+    """Create the SQLite database and its schema at startup (idempotent).
+
+    ``database_path`` already creates the parent directory; ``initialize``
+    then opens (and therefore creates) the ``.sqlite3`` file itself. Doing
+    this eagerly means a fresh clone never sees 404/503 on /api/* because
+    the persistence layer was missing.
+    """
+    try:
+        _initialize_persistence()
+    except Exception as exc:  # pragma: no cover - defensive startup guard
+        print(f"[web] Persistance SQLite indisponible au démarrage : {exc}", flush=True)
+
+
 def _initialize_persistence() -> None:
     global JOB_STORE, PREFERENCES_STORE
     if JOB_STORE is not None and PREFERENCES_STORE is not None:
@@ -417,8 +542,8 @@ def _get_preferences() -> dict[str, Any]:
             "whisper_cli": (("bin/asr/transcriber.exe", "bin/whisper/whisper-cli.exe"), "bin/asr/whisper-cli.exe"),
             "gguf": (("models/llm/model.gguf",), "models/llm/model.gguf"),
             "llama_completion": (("bin/llm/inference.exe", "bin/llama-cpp/llama-completion.exe"), "bin/llm/llama-completion.exe"),
-            "diarization_segmentation_model": (("models/diarization/segmentation/model.onnx",), "models/diarization/segmentation.onnx"),
-            "diarization_embedding_model": (("models/diarization/embedding/nemo_en_titanet_small.onnx",), "models/diarization/embedding.onnx"),
+            "diarization_segmentation_model": (("models/diarization/segmentation/model.onnx", "models/diarization/segmentation.onnx"), "models/diarization/segmentation/segmentation.onnx"),
+            "diarization_embedding_model": (("models/diarization/embedding/nemo_en_titanet_small.onnx", "models/diarization/embedding.onnx"), "models/diarization/embedding/embedding.onnx"),
         }
         for key, (old_paths, new_path) in legacy_paths.items():
             # Keep an explicitly configured executable if it exists; migrate only known stale defaults.
@@ -647,7 +772,7 @@ def _get_job_or_404(job_id: str) -> dict[str, Any]:
         return _job_public(job)
 
 
-def _device_names() -> dict[str, list[str]]:
+def _device_names() -> dict[str, Any]:
     # Import before the scoped initialization: SoundCard initializes its module-level
     # COM helper during import. In the normal Web path it was already warmed up at
     # startup; doing this in the correct order also makes direct calls safe.
@@ -655,15 +780,33 @@ def _device_names() -> dict[str, list[str]]:
     # FastAPI executes this synchronous endpoint in a worker thread. COM initialization
     # on the event-loop thread does not carry over to this worker.
     with audio_com_apartment():
-        microphones = [str(mic.name) for mic in sc.all_microphones(include_loopback=False)]
-        outputs = [str(speaker.name) for speaker in sc.all_speakers()]
-    return {"microphones": microphones, "outputs": outputs}
+        microphone_objects = list(sc.all_microphones(include_loopback=False))
+        output_objects = list(sc.all_speakers())
+        microphones = [str(mic.name) for mic in microphone_objects]
+        outputs = [str(speaker.name) for speaker in output_objects]
+        def device_record(device: Any, index: int, kind: str) -> dict[str, str]:
+            device_id = str(getattr(device, "id", "") or "")
+            name = str(device.name)
+            return {"id": device_id, "key": device_id or f"{kind}:{index}:{name}", "name": name}
+        microphone_devices = [device_record(device, index, "microphone") for index, device in enumerate(microphone_objects)]
+        output_devices = [device_record(device, index, "output") for index, device in enumerate(output_objects)]
+    return {
+        "microphones": microphones,
+        "outputs": outputs,
+        "microphone_devices": microphone_devices,
+        "output_devices": output_devices,
+    }
 
 
-def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str) -> None:
-    """Run a session pipeline with durable checkpoints between model stages."""
+def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
+                     force: bool = False) -> None:
+    """Run a session pipeline with durable checkpoints between model stages.
+
+    ``force`` clears the checkpoint so a stage (e.g. the summary) can be redone
+    even when it was already completed for this session.
+    """
     payload = _job_payload(job_id)
-    checkpoint = payload.get("checkpoint")
+    checkpoint = None if force else payload.get("checkpoint")
 
     def publish(message: str) -> None:
         folded = message.casefold()
@@ -677,6 +820,14 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str)
 
     args = settings.namespace(folder=str(folder))
 
+    def mark_outputs_current(*, transcript: bool = False, summary: bool = False) -> None:
+        metadata = _read_session_metadata(folder)
+        if transcript:
+            metadata["audio_transcript_stale"] = False
+        if summary:
+            metadata["audio_summary_stale"] = False
+        _write_session_metadata(folder, metadata)
+
     def save_checkpoint(value: str) -> None:
         current = _job_payload(job_id)
         current.update({"type": "session", "action": action, "session_id": folder.name,
@@ -688,11 +839,19 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str)
         if checkpoint != "transcribed":
             publish("Préparation de Whisper…")
             transcribe_folder(folder, args, on_status=publish)
+            mark_outputs_current(transcript=True)
             save_checkpoint("transcribed")
     elif action == "summarize":
         if checkpoint != "summarized":
+            session_metadata = _read_session_metadata(folder)
+            if session_metadata.get("audio_transcript_stale"):
+                raise SystemExit(
+                    "La transcription est signalée comme obsolète après une modification des pistes audio. "
+                    "Lancez d’abord la transcription ou le traitement complet avant de régénérer le résumé."
+                )
             publish("Préparation de la synthèse locale…")
             minutes_folder(folder, args, on_status=publish)
+            mark_outputs_current(summary=True)
             save_checkpoint("summarized")
     elif action == "process":
         if checkpoint not in {"transcribed", "summarized"}:
@@ -701,12 +860,15 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str)
             # behavior when a valid transcript already existed before this queued task.
             resume_phase = payload.get("resume_phase")
             transcript_path = get_transcript_path(folder)
-            should_transcribe = resume_phase == "transcribing" or not transcript_path.is_file()
+            session_metadata = _read_session_metadata(folder)
+            should_transcribe = (resume_phase == "transcribing" or not transcript_path.is_file()
+                                 or bool(session_metadata.get("audio_transcript_stale")))
             if should_transcribe:
                 if not has_audio(folder):
                     raise SystemExit(f"Aucune transcription et aucune piste audio exploitable dans {folder}.")
                 publish("Transcription absente ou interrompue · lancement de Whisper…")
                 transcribe_folder(folder, args, on_status=publish)
+                mark_outputs_current(transcript=True)
             else:
                 publish("Transcription existante détectée · réutilisation du texte")
             save_checkpoint("transcribed")
@@ -714,6 +876,7 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str)
         if checkpoint != "summarized":
             publish("Transcription prête · génération du résumé local…")
             minutes_folder(folder, args, on_status=publish)
+            mark_outputs_current(summary=True)
             save_checkpoint("summarized")
     else:
         raise ValueError(f"Action de traitement inconnue : {action}")
@@ -725,6 +888,9 @@ def _run_import_job(job_id: str) -> None:
     payload = _job_payload(job_id)
     settings = Settings(**(payload.get("settings") or {}))
     action = str(payload.get("action") or "process")
+    normalization = payload.get("normalization") or {}
+    normalize_audio = bool(normalization.get("enabled", True))
+    normalize_max_gain_db = float(normalization.get("max_gain_db", 30.0))
     session_id = payload.get("session_id")
     if session_id:
         folder = resolve_session_folder(SESSION_ROOT, str(session_id))
@@ -735,7 +901,13 @@ def _run_import_job(job_id: str) -> None:
         from seance.audio_import import import_audio_file
         display_name = str(payload.get("display_name") or source_file.name)
         _set_job(job_id, state="running", phase="importing", message=f"Import local de {display_name}…")
-        folder = import_audio_file(source_file, SESSION_ROOT, ffmpeg=_program_path(settings.ffmpeg))
+        folder = import_audio_file(
+            source_file,
+            SESSION_ROOT,
+            ffmpeg=_program_path(settings.ffmpeg),
+            normalize=normalize_audio,
+            max_gain_db=normalize_max_gain_db,
+        )
         _save_session_processing_settings(folder, settings)
         # Persist the destination session before deleting the temporary upload. If the
         # machine stops now, recovery resumes processing from the session instead of importing twice.
@@ -754,7 +926,22 @@ def _run_import_job(job_id: str) -> None:
 
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
-    return FileResponse(str(STATIC_DIR / "index.html"))
+    return FileResponse(str(ANGULAR_DIST_DIR / "index.html"))
+
+
+# NOTE: this catch-all is re-registered at the END of the module (see below) so
+# every /api/* endpoint declared after it keeps priority. The placeholder here
+# only documents the SPA fallback contract.
+def angular_spa(spa_path: str) -> Response:
+    if spa_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Ressource introuvable.")
+    served = _angular_file(spa_path) if spa_path else None
+    if served is not None:
+        return FileResponse(str(served))
+    fallback = ANGULAR_DIST_DIR / "index.html"
+    if not fallback.is_file():
+        raise HTTPException(status_code=404, detail="Build Angular indisponible.")
+    return FileResponse(str(fallback))
 
 
 @app.get("/api/health")
@@ -800,10 +987,13 @@ def save_preferences(request: PreferencesRequest) -> dict[str, Any]:
     return result
 
 
-@app.get("/api/devices")
-def devices() -> dict[str, list[str]]:
+@app.get("/api/devices", response_model=AudioDevicesResponse)
+def devices() -> AudioDevicesResponse:
     try:
-        return _device_names()
+        # Do not annotate this response as dict[str, list[str]]: device_* values
+        # are structured records, not strings. A typed schema keeps serialization
+        # and OpenAPI aligned with the actual contract consumed by Angular.
+        return AudioDevicesResponse(**_device_names())
     except (Exception, SystemExit) as exc:
         raise HTTPException(status_code=503, detail=f"Détection des périphériques impossible : {exc}") from exc
 
@@ -950,6 +1140,41 @@ def _write_metadata_atomically(path: Path, metadata: dict[str, Any]) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _read_session_metadata(folder: Path) -> dict[str, Any]:
+    path = _session_metadata_path(folder)
+    if not path.is_file():
+        return {}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8-sig"))
+        return value if isinstance(value, dict) else {}
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        raise HTTPException(status_code=409, detail="Les métadonnées de la séance sont illisibles ; aucune piste n’a été modifiée.")
+
+
+def _write_session_metadata(folder: Path, metadata: dict[str, Any]) -> None:
+    try:
+        _write_metadata_atomically(_session_metadata_path(folder), metadata)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Impossible d’enregistrer les métadonnées de la séance : {exc}") from exc
+
+
+def _mark_audio_outputs_stale(folder: Path, metadata: dict[str, Any]) -> None:
+    # Keep generated artifacts but explicitly tell the UI they no longer reflect
+    # the currently enabled audio set. Successful jobs clear each flag separately.
+    if transcript_path(folder) is not None:
+        metadata["audio_transcript_stale"] = True
+    if summary_path(folder) is not None:
+        metadata["audio_summary_stale"] = True
+
+
+def _ensure_session_idle_for_audio_edit(folder: Path) -> None:
+    with STATE_LOCK:
+        active = [job for job in JOBS.values() if job.get("session_id") == folder.name
+                  and job.get("state") in {"running", "stopping", "queued"}]
+    if active:
+        raise HTTPException(status_code=409, detail="Impossible de modifier une piste pendant l’enregistrement ou le traitement de cette séance.")
+
+
 @app.patch("/api/sessions/{session_id}")
 def rename_session(session_id: str, request: RenameSessionRequest) -> dict[str, Any]:
     try:
@@ -1028,11 +1253,89 @@ def delete_session(session_id: str) -> dict[str, Any]:
     return {"deleted": True, "id": session_id}
 
 
+@app.patch("/api/sessions/{session_id}/audio/{filename}")
+def set_session_audio_track_disabled(session_id: str, filename: str, request: AudioTrackToggleRequest) -> dict[str, Any]:
+    """Soft-disable an audio track for subsequent transcription and diarization."""
+    if Path(filename).name != filename or not filename.lower().endswith(".wav"):
+        raise HTTPException(status_code=404, detail="Piste audio inconnue.")
+    try:
+        folder = resolve_session_folder(SESSION_ROOT, session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
+    _ensure_session_idle_for_audio_edit(folder)
+    if filename not in {path.name for path in list_audio_paths(folder)}:
+        raise HTTPException(status_code=404, detail="Fichier audio introuvable.")
+    metadata = _read_session_metadata(folder)
+    disabled = metadata.get("disabled_audio_tracks", [])
+    disabled_set = {item for item in disabled if isinstance(item, str)} if isinstance(disabled, list) else set()
+    if request.disabled:
+        candidate_disabled = disabled_set | {filename}
+        available_tracks = {path.name for path in list_audio_paths(folder)}
+        if not (available_tracks - candidate_disabled):
+            raise HTTPException(
+                status_code=422,
+                detail="Au moins une piste audio doit rester active pour permettre un nouveau traitement.",
+            )
+        disabled_set.add(filename)
+    else:
+        disabled_set.discard(filename)
+    metadata["disabled_audio_tracks"] = sorted(disabled_set)
+    _mark_audio_outputs_stale(folder, metadata)
+    _write_session_metadata(folder, metadata)
+    return {"id": folder.name, "filename": filename, "disabled_audio_tracks": sorted(disabled_set), "metadata": metadata}
+
+
+@app.delete("/api/sessions/{session_id}/audio/{filename}")
+def delete_session_audio_track(session_id: str, filename: str) -> dict[str, Any]:
+    """Hard-delete an audio file and its per-track SRT; combined artifacts are kept but marked stale."""
+    if Path(filename).name != filename or not filename.lower().endswith(".wav"):
+        raise HTTPException(status_code=404, detail="Piste audio inconnue.")
+    try:
+        folder = resolve_session_folder(SESSION_ROOT, session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
+    _ensure_session_idle_for_audio_edit(folder)
+    known_tracks = {path.name: path for path in list_audio_paths(folder)}
+    audio_path = known_tracks.get(filename)
+    if audio_path is None or not audio_path.is_file():
+        raise HTTPException(status_code=404, detail="Fichier audio introuvable.")
+    metadata = _read_session_metadata(folder)
+    try:
+        audio_path.unlink()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Impossible de supprimer la piste audio : {exc}") from exc
+
+    warnings: list[str] = []
+    stem = Path(filename).stem
+    for candidate in (folder / "transcript" / f"{stem}.srt", folder / f"{stem}.srt"):
+        try:
+            candidate.unlink(missing_ok=True)
+        except OSError as exc:
+            warnings.append(f"La transcription individuelle {candidate.name} n’a pas pu être supprimée : {exc}")
+
+    disabled = metadata.get("disabled_audio_tracks", [])
+    if isinstance(disabled, list):
+        metadata["disabled_audio_tracks"] = [item for item in disabled if item != filename]
+    sources = metadata.get("audio_sources", [])
+    if isinstance(sources, list):
+        metadata["audio_sources"] = [item for item in sources if not (isinstance(item, dict) and item.get("filename") == filename)]
+    captured = metadata.get("captured_tracks", [])
+    if isinstance(captured, list):
+        metadata["captured_tracks"] = [item for item in captured if item != stem]
+    _mark_audio_outputs_stale(folder, metadata)
+    _write_session_metadata(folder, metadata)
+    remaining = [path.name for path in list_audio_paths(folder)]
+    return {"id": folder.name, "filename": filename, "audio_tracks": remaining, "metadata": metadata, "warnings": warnings}
+
+
 @app.get("/api/sessions/{session_id}/audio/{filename}")
 def session_audio(session_id: str, filename: str, request: Request):
     """Stream an existing WAV track with HTTP Range support for native audio controls."""
-    allowed = {"micro.wav", "windows.wav", "audio_import.wav"}
-    if filename not in allowed:
+    if Path(filename).name != filename or not filename.lower().endswith(".wav"):
         raise HTTPException(status_code=404, detail="Piste audio inconnue.")
     try:
         folder = resolve_session_folder(SESSION_ROOT, session_id)
@@ -1054,8 +1357,9 @@ def session_audio(session_id: str, filename: str, request: Request):
             detail="La piste audio sera lisible après la finalisation de l'enregistrement.",
         )
 
-    path = get_audio_path(folder, filename)
-    if not path.is_file():
+    known_tracks = {path.name: path for path in list_audio_paths(folder)}
+    path = known_tracks.get(filename)
+    if path is None or not path.is_file():
         raise HTTPException(status_code=404, detail="Fichier audio introuvable.")
 
     size = path.stat().st_size
@@ -1192,7 +1496,8 @@ def start_session_job(request: JobRequest) -> dict[str, Any]:
         _save_session_processing_settings(folder, request.settings)
 
     def worker(job_id: str) -> None:
-        _run_session_job(request.action, folder, request.settings, job_id)
+        _run_session_job(request.action, folder, request.settings, job_id,
+                         force=request.force)
 
     label = {"transcribe": "Transcription lancée", "summarize": "Résumé lancé", "process": "Traitement complet lancé"}[request.action]
     return _start_job(
@@ -1206,7 +1511,15 @@ def start_session_job(request: JobRequest) -> dict[str, Any]:
 def start_recording(request: RecordRequest) -> dict[str, Any]:
     if request.settings.format not in VALID_FORMATS:
         raise HTTPException(status_code=422, detail="Format de résumé invalide.")
-    if not request.capture_microphone and not request.capture_windows:
+    if request.sources is not None:
+        if not request.sources:
+            raise HTTPException(status_code=422, detail="Ajoutez au moins une source audio avant de démarrer.")
+        identities = [(source.kind, source.device_id or source.device_name.casefold()) for source in request.sources]
+        if len(set(identities)) != len(identities):
+            raise HTTPException(status_code=422, detail="Une même source audio ne peut pas être ajoutée deux fois.")
+        request.capture_microphone = any(source.kind == "microphone" for source in request.sources)
+        request.capture_windows = any(source.kind == "output" for source in request.sources)
+    elif not request.capture_microphone and not request.capture_windows:
         raise HTTPException(status_code=422, detail="Activez au moins une source audio : microphone ou audio Windows.")
     stop_event = threading.Event()
     holder: dict[str, Path] = {}
@@ -1245,6 +1558,7 @@ def start_recording(request: RecordRequest) -> dict[str, Any]:
         args.output = request.output.strip() or None
         args.capture_microphone = request.capture_microphone
         args.capture_windows = request.capture_windows
+        args.audio_sources = [source.model_dump() for source in request.sources] if request.sources is not None else None
         args.normalize_windows = bool(request.normalize_windows and request.capture_windows)
         args.normalize_windows_max_gain_db = request.normalize_windows_max_gain_db
         # Web capture must end as soon as WAVs are finalized. Model work goes to
@@ -1299,12 +1613,16 @@ async def import_and_process(
     file: UploadFile = File(...),
     settings_json: str = Form("{}"),
     action: Literal["process", "transcribe"] = Form("process"),
+    normalize_windows: bool = Form(True),
+    normalize_windows_max_gain_db: float = Form(30.0),
 ) -> dict[str, Any]:
     try:
         raw_settings = json.loads(settings_json)
         settings = Settings(**raw_settings)
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"Paramètres d'importation invalides : {exc}") from exc
+    if not 0.0 <= normalize_windows_max_gain_db <= 30.0:
+        raise HTTPException(status_code=422, detail="Le gain maximal de normalisation doit être compris entre 0 et 30 dB.")
     SESSION_ROOT.mkdir(parents=True, exist_ok=True)
     upload_dir = SESSION_ROOT / ".web-uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
@@ -1337,7 +1655,12 @@ async def import_and_process(
 
     job_payload = {
         "type": "import", "action": action, "source_file": str(file_path),
-        "display_name": display_name, "settings": _serialize_model(settings),
+        "display_name": display_name,
+        "settings": _serialize_model(settings),
+        "normalization": {
+            "enabled": normalize_windows,
+            "max_gain_db": normalize_windows_max_gain_db,
+        },
     }
     try:
         return _enqueue_job(
@@ -1704,6 +2027,12 @@ def ask_library(request: SearchRequest) -> dict[str, Any]:
     return {"query": request.query, "answer": answer, "sources": passages, "llm_error": None}
 
 
+# Catch-all SPA route — MUST be registered last (after every /api/* endpoint)
+# so Starlette keeps API priority and only unmatched paths fall back to the
+# Angular index.html. Serves hashed assets (main-*.js, styles-*.css, brand/…).
+app.add_api_route("/{spa_path:path}", angular_spa, methods=["GET"], include_in_schema=False)
+
+
 def main() -> None:
     try:
         import uvicorn
@@ -1714,6 +2043,21 @@ def main() -> None:
         port = int(os.environ.get("GLIMIO_WEB_PORT", os.environ.get("SEANCE_WEB_PORT", "8765")))
     except ValueError as exc:
         raise SystemExit("GLIMIO_WEB_PORT (ou SEANCE_WEB_PORT) doit être un entier.") from exc
+    # Keep the served UI fresh: rebuild when sources changed (or when forced).
+    try:
+        if os.environ.get("GLIMIO_WEB_BUILD", "").casefold() in {"1", "true", "yes"} or _sources_newer_than_build():
+            _install_frontend_dependencies()
+            _build_frontend()
+    except SystemExit as exc:
+        print(f"[web] {exc}", flush=True)
+        raise
+    global ANGULAR_DIST_DIR
+    ANGULAR_DIST_DIR = _ensure_angular_dist()
+
+    # Create the SQLite database (and its schema) up front so every /api/*
+    # route works out of the box on a fresh clone, without a manual step.
+    _warmup_persistence()
+
     url = f"http://{host}:{port}"
     print(f"Glimio Web : {url}", flush=True)
     print(f"Racine du projet : {PROJECT_ROOT}", flush=True)

@@ -1,0 +1,7 @@
+// Global Sass styles and tokens; Tailwind CSS utilities are generated in tailwind.css.
+@use './modern-normalize.scss';
+@use './tokens.scss';
+@use './components.scss';
+
+// Make Tailwind's theme/utilities available to global @apply rules without a deprecated Sass @import.
+@reference './tailwind-ref.scss';

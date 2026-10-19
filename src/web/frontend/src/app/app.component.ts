@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, HostListener, OnInit, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs';
 import { PreferencesService } from './core/preferences.service';
@@ -6,6 +8,7 @@ import { LibraryStateService } from './core/library-state.service';
 import { ToastService } from './core/toast.service';
 import { IconComponent } from './shared/icon.component';
 import { ThemeName } from './core/api.models';
+import { ApiService } from './core/api.service';
 
 @Component({
   selector: 'glimio-root',
@@ -20,11 +23,51 @@ export class AppComponent implements OnInit {
   readonly toasts = inject(ToastService);
   private readonly router = inject(Router);
   private readonly libraryState = inject(LibraryStateService);
+  private readonly api = inject(ApiService);
   readonly mobileMenuOpen = signal(false);
   readonly currentPath = signal('/recording');
   readonly libraryCount = this.libraryState.total.asReadonly();
   readonly theme = signal<ThemeName>('dark');
   readonly currentPage = signal('Enregistrement');
+
+  /**
+   * Logo Glimio injecté en ligne : le calque principal et la vague utilisent
+   * currentColor ; la vague conserve une opacité propre pour créer sa profondeur.
+   * Le SVG garde un viewBox légèrement étendu afin de ne pas couper les tracés.
+   * Le fichier public/brand/glimio.svg est nettoyé des métadonnées Inkscape ;
+   * le nettoyage ci-dessous reste un repli défensif (déclaration XML,
+   * commentaires, attributs sodipodi:/inkscape:, dimensions fixes).
+   */
+  private readonly http = inject(HttpClient);
+  private readonly sanitizer = inject(DomSanitizer);
+  private readonly rawBrandLogo = signal<string | null>(null);
+  readonly brandLogo = computed<SafeHtml | null>(() => {
+    const svg = this.rawBrandLogo();
+    if (!svg) return null;
+    let cleaned = svg
+      // Déclaration XML et commentaires (non valides en HTML inline).
+      .replace(/<\?xml[^>]*\?>/g, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      // Métadonnées Inkscape : éléments nommés…
+      .replace(/<(defs|metadata|namedview)\b[\s\S]*?<\/\1>/g, '')
+      .replace(/<(defs|metadata|namedview)\b[^>]*\/>/g, '')
+      // …et attributs d'espace de noms restants (sodipodi:, inkscape:).
+      .replace(/\s(?:sodipodi|inkscape):[a-zA-Z-]+="[^"]*"/g, '');
+    // Force le SVG à s'adapter à son conteneur sans imposer une taille native
+    // susceptible de déborder dans le bandeau responsive.
+    cleaned = cleaned.replace(/<svg\b[^>]*>/g, tag => {
+      // Normalize rather than append SVG attributes: duplicate width/height or
+      // preserveAspectRatio attributes can produce inconsistent browser parsing.
+      const normalized = tag
+        .replace(/\s(?:width|height|class|preserveAspectRatio)="[^"]*"/g, '')
+        .replace(/>$/, '');
+      const withBox = /\sviewBox="[^"]*"/.test(normalized)
+        ? normalized
+        : normalized + ' viewBox="0 -12 512 524"';
+      return withBox + ' width="100%" height="100%" class="brand-logo" preserveAspectRatio="xMidYMid meet">';
+    });
+    return this.sanitizer.bypassSecurityTrustHtml(cleaned);
+  });
 
   constructor() {
     effect(() => {
@@ -34,6 +77,16 @@ export class AppComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Hydrate the sidebar count on app startup, without waiting for the user to open the library.
+    this.api.sessions({ limit: 1, offset: 0 }).subscribe({
+      next: result => this.libraryState.total.set(result.count),
+      error: () => { /* The library page retries when it opens. */ },
+    });
+    this.http.get('brand/glimio.svg', { responseType: 'text' })
+      .subscribe({
+        next: svg => this.rawBrandLogo.set(svg),
+        error: () => this.rawBrandLogo.set(null),
+      });
     this.preferences.load();
     this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(event => {
       const url = (event as NavigationEnd).urlAfterRedirects.split('?')[0];

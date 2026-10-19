@@ -2,9 +2,8 @@
     <div class="app-shell">
       <aside class="sidebar" [class.is-nav-open]="mobileMenuOpen()" aria-label="Navigation de l'application">
         <div class="brand">
-          <div class="brand-mark" aria-hidden="true">
-            <img class="brand-logo" src="/static/brand/glimio.svg" alt="" width="31" height="31">
-          </div>
+          <!-- Le logo est injecté en ligne : ses deux calques suivent currentColor ; la vague applique seulement une opacité. -->
+          <div class="brand-mark" aria-hidden="true" [innerHTML]="brandLogo()"></div>
           <div class="brand-copy"><strong class="brand-name">Glimio</strong><small class="brand-caption">AUDIO · TRANSCRIPTION · NOTES</small></div>
           <button class="mobile-nav-toggle btn btn--secondary btn--icon" type="button" (click)="toggleMobileMenu()"
             [attr.aria-label]="mobileMenuOpen() ? 'Fermer le menu principal' : 'Ouvrir le menu principal'"
@@ -45,9 +44,8 @@
           <div class="topbar-right">
             <label class="sr-only" for="theme-select">Thème de l'interface</label>
             <select class="select theme-select" id="theme-select" [value]="theme()" (change)="setTheme($event)">
-              <option value="dark">Sombre</option><option value="light">Clair</option><option value="midnight">Minuit</option><option value="forest">Forêt</option>
+              <option value="dark">Sombre</option><option value="light">Clair</option><option value="midnight">Minuit</option><option value="forest">Forêt</option><option value="dracula">Dracula</option><option value="monokai">Monokai</option>
             </select>
-            <button class="btn btn--secondary btn--icon" type="button" aria-label="Actualiser la configuration" (click)="reloadConfig()"><glimio-icon name="arrow-path" /></button>
           </div>
         </header>
         <router-outlet />

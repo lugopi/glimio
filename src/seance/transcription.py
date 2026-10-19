@@ -158,11 +158,38 @@ def transcribe(args: argparse.Namespace) -> None:
     tracks_found = 0
     transcript_dir = folder / "transcript"
     transcript_dir.mkdir(parents=True, exist_ok=True)
-    tracks = (("micro.wav", "Micro"), ("windows.wav", "Audio Windows"), ("audio_import.wav", "Audio importé"))
-    for filename, source_name in tracks:
-        audio_path = get_audio_path(folder, filename)
-        if not audio_path.is_file():
-            continue
+    from .layout import list_audio_paths
+    metadata_sources: dict[str, dict[str, Any]] = {}
+    disabled_tracks: set[str] = set()
+    metadata_value: dict[str, Any] = {}
+    try:
+        import json
+        metadata_path = folder / "metadata" / "seance.json"
+        if not metadata_path.is_file():
+            metadata_path = folder / "seance.json"
+        metadata_value = json.loads(metadata_path.read_text(encoding="utf-8-sig")) if metadata_path.is_file() else {}
+        raw_disabled = metadata_value.get("disabled_audio_tracks", []) if isinstance(metadata_value, dict) else []
+        if isinstance(raw_disabled, list):
+            disabled_tracks = {name for name in raw_disabled if isinstance(name, str)}
+        raw_sources = metadata_value.get("audio_sources", []) if isinstance(metadata_value, dict) else []
+        if isinstance(raw_sources, list):
+            metadata_sources = {str(item.get("filename")): item for item in raw_sources if isinstance(item, dict) and item.get("filename")}
+    except (OSError, ValueError, TypeError):
+        metadata_sources = {}
+    tracks = [path for path in list_audio_paths(folder) if path.name not in disabled_tracks]
+    for audio_path in tracks:
+        filename = audio_path.name
+        source_meta = metadata_sources.get(filename, {})
+        if source_meta.get("name"):
+            source_name = str(source_meta["name"])
+        elif filename == "micro.wav":
+            source_name = "Micro"
+        elif filename == "windows.wav":
+            source_name = "Audio Windows"
+        elif filename == "audio_import.wav":
+            source_name = "Audio importé"
+        else:
+            source_name = filename[:-4].replace("-", " ").replace("_", " ").title()
         tracks_found += 1
         _status(args, f"Whisper · transcription de {filename}…")
         srt_path = transcript_dir / f"{audio_path.stem}.srt"

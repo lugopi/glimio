@@ -4,14 +4,38 @@ import tempfile
 import unittest
 import argparse
 import wave
+from types import SimpleNamespace
 from pathlib import Path
 
 import numpy as np
 
-from seance.audio import SAMPLE_RATE, _write_audio_chunk, record
+from seance.audio import SAMPLE_RATE, _resolve_device_id, _resolve_named_device, _write_audio_chunk, record
 
 
 class StreamingWaveTests(unittest.TestCase):
+    def test_device_resolution_prefers_case_insensitive_exact_name(self) -> None:
+        exact = SimpleNamespace(name="Bluetooth Headset")
+        partial = SimpleNamespace(name="Bluetooth Headset Hands-Free")
+        self.assertIs(_resolve_named_device([partial, exact], "bluetooth headset", "microphone"), exact)
+
+    def test_stable_device_id_wins_when_display_names_are_identical(self) -> None:
+        first = SimpleNamespace(id="input-1", name="Bluetooth Headset")
+        second = SimpleNamespace(id="input-2", name="Bluetooth Headset")
+        self.assertIs(_resolve_device_id([first, second], "input-2", "Bluetooth Headset", "microphone"), second)
+
+    def test_device_resolution_rejects_ambiguous_partial_match(self) -> None:
+        devices = [
+            SimpleNamespace(name="Bluetooth Headset Hands-Free"),
+            SimpleNamespace(name="Bluetooth Headset Stereo"),
+        ]
+        with self.assertRaisesRegex(SystemExit, "matches several devices"):
+            _resolve_named_device(devices, "Bluetooth Headset", "microphone")
+
+    def test_device_resolution_rejects_duplicate_exact_names(self) -> None:
+        devices = [SimpleNamespace(name="USB Audio"), SimpleNamespace(name="USB Audio")]
+        with self.assertRaisesRegex(SystemExit, "exact name"):
+            _resolve_named_device(devices, "USB Audio", "Windows output")
+
     def test_record_rejects_disabling_both_sources_before_loading_audio_backend(self) -> None:
         with self.assertRaisesRegex(SystemExit, "At least one audio source"):
             record(argparse.Namespace(capture_microphone=False, capture_windows=False))

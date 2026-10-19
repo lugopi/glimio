@@ -1,4 +1,27 @@
+@reference '../../../styles/tailwind-ref.scss';
+
 :host {
-  display: block;
-  min-width: 0;
+  @apply block min-w-0;
 }
+
+/* Sections de paramètres : titre → contenu → pied avec un rythme constant. */
+:host {
+  .settings-section > .card-title { @apply mb-2; }
+  .settings-section > .card-description { @apply mb-4 max-w-[78ch]; }
+  .settings-grid > div,
+  .settings-grid > label { @apply min-w-0; }
+  .settings-grid .field-label { @apply mb-2; }
+  .settings-grid .field-note { @apply mt-2 block; }
+}
+
+
+:host .settings-model-field { @apply grid min-w-0 content-start gap-2; }
+:host .settings-model-field .field-label,
+:host .settings-model-field .field-note { @apply m-0; }
+:host .settings-model-field .field-note { @apply block; }
+:host .settings-model-field code { @apply rounded border border-border-soft bg-surface-raised px-1 py-0.5 text-xs; overflow-wrap: anywhere; }
+:host .settings-model-links { @apply flex flex-wrap items-center gap-x-3 gap-y-1; }
+:host .settings-model-links .text-link-button { @apply min-h-[30px] p-0 text-[0.75rem]; }
+:host .settings-path-action { @apply w-fit max-w-full whitespace-normal text-left; }
+
+
