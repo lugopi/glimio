@@ -5,12 +5,13 @@ import { ApiService } from '../../core/api.service';
 import { AudioDeviceInfo, AudioDevices, AudioSourceKind, AudioSourceSelection, GlimioSettings, Job, JobsResponse, PreferencesPayload } from '../../core/api.models';
 import { PreferencesService } from '../../core/preferences.service';
 import { ToastService } from '../../core/toast.service';
+import { CheckboxFieldComponent } from '../../shared/checkbox-field.component';
 import { IconComponent } from '../../shared/icon.component';
 import { PaginationComponent } from '../../shared/pagination.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, IconComponent, PaginationComponent],
+  imports: [FormsModule, CheckboxFieldComponent, IconComponent, PaginationComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './recording.page.html',
   styleUrl: './recording.page.scss',

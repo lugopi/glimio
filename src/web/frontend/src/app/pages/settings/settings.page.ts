@@ -3,11 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { GlimioSettings, PreferencesPayload } from '../../core/api.models';
 import { PreferencesService } from '../../core/preferences.service';
+import { CheckboxFieldComponent } from '../../shared/checkbox-field.component';
 import { IconComponent } from '../../shared/icon.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, DecimalPipe, IconComponent],
+  imports: [FormsModule, DecimalPipe, CheckboxFieldComponent, IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './settings.page.html',
   styleUrl: './settings.page.scss',

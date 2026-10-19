@@ -8,7 +8,6 @@
 :host .common-processing-fields .field-note { @apply mt-2; }
 :host .common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-label,
 :host .common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-note { @apply m-0; }
-:host .common-processing-fields .diarize-card { @apply mt-0 items-start; }
 :host .common-processing-fields .diarization-option { @apply grid content-start gap-3; }
 :host .common-processing-fields .speaker-count-field { @apply grid gap-2; }
 :host .common-processing-fields .diarization-option .field-label,

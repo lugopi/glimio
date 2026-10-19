@@ -3,7 +3,7 @@
       <section class="search-hero card" aria-labelledby="ai-query-label">
         <label id="ai-query-label" for="ai-query">Que souhaitez-vous retrouver ?</label>
         <div class="ai-composer"><textarea class="textarea ai-query-input" id="ai-query" rows="3" maxlength="12000" [ngModel]="query()" (ngModelChange)="query.set($event)" (keydown.control.enter)="runSearch()" (keydown.meta.enter)="runSearch()" placeholder="Posez une question sur vos séances…"></textarea>
-          <div class="ai-composer-footer"><span class="ai-query-shortcut">Ctrl / ⌘ + Entrée pour rechercher</span><div class="ai-search-actions"><button class="btn btn--danger" type="button" [hidden]="!searchId()" (click)="cancelSearch()">Annuler</button><button class="btn btn--primary ai-run-button" type="button" [disabled]="running() || query().trim().length < 2" (click)="runSearch()"><glimio-icon name="magnifying-glass" /> {{ running() ? 'Recherche…' : 'Rechercher' }}</button></div></div>
+          <div class="ai-composer-footer"><span class="ai-query-shortcut">Ctrl / ⌘ + Entrée pour rechercher</span><div class="ai-search-actions"><button class="btn btn--danger" type="button" [hidden]="!searchId()" (click)="cancelSearch()">Annuler</button><button class="btn btn--primary ai-run-button" type="button" [disabled]="running() || query().trim().length < 2" (click)="runSearch()"><glimio-icon name="sparkles" /> {{ running() ? 'Recherche…' : 'Rechercher' }}</button></div></div>
         </div>
         <p class="search-hint"><glimio-icon name="information-circle" /> Glimio recherche les passages pertinents dans plusieurs séances et chaque source renvoie à sa séance d’origine.</p>
       </section>
@@ -44,7 +44,7 @@
             </div>
           </section>
         }
-        @if (!running() && !result()) { <div class="panel-placeholder"><div class="placeholder-icon"><glimio-icon name="magnifying-glass" /></div><h2>Explorez vos séances</h2><p>Posez une question pour réunir des informations issues de plusieurs séances.</p></div> }
+        @if (!running() && !result()) { <div class="panel-placeholder"><div class="placeholder-icon"><glimio-icon name="sparkles" /></div><h2>Explorez vos séances</h2><p>Posez une question pour réunir des informations issues de plusieurs séances.</p></div> }
       </div>
     </section>
   

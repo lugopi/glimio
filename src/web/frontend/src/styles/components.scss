@@ -7,11 +7,6 @@
   button { @apply cursor-pointer; }
   button:disabled { @apply cursor-not-allowed opacity-50; }
   input, select, textarea { color: inherit; }
-  input[type="checkbox"], input[type="radio"] {
-    @apply inline-block size-4 shrink-0 accent-accent;
-    margin: 0;
-    vertical-align: middle;
-  }
   a { color: var(--c-accent); text-decoration: none; }
   [hidden] { display: none !important; }
   ::selection { background: var(--c-accent); color: var(--c-accent-contrast); }
@@ -1002,6 +997,11 @@
 
 /* Final alignment pass: controls, job badges and compact pagination follow the same baseline. */
 @layer components {
+  .common-processing-fields .normalization-option { @apply grid content-start gap-3; }
+  input[type="checkbox"], input[type="radio"] {
+    @apply inline-block size-5 shrink-0 accent-accent align-middle;
+    margin: 0;
+  }
   label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) {
     @apply flex items-start gap-2.5;
   }
@@ -1010,7 +1010,7 @@
     @apply shrink-0 self-start;
     margin-top: .2em;
     margin-bottom: 0;
-    flex: 0 0 1rem;
+    flex: 0 0 20px;
   }
   label:has(> input[type="checkbox"]) > span,
   label:has(> input[type="radio"]) > span {
@@ -1028,5 +1028,15 @@
   .normalization-gain-control { @apply mt-3; }
   .normalization-gain-control .field-label { @apply flex-wrap justify-between gap-2; }
   .normalization-gain-control output { @apply text-accent tabular-nums; }
+  .choice-card { @apply border border-transparent; }
+  .input:hover:not(:disabled):not(:has(> input:disabled)),
+  .select:hover:not(:disabled),
+  .textarea:hover:not(:disabled),
+  .search-box:hover:not(:has(input:disabled)),
+  .ai-composer:hover:not(:has(textarea:disabled)) { @apply border-accent; }
+  .choice-card:hover:not(:has(input:disabled)) {
+    @apply border-accent;
+    box-shadow: inset 0 0 0 1px var(--c-accent);
+  }
   .session-actions-menu > summary { cursor: pointer; }
 }

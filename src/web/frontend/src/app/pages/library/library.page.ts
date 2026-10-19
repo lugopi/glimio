@@ -7,13 +7,14 @@ import { GlimioSettings, SessionDetail, SessionPage, SessionSummary } from '../.
 import { LibraryStateService } from '../../core/library-state.service';
 import { PreferencesService } from '../../core/preferences.service';
 import { ToastService } from '../../core/toast.service';
+import { CheckboxFieldComponent } from '../../shared/checkbox-field.component';
 import { IconComponent } from '../../shared/icon.component';
 import { PaginationComponent } from '../../shared/pagination.component';
 import { renderMarkdownToHtml } from '../../shared/markdown';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, IconComponent, PaginationComponent],
+  imports: [FormsModule, RouterLink, CheckboxFieldComponent, IconComponent, PaginationComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './library.page.html',
   styleUrl: './library.page.scss',

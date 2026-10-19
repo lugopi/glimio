@@ -144,7 +144,7 @@
                 <div><label class="field-label" for="session-language">Langue de transcription</label><select class="select" id="session-language" [ngModel]="options.language" (ngModelChange)="patchSessionSetting('language', $event)"><option value="auto">Automatique</option><option value="detect">Détection Whisper</option><option value="fr">Français</option><option value="en">Anglais</option><option value="de">Allemand</option><option value="it">Italien</option><option value="es">Espagnol</option></select></div>
               </div>
               <div class="session-processing-column">
-                <div><label class="diarize-card"><input type="checkbox" [ngModel]="options.diarize" (ngModelChange)="patchSessionSetting('diarize', $event)"><span><strong>Diarisation vocale</strong><small>Associer les segments aux voix détectées.</small></span></label></div>
+                <glimio-checkbox-field fieldId="session-diarization" title="Diarisation vocale" description="Associer les segments aux voix détectées." [checked]="options.diarize" (checkedChange)="patchSessionSetting('diarize', $event)" />
                 @if (options.diarize) {
                   <div><label class="field-label" for="session-speakers">Nombre d’interlocuteurs</label><select class="select" id="session-speakers" [ngModel]="options.diarization_num_speakers" (ngModelChange)="patchSessionSetting('diarization_num_speakers', numberValue($event))"><option [ngValue]="-1">Automatique</option>@for (count of speakerCounts; track count) { <option [ngValue]="count">{{ count }}</option> }</select></div>
                 }
