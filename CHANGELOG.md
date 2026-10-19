@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — éditions Windows et publication GitHub
+## 0.4.3 — éditions Windows et publication GitHub
 
 - Ajout d’un CLI pour enregistrer, transcrire, résumer ou traiter un fichier audio/vidéo ou une séance depuis le terminal.
 - Préparation de trois éditions Windows x64 (CLI, Web, Web avec diarisation), chacune en installateur et archive portable ; les exécutables natifs et poids de modèles restent séparés.
@@ -8,20 +8,20 @@
 - Les builds empaquetés servent le frontend Angular inclus et stockent les données sous `%LOCALAPPDATA%`; le workflow de développement depuis les sources conserve son build Angular habituel.
 - Allègement de la suite Python : retrait des vérifications textuelles d’Angular et de documentation, désormais redondantes avec les contrôles frontend dédiés ou sans valeur de régression.
 
-## Unreleased — mise development toolchain
+## 0.4.3 — mise development toolchain
 
 - Added root `mise.toml` pinning Python 3.14, Node.js 26, and `npm:@angular/cli` 22, with the project virtual environment at `.venv`.
 - Added a `dev` optional dependency group for pytest and documented the setup and verification commands.
 - Environment note: this execution container has no `mise` binary and cannot resolve `mise.jdx.dev`; the suite was therefore checked with the available Python 3.13 environment, not the requested Python 3.14 / Node 26 toolchain.
 
-## Unreleased — Angular 22.2 / TypeScript 6 build fixes
+## 0.4.3 — Angular 22.2 / TypeScript 6 build fixes
 
 - Aligned frontend dependency ranges with Angular 22.2.3, TypeScript 6.0.3, Vitest 5, jsdom 30, Node type definitions 26, and Zone.js 0.16.3.
 - Removed the deprecated TypeScript `baseUrl` option; no path aliases are configured, so it was unnecessary.
 - Fixed the search button's signal access (`query()`), tightened the bitrate selector to its supported literal union, and removed an unnecessary optional chain in the guarded library template.
 - Confirmed `angular.json` uses the Angular application builder and Angular's unit-test builder. A production build still needs to be run with the pinned Node.js 26 toolchain and installed npm dependencies.
 
-## Passe complémentaire UI, Sass et tests — 2026-10-19
+## 0.4.3 — Passe complémentaire UI, Sass et tests — 2026-10-19
 
 - Bibliothèque : dimensions explicites pour l’icône de durée, badge d’état aligné sur la première ligne du texte, panneaux des onglets encadrés et arrondis de façon cohérente.
 - Pagination : plage visible aussi avec plusieurs pages, résumé aligné à droite quand il n’y a qu’une page, commandes compactées en fonction de la largeur réelle du composant et choix du nombre d’extraits par page dans la recherche.
@@ -32,7 +32,7 @@
 - Outillage : Node.js minimal indiqué explicitement (`22.22.3` sur la branche 22), import de `web.app` sans build frontend implicite, et configuration de lancement IDE ramenée à des chemins de projet plutôt qu’à des chemins locaux figés.
 - Tests : suppression de trois assertions visuelles/structurelles trop fragiles et ajout de contrats centrés sur les comportements partagés. Validation Python : 111 tests réussis, `compileall` et vérification des paires de jetons de contraste réussis. Le build Angular n’a pas été validé dans cet environnement : il fournit Node `22.16.0` (trop ancien pour Angular 22.2.3), et `npm ci` n’a pas terminé correctement.
 
-## Correctifs prioritaires build Angular et modèles — 2026-10-19
+## 0.4.3 — Correctifs prioritaires build Angular et modèles — 2026-10-19
 
 - Compilation : ajout explicite de `IconComponent` aux imports de `PaginationComponent`, supprimant la cause des erreurs `NG8001` du composant de pagination ; suppression du `?? []` redondant ciblé par `NG8102`.
 - Bibliothèque : rendu Markdown des tableaux en HTML accessible avec défilement horizontal et focus clavier ; confirmation renforcée lors de la suppression de la dernière piste audio et message correct si aucun audio ne reste.
@@ -40,7 +40,7 @@
 - Thèmes et ressources : vérification des contrastes documentés dans les six thèmes et mise à jour des contrats autour du favicon SVG.
 - Validation ciblée : 39 tests de contrat/API/audio passés et `py_compile` réussi. Build Angular non exécuté dans cet environnement faute du binaire `ng` ; les avertissements de dépréciation Sass `@import` restent non bloquants et devront être retirés par une migration globale vérifiée.
 
-## Correctifs UI, états de séance et capture audio — 2026-10-19
+## 0.4.3 — Correctifs UI, états de séance et capture audio — 2026-10-19
 
 - Bibliothèque Angular : ajout d’un rafraîchissement périodique (2 s) de la liste et du détail de la séance pour refléter les transitions d’état des jobs, sans réinitialiser les aperçus d’artefacts ni les paramètres de traitement en cours d’édition. Le polling résiste aux erreurs réseau passagères et évite les requêtes concurrentes.
 - Bibliothèque : affichage explicite des états En attente / En cours / Terminé / Échec, et des messages d’erreur quand disponibles, dans la liste et dans le panneau de détail. Le panneau de détail réutilise le composant partagé `session-live-progress`.
@@ -50,7 +50,7 @@
 - SCSS : normalisation du padding des cartes principales sur `p-5` (20 px), retrait d’un bloc de styles en doublon pour les contrôles d’activité et tests de contrat ciblant le rafraîchissement des états et le SVG. Le vérificateur de contraste référence maintenant le véritable fichier `styles/tokens.scss` au lieu d’un `tokens.css` inexistant.
 - Validation : les tests de `test_audio_streaming.py` passent (6 tests) et les fichiers Python modifiés passent `py_compile`. Le build Angular n’a pas pu être exécuté ici : les dépendances npm ne sont pas intégralement disponibles hors ligne, `ng` reste absent, et la version Node fournie (22.16.0) est inférieure à la version minimale annoncée par Angular 22.2.3 (22.22.3). Tester la compilation complète avec une version Node compatible avant fusion.
 
-## Correctifs fonctionnels — options par séance et diarisation
+## 0.4.3 — Correctifs fonctionnels — options par séance et diarisation
 
 - Ajout du module manquant `seance.diarization` avec chargement WAV, exécution locale sherpa-onnx, alignement des segments de voix sur la transcription horodatée, sauvegarde JSON et sauvegardes de la transcription d’origine. Un message explicite indique l’extra Python ou les modèles ONNX manquants.
 - Restauration de l’import audio/vidéo FFmpeg : création d’une séance durable, conversion en WAV mono PCM 16 kHz, métadonnées de source et nettoyage du dossier partiel en cas d’échec.
@@ -60,7 +60,7 @@
 - Chemins par défaut des exécutables : `bin/asr/whisper-cli.exe` et `bin/llm/llama-completion.exe`.
 - Documentation README et chemins de modèles mis à jour.
 
-## Corrections complémentaires — 2026-10-18
+## 0.4.3 — Corrections complémentaires — 2026-10-18
 
 - Les exécutables par défaut utilisent maintenant les noms amont standards : `bin/whisper/whisper-cli.exe` et `bin/llama-cpp/llama-completion.exe`, de façon cohérente entre backend, traitements CLI, interface statique et documentation. Les anciennes valeurs génériques enregistrées sont migrées vers ces chemins lorsqu’elles ne pointent pas vers un fichier existant.
 - Harmonisation des icônes SVG, des espacements internes de la diarisation, du menu mobile, du menu d’actions de séance et de l’indication discrète de sauvegarde automatique. Les activités terminées/échouées peuvent être effacées individuellement par une croix ou en lot avec « Effacer l’historique » ; les tâches en cours et en attente restent protégées.
