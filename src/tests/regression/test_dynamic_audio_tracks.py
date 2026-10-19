@@ -32,7 +32,7 @@ class DynamicAudioTrackLayoutTests(unittest.TestCase):
             audio.mkdir()
             expected = audio / "micro-2.wav"
             expected.write_bytes(b"test")
-            self.assertEqual(get_audio_path(root, "micro-2.wav"), expected)
+            self.assertTrue(get_audio_path(root, "micro-2.wav").samefile(expected))
             self.assertEqual(get_audio_path(root, "../micro-2.wav").name, "__invalid_audio_filename__")
             self.assertEqual(get_audio_path(root, "arbitrary.wav").name, "__invalid_audio_filename__")
 

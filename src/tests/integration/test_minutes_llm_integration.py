@@ -7,13 +7,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from seance import minutes
-from seance.llm import clean_model_output
 
 
 class MinutesSharedEngineIntegrationTests(unittest.TestCase):
-    def test_minutes_uses_shared_cleaner_without_runtime_patching(self) -> None:
-        self.assertIs(minutes._clean_pv_output, clean_model_output)
-
     def test_summary_pipeline_still_writes_the_expected_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

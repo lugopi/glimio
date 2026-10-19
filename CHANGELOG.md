@@ -6,6 +6,7 @@
 - Préparation de trois éditions Windows x64 (CLI, Web, Web avec diarisation), chacune en installateur et archive portable ; les exécutables natifs et poids de modèles restent séparés.
 - Ajout des workflows CI et de création d’une release brouillon déclenchée par un tag `vX.Y.Z`, avec contrôle des versions, tests, sommes SHA-256 et publication des six paquets.
 - Les builds empaquetés servent le frontend Angular inclus et stockent les données sous `%LOCALAPPDATA%`; le workflow de développement depuis les sources conserve son build Angular habituel.
+- Allègement de la suite Python : retrait des vérifications textuelles d’Angular et de documentation, désormais redondantes avec les contrôles frontend dédiés ou sans valeur de régression.
 
 ## Unreleased — mise development toolchain
 

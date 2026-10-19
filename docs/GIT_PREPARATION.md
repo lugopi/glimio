@@ -25,14 +25,13 @@ légitimement nécessaire au paquet, corrigez le build (`pyproject.toml`,
 ```bash
 git ls-files | grep -E "node_modules|__pycache__|^dist/|src/web/static"   # doit être vide
 git check-ignore -v dist/glimio-web-ui/index.html                          # doit correspondre à /dist/
-python -m pytest src/tests/test_git_publication_contract.py \
-                 src/tests/test_angular_migration_contract.py -q           # contrats de publication
 ```
 
 ## Avant une release `0.x`
 
-1. Version alignée dans `pyproject.toml`, `src/web/app.py`,
-   `src/web/frontend/package.json` et `CHANGELOG.md`.
+1. Version alignée dans `pyproject.toml`, `src/seance/__init__.py`,
+   `src/web/app.py`, `src/web/frontend/package.json`, la racine de
+   `src/web/frontend/package-lock.json` et `CHANGELOG.md`.
 2. Build complet vérifié depuis zéro : supprimer `dist/` puis
    `python -m web` (le build Angular se relance automatiquement) et ouvrir
    http://127.0.0.1:8765.

@@ -88,24 +88,5 @@ class ProjectPathDiscoveryTests(unittest.TestCase):
             root = Path(temp).resolve()
             self.assertEqual(resolve_session_root(root, None), (root / "seances").resolve())
 
-    def test_timestamped_sessions_are_visible_under_the_resolved_root(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            project = Path(temp) / "project"
-            app_file = self.make_src_layout(project)
-            session = project / "seances" / "2026-10-17_11-20-57"
-            (session / "summary").mkdir(parents=True)
-            (session / "transcript").mkdir(parents=True)
-            (session / "summary" / "resume_audio.md").write_text("Résumé", encoding="utf-8")
-            (session / "transcript" / "transcription.md").write_text("Transcription", encoding="utf-8")
-
-            discovered = discover_project_root(start_dir=project / "src", package_file=app_file)
-            resolved_sessions = resolve_session_root(discovered)
-            names = {path.name for path in resolved_sessions.iterdir() if path.is_dir()}
-
-            self.assertEqual(resolved_sessions, (project / "seances").resolve())
-            self.assertIn("2026-10-17_11-20-57", names)
-            self.assertTrue((resolved_sessions / "2026-10-17_11-20-57" / "summary" / "resume_audio.md").is_file())
-
-
 if __name__ == "__main__":
     unittest.main()

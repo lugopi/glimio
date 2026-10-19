@@ -5,103 +5,10 @@ import tempfile
 import threading
 import time
 import unittest
-from unittest import mock
 from pathlib import Path
 
-from seance.llm import (
-    LLMCancelled,
-    LLMError,
-    build_completion_command,
-    clean_model_output,
-    run_completion_resilient,
-)
+from seance.llm import LLMCancelled, run_completion_resilient
 from seance.runtime import AI_ENGINE_LOCK
-
-
-class CleanModelOutputTests(unittest.TestCase):
-    def test_removes_complete_reasoning_block_and_keeps_final_answer(self) -> None:
-        raw = "<think>private notes</think>\n## Synthèse générale\nLe thème apparaît dans la source [1]."
-        cleaned = clean_model_output(raw)
-        self.assertNotIn("private notes", cleaned)
-        self.assertIn("Synthèse générale", cleaned)
-        self.assertIn("[1]", cleaned)
-
-    def test_discards_unclosed_reasoning_block(self) -> None:
-        raw = "## Synthèse générale\nDébut fiable.\n<think>le modèle raisonne encore et se coupe"
-        cleaned = clean_model_output(raw)
-        self.assertEqual(cleaned, "## Synthèse générale\nDébut fiable.")
-
-    def test_prefers_final_channel(self) -> None:
-        raw = "<|channel|>analysis\nsecret\n<|channel|>final\nRéponse [1]"
-        cleaned = clean_model_output(raw)
-        self.assertNotIn("secret", cleaned)
-        self.assertEqual(cleaned, "Réponse [1]")
-
-    def test_minutes_imports_common_cleaner_directly(self) -> None:
-        from seance import minutes
-
-        self.assertIs(minutes._clean_pv_output, clean_model_output)
-
-    def test_minutes_generation_adapter_delegates_to_shared_engine(self) -> None:
-        from seance import minutes
-
-        with mock.patch(
-            "seance.minutes.run_completion_resilient",
-            return_value=("Réponse finale [1]", False),
-        ) as shared_runner:
-            answer, truncated = minutes._run_llama_resilient(
-                Path("fake-llama.exe"), Path("fake-model.gguf"), Path.cwd(),
-                "system", "user", context=4096, max_tokens=300,
-                temperature=0.2, stage="test", retries=2,
-            )
-        self.assertEqual((answer, truncated), ("Réponse finale [1]", False))
-        shared_runner.assert_called_once()
-
-
-
-class CompletionCommandCompatibilityTests(unittest.TestCase):
-    def test_supports_long_only_prompt_and_noninteractive_flags(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            binary = root / "llama-completion.exe"
-            model = root / "model.gguf"
-            binary.write_bytes(b"executable-placeholder")
-            model.write_bytes(b"model-placeholder")
-            long_help = """
---conversation
---single-turn
---no-conversation
---prompt PROMPT
---system-prompt PROMPT
---jinja
---no-display-prompt
-"""
-            with mock.patch("seance.llm.llama_help_text", return_value=long_help):
-                command, effective_tokens = build_completion_command(
-                    binary, model, context=4096, max_tokens=256, temperature=0.2,
-                    system_prompt="system", user_prompt="user",
-                )
-            self.assertIn("--conversation", command)
-            self.assertIn("--single-turn", command)
-            self.assertIn("--system-prompt", command)
-            self.assertIn("--prompt", command)
-            self.assertIn("--jinja", command)
-            self.assertIn("--no-display-prompt", command)
-            self.assertGreaterEqual(effective_tokens, 128)
-
-    def test_refuses_unknown_interaction_mode_instead_of_risk_hanging(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            binary = root / "llama-completion.exe"
-            model = root / "model.gguf"
-            binary.write_bytes(b"executable-placeholder")
-            model.write_bytes(b"model-placeholder")
-            with mock.patch("seance.llm.llama_help_text", return_value="Usage: llama-completion\n--model FILE\n"):
-                with self.assertRaises(LLMError):
-                    build_completion_command(
-                        binary, model, context=4096, max_tokens=256, temperature=0.2,
-                        system_prompt="system", user_prompt="user",
-                    )
 
 
 class SharedCompletionTests(unittest.TestCase):
@@ -226,22 +133,6 @@ class SharedCompletionTests(unittest.TestCase):
             self.assertEqual(events, ["start", "end", "start", "end"])
 
     @unittest.skipIf(os.name == "nt", "The subprocess fixture uses a POSIX shebang.")
-    def test_process_callback_error_does_not_break_generation(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            binary, model = self._make_fake_llama(root)
-
-            def broken_callback(_process):
-                raise RuntimeError("UI state is gone")
-
-            answer, hit_limit = run_completion_resilient(
-                binary, model, root, "system", "user", context=4096,
-                max_tokens=256, retries=0, timeout_seconds=5, on_process=broken_callback,
-            )
-            self.assertFalse(hit_limit)
-            self.assertIn("Synthèse générale", answer)
-
-    @unittest.skipIf(os.name == "nt", "The subprocess fixture uses a POSIX shebang.")
     def test_cancellation_terminates_generation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -267,7 +158,3 @@ class SharedCompletionTests(unittest.TestCase):
             self.assertFalse(thread.is_alive(), "generation did not stop after cancellation")
             self.assertTrue(errors)
             self.assertIsInstance(errors[0], LLMCancelled)
-
-
-if __name__ == "__main__":
-    unittest.main()

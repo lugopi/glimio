@@ -24,7 +24,7 @@ Les exécutables Whisper/llama.cpp, FFmpeg et les poids des modèles ne sont pas
 4. Le workflow `Build and release` vérifie les versions, exécute les tests Python et Angular, construit les éditions et produit les installateurs et archives portables. Les fichiers sont d’abord publiés dans une **release brouillon** avec leurs sommes SHA-256.
 5. Dans GitHub, vérifier les six fichiers, les notes générées et `SHA256SUMS.txt`, puis publier le brouillon.
 
-Les workflows sont dans `.github/workflows/`. Les pull requests et les commits sur `main` exécutent le workflow CI. Une poussée de tag `vX.Y.Z` seule déclenche la préparation de release ; le workflow ne crée pas ni ne pousse le tag à ta place.
+Les workflows sont dans `.github/workflows/`. La CI sépare les tests Python, les vérifications Angular et le build Angular en jobs indépendants qui peuvent s’exécuter en parallèle. Sur une release, les tests Python, les vérifications Angular et le build Angular sont également séparés ; les trois paquets attendent leur réussite. Une poussée de tag `vX.Y.Z` seule déclenche la préparation de release ; le workflow ne crée pas ni ne pousse le tag à ta place.
 
 ## Continuer le développement depuis les sources
 
