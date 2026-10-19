@@ -97,10 +97,6 @@ Les séances, l’audio et les artefacts sont stockés localement. La base d’�
 La capture et l’analyse audio peuvent traiter des informations personnelles. Obtiens le consentement requis et respecte les règles applicables avant d’enregistrer. Fais des sauvegardes avant de supprimer des séances ; les suppressions sont irréversibles dans l’application.
 
 
-### Structure des composants Angular
-
-Les composants Angular sont séparés en fichiers `*.ts`, `*.html` et `*.scss`. Les styles partagés restent dans `src/web/frontend/src/styles/components.scss` ; les utilitaires Tailwind CSS 4 sont générés depuis l’entrée CSS `src/styles/tailwind.css`, et les composants utilisent `@reference` puis `@apply` pour réutiliser ces utilitaires. Les composants doivent utiliser le composant partagé `glimio-icon` pour les icônes Heroicons ; le logo Angular est servi depuis `src/web/frontend/public/brand/`.
-
 ## Développement et tests
 
 Installer les extras web et diarisation comme indiqué ci-dessus, puis lancer la suite depuis la racine :
@@ -116,6 +112,8 @@ Contrôle de contraste des principaux jetons de thème :
 ```
 
 ### Interface web — Angular 22, Tailwind CSS 4
+
+Les composants sont séparés en fichiers `*.ts`, `*.html` et `*.scss`. Les styles partagés sont dans `src/web/frontend/src/styles/components.scss`. Tailwind CSS 4 est chargé depuis `src/web/frontend/src/styles/tailwind.css` ; dans les composants, `@reference` rend ses utilitaires disponibles à `@apply`. Les icônes Heroicons passent par le composant partagé `glimio-icon` et le logo Angular est servi depuis `src/web/frontend/public/brand/`.
 
 L’interface servie à `/` est l’application Angular 22 ; FastAPI fournit l’API `/api/*` et sert le build Angular depuis `dist/glimio-web-ui`. Lorsqu’on démarre le serveur via le point d’entrée du projet, le build de l’interface est vérifié et reconstruit si nécessaire. Un simple import de `web.app` n’installe toutefois pas les dépendances et ne lance pas npm : les tests API peuvent s’exécuter indépendamment du build frontend.
 

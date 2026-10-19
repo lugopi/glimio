@@ -9,7 +9,7 @@ Merci de contribuer. Glimio est encore en développement ; les interfaces et les
 3. Lance `python -m pytest -q src/tests` depuis la racine.
 4. Pour tout changement Angular, depuis `src/web/frontend`, exécute `npm ci`, `npm run typecheck`, `npm test` et `npm run build`.
 5. Ajoute des tests qui protègent le comportement observable : règles métier, réponses API, import/normalisation audio, persistance, pagination, navigation et licences. Évite les snapshots qui figent des détails de CSS ou des métadonnées SVG sans impact utilisateur.
-6. Les composants Angular séparent logique, template et styles. Utilise les utilitaires Tailwind 4 via `@reference`/`@apply` et `src/styles/tailwind.css` ; conserve les règles réellement partagées dans `src/styles/components.scss`. Suis aussi les conventions et commandes de [`docs/ANGULAR_22_MIGRATION.md`](docs/ANGULAR_22_MIGRATION.md).
+6. Les composants Angular séparent logique, template et styles. Utilise Tailwind CSS 4 via `@reference`/`@apply` et privilégie ses utilitaires standards. Suis les conventions et commandes de [`docs/FRONTEND.md`](docs/FRONTEND.md).
 7. N'ajoute pas de poids IA, d'exécutables, de captures audio utilisateur, de données de séance ou de secrets dans un commit.
 8. Mets à jour `CHANGELOG.md` et incrémente la version `0.x` dans `pyproject.toml`, `src/web/app.py` et `src/web/frontend/package.json` quand c'est pertinent.
 
