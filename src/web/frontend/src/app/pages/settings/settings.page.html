@@ -22,6 +22,10 @@
               <label class="diarize-card"><input type="checkbox" [ngModel]="value.no_review" (ngModelChange)="patch('no_review', $event)"><span><strong>Désactiver la relecture finale</strong><small>Réduit les étapes de vérification du résumé.</small></span></label>
             </div></section>
             <div class="settings-footer"><span class="settings-autosave-note"><span class="settings-autosave-icon"><glimio-icon name="check-circle" /></span><span class="settings-autosave-copy"><strong>Sauvegarde automatique</strong><small>{{ preferences.isSaving() ? 'Enregistrement des modifications…' : 'Les modifications sont enregistrées automatiquement.' }}</small></span></span><span class="field-note">Les chemins relatifs sont résolus depuis la racine du projet. Les changements s’appliquent aux prochains traitements.</span></div>
+      <footer class="license-notice" aria-label="Licence du logiciel">
+        <p><strong>Glimio est un logiciel libre.</strong> Le code du projet est distribué sous licence <strong>GNU AGPL v3 ou ultérieure (AGPL-3.0-or-later)</strong>. <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener noreferrer">Consulter le texte officiel de la licence</a>.</p>
+        <p class="field-note">Le fichier <code>LICENSE</code> fourni avec les sources contient la licence applicable au projet. Les modèles, binaires et autres composants tiers peuvent avoir leurs propres conditions.</p>
+      </footer>
           </div>
         </section>
       } @else { <div class="panel-placeholder"><span class="spinner"></span><h2>Chargement des paramètres…</h2></div> }

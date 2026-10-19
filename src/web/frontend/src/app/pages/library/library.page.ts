@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Subscription, catchError, exhaustMap, interval, map, of, startWith, switchMap } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
@@ -16,7 +17,7 @@ import { PaginationComponent } from '../../shared/pagination.component';
   templateUrl: './library.page.html',
   styleUrl: './library.page.scss',
 })
-export class LibraryPageComponent implements OnInit {
+export class LibraryPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly preferences = inject(PreferencesService);
@@ -39,6 +40,7 @@ export class LibraryPageComponent implements OnInit {
   private searchTimer?: number;
   private pendingSessionId: string | null = null;
   private initialized = false;
+  private polling?: Subscription;
   readonly pageItems = computed(() => this.sessions());
   readonly sessionsWithSummary = computed(() => this.sessions().filter(session => session.summary).length);
 
@@ -55,6 +57,54 @@ export class LibraryPageComponent implements OnInit {
       }
       this.initialized = true;
     });
+
+    // Job state is live data: refresh the visible list and selected detail while
+    // the library is open, without re-opening the session (which clears artifact
+    // previews and can overwrite unsaved form state).
+    this.polling = interval(2000).pipe(
+      startWith(0),
+      exhaustMap(() => {
+        const options = {
+          query: this.query,
+          filter: this.filter,
+          limit: this.pageSize(),
+          offset: (this.page() - 1) * this.pageSize(),
+        };
+        return this.api.sessions(options).pipe(
+          switchMap(result => {
+            const id = this.selectedId();
+            if (!id) return of({ result, id: null, detail: null });
+            return this.api.session(id).pipe(
+              map(detail => ({ result, id, detail })),
+              catchError(() => of({ result, id, detail: null })),
+            );
+          }),
+          // Keep the interval alive after transient HTTP/network failures.
+          catchError(() => of(null)),
+        );
+      }),
+    ).subscribe({
+      next: payload => {
+        if (!payload) return;
+        const { result, id, detail } = payload;
+        this.sessions.set(result.items);
+        this.total.set(result.count);
+        this.libraryState.total.set(result.count);
+        if (detail && id && this.selectedId() === id) this.selected.set(detail);
+      },
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.polling?.unsubscribe();
+    window.clearTimeout(this.searchTimer);
+  }
+
+  processingStateLabel(state: string): string {
+    return ({
+      queued: 'En attente', running: 'En cours', stopping: 'Arrêt en cours',
+      completed: 'Terminé', error: 'Échec', cancelled: 'Annulé',
+    } as Record<string, string>)[state] ?? state;
   }
 
   searchChanged(): void {

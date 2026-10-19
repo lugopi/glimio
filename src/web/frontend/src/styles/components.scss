@@ -79,7 +79,7 @@
   .source-card, .choice-card, .diarize-card, .offline-indicator, .session-live-progress, .session-audio-panel, .record-status, .job-icon, .upload-icon { border-color: color-mix(in srgb, var(--c-border) 76%, var(--c-surface)); }
   .source-card, .choice-card, .diarize-card { border-radius: 13px; transition: border-color .16s ease, background .16s ease, box-shadow .16s ease; }
   .source-card:has(input:focus-visible), .choice-card:has(input:focus-visible), .diarize-card:has(input:focus-visible) { outline: 2px solid var(--c-accent); outline-offset: 2px; }
-  .card-pad { @apply p-[21px]; }
+  .card-pad { @apply p-5; }
   .card-header { @apply mb-[18px] flex items-center justify-between gap-4; }
   .card-header h2, .card-title { @apply m-0 text-[0.9375rem] font-bold tracking-[-.2px]; }
   .card-description { @apply mt-[7px] text-xs leading-[1.65] text-muted; }
@@ -129,6 +129,8 @@
   .session-card { @apply block w-full min-w-0 rounded-[11px] border border-transparent px-3 py-[13px] text-left text-text; background: transparent; }
   .session-card:hover { background: var(--c-surface-hover); }
   .session-card.is-selected { border-color: color-mix(in srgb, var(--c-accent) 34%, var(--c-border)); background: var(--c-accent-soft); }
+  .session-card-select { @apply block w-full min-w-0 border-0 p-0 text-left text-text; background: transparent; }
+  .session-card-select:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 3px; border-radius: 6px; }
   .session-card-top { @apply mb-2 flex items-center justify-between gap-[9px]; }
   .session-date { @apply font-mono text-[0.75rem] text-subtle; }
   .session-markers { @apply flex flex-wrap gap-1; }
@@ -136,10 +138,13 @@
   .badge--success { @apply text-success; border-color: color-mix(in srgb, var(--c-success) 30%, var(--c-border)); background: color-mix(in srgb, var(--c-success) 8%, transparent); }
   .badge--accent { @apply bg-accent-soft text-accent; border-color: color-mix(in srgb, var(--c-accent) 28%, var(--c-border)); }
   .badge--danger { @apply text-danger; }
-  .session-card > strong { @apply mb-[6px] block text-xs leading-[1.45]; overflow-wrap: anywhere; }
-  .session-card > p { @apply m-0 overflow-hidden text-[0.8125rem] leading-[1.55] text-muted; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .session-card-select > strong { @apply mb-[6px] block text-xs leading-[1.45]; overflow-wrap: anywhere; }
+  .session-card-description { @apply m-0 overflow-hidden text-[0.8125rem] leading-[1.55] text-muted; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .session-card-progress { @apply mt-[10px] flex items-start gap-[7px] border-t border-border-soft pt-[9px] text-[0.75rem] leading-normal text-accent; overflow-wrap: anywhere; }
   .session-card-progress.is-error { @apply text-danger; }
+  .session-card-progress.is-completed { color: var(--c-success); }
+  .session-card-progress > glimio-icon { @apply mt-px shrink-0; }
+  .session-card-progress strong { @apply font-semibold; }
   .panel-placeholder { @apply mx-auto max-w-[340px] px-[17px] py-11 text-center; }
   .placeholder-icon { display: grid; width: 48px; height: 48px; place-items: center; margin: 0 auto 15px; border: 1px solid var(--c-border); border-radius: 15px; color: var(--c-accent); background: var(--c-accent-soft); font-size: 1.375rem; }
   .panel-placeholder h2 { @apply mb-2 mt-0 text-[0.9375rem] font-bold; }
@@ -196,7 +201,7 @@
   .audio-track audio { @apply rounded-full; display: block; width: 100%; min-width: 0; height: 36px; accent-color: var(--c-accent); overflow: hidden; }
   .library-empty, .inline-empty { @apply px-4 py-[26px] text-center text-xs leading-[1.65] text-muted; }
   .control-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(290px, .75fr); align-items: start; gap: 15px; }
-  .control-panel { @apply p-[21px]; }
+  .control-panel { @apply p-5; }
   .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin: 25px 0 13px; padding-top: 18px; border-top: 1px solid var(--c-border-soft); }
   .section-heading:first-of-type { margin-top: 21px; }
   .section-heading strong { font-size: .8125rem; font-weight: 700; }
@@ -233,7 +238,7 @@
   .stop-recording-button.is-processing .status-dot, .stop-recording-button.is-stopping .status-dot { animation: none; background: var(--c-warning); }
   .stop-recording-button.is-recording .status-dot { background: #fff; box-shadow: 0 0 8px rgb(255 255 255 / .6); animation: pulse 1.2s infinite; }
   .privacy-note { @apply mt-[13px] text-[0.75rem] leading-[1.65] text-subtle; }
-  .import-panel { @apply p-[21px]; }
+  .import-panel { @apply p-5; }
   .shared-processing-panel { min-width: 0; margin: 15px 0; padding: 21px; }
   .shared-processing-panel .card-header { margin-bottom: 12px; }
   .shared-processing-content { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .45fr); align-items: center; gap: 14px; }
@@ -278,7 +283,7 @@
   .job-state.is-queued { color: var(--c-warning, var(--c-muted)); border-color: color-mix(in srgb, var(--c-warning, var(--c-muted)) 32%, var(--c-border)); }
   .queue-overview { display: grid; gap: 3px; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--c-border); border-radius: 11px; background: color-mix(in srgb, var(--c-accent) 5%, var(--c-surface)); color: var(--c-muted); font-size: .8125rem; line-height: 1.45; }
   .queue-overview strong { color: var(--c-text); font-size: .8125rem; font-weight: 650; }
-  .search-hero { @apply mb-5 p-[21px]; border-color: color-mix(in srgb, var(--c-border) 68%, var(--c-surface)); }
+  .search-hero { @apply mb-5 p-5; border-color: color-mix(in srgb, var(--c-border) 68%, var(--c-surface)); }
   .search-hero > label { display: block; margin-bottom: 12px; font-size: .8125rem; font-weight: 700; }
   .ai-composer { overflow: hidden; border: 1px solid var(--c-border); border-radius: 14px; background: var(--c-surface-raised); transition: border-color .16s ease, box-shadow .16s ease; }
   .ai-composer:focus-within { border-color: var(--c-accent); box-shadow: 0 0 0 3px var(--c-accent-soft); }
@@ -290,7 +295,7 @@
   .ai-query-shortcut { @apply font-mono text-[0.75rem] text-subtle; }
   .ai-search-actions { @apply ml-auto flex items-center justify-end gap-2; }
   .ai-run-button { min-width: 132px; }
-  .search-hint { @apply mt-[13px] flex items-start gap-2 px-0 text-[0.8125rem] leading-[1.65] text-subtle; margin-bottom: 0; }
+  .search-hint { @apply mt-4 flex items-start gap-2 px-0 text-[0.8125rem] leading-[1.65] text-subtle; margin-bottom: 0; }
   .search-results { @apply grid gap-[13px]; }
   .answer-card { @apply rounded-[15px] border bg-surface p-[19px]; border-color: color-mix(in srgb, var(--c-border) 68%, var(--c-surface)); box-shadow: 0 5px 20px rgb(0 0 0 / .07); }
   .result-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
@@ -343,8 +348,8 @@
   .main-area { @apply col-auto gap-0 pb-6; }
   .sidebar { position: sticky; inset: 0 0 auto; z-index: 30; width: 100%; height: auto; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--c-border); }
   .brand { @apply gap-2.5 px-[5px] pb-2.5; }
-  .brand-mark { @apply size-[34px] overflow-hidden rounded-[9px]; }
-  .brand-mark .brand-logo, .brand-mark img { @apply size-7 shrink-0; }
+  .brand-mark { @apply size-[34px] rounded-[9px]; flex-basis: 34px; }
+  .brand-mark .brand-logo, .brand-mark img { width: 100%; height: 100%; }
   .brand-name { font-size: 1.25rem; }
   .brand-caption { font-size: .75rem; }
   .side-label, .sidebar-bottom { display: none; }
@@ -406,10 +411,10 @@
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, [contenteditable="true"] { cursor: text; }
   select, input[type="checkbox"], input[type="radio"], input[type="range"], button, a,
   label[for], .source-card, .choice-card, .diarize-card, .upload-area, .settings-toggle,
-  .nav-link, .session-card, .job-row--clickable, .text-link-button { cursor: pointer; }
+  .nav-link, .session-card-select, .job-row--clickable, .text-link-button { cursor: pointer; }
   /* A pointer cursor must not prevent ordinary text selection. */
   button, .source-card, .choice-card, .diarize-card, .upload-area, .settings-toggle,
-  .nav-link, .session-card, .job-row--clickable { user-select: text; }
+  .nav-link, .session-card, .session-card-select, .job-row--clickable { user-select: text; }
 }
 
 @layer components {
@@ -755,8 +760,16 @@
   .btn-icon-text svg { display: block; width: 18px; height: 18px; }
   .search-box > span svg { display: block; width: 17px; height: 17px; }
   .placeholder-icon svg { display: block; width: 23px; height: 23px; }
-  .brand-mark { @apply overflow-hidden; }
-  .brand-mark .brand-logo, .brand-mark img { @apply size-10 shrink-0; }
+  .brand-mark { overflow: visible; flex: 0 0 auto; }
+  .brand-mark .brand-logo, .brand-mark img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    flex: 0 0 100%;
+    object-fit: contain;
+  }
   .diarization-settings { gap: 13px; padding: 18px 20px 20px; }
   .diarization-settings > .field-note { margin: 0; line-height: 1.6; }
   .diarization-settings .auto-speakers-toggle { margin: 0; padding: 10px 12px; }
@@ -773,9 +786,10 @@
   .settings-autosave-note strong { font-size: .775rem; font-weight: 650; }
   .settings-autosave-note small { margin-top: 2px; font-size: .72rem; }
   .settings-footer > .field-note { flex: 0 1 44ch; margin: 0; }
-  .session-actions-toggle { box-sizing: border-box; padding: 5px; }
+  .session-actions-toggle { box-sizing: border-box; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 5px; }
   .session-actions-icon { display: grid; width: 100%; height: 100%; min-width: 0; min-height: 0; place-items: center; }
-  .session-actions-icon > .icon { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; }
+  .session-actions-icon glimio-icon { display: grid; width: 100%; height: 100%; place-items: center; }
+  .session-actions-icon .icon, .session-actions-icon svg { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; }
 }
 @media (max-width: 850px) {
   .brand > div:nth-child(2) { flex: 1 1 0%; width: 0; min-width: 0; }
@@ -790,19 +804,6 @@
   .settings-autosave-note { align-items: center; }
 }
 
-@layer components {
-  .job-row-wrap { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 7px; min-width: 0; }
-  .job-row-wrap > .job-row { min-width: 0; }
-  .job-row-delete { display: grid; width: 34px; min-width: 34px; min-height: 34px; align-self: center; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 8px; color: var(--c-subtle); background: transparent; cursor: pointer; }
-  .job-row-delete svg { display: block; width: 17px; height: 17px; }
-  .job-row-delete:hover:not(:disabled), .job-row-delete:focus-visible { border-color: color-mix(in srgb, var(--c-danger) 30%, var(--c-border-soft)); color: var(--c-danger); background: var(--c-danger-soft); }
-  .job-row-delete:disabled { cursor: wait; opacity: .5; }
-}
-@media (max-width: 600px) {
-  .job-row-wrap { gap: 4px; }
-  .job-row-delete { width: 30px; min-width: 30px; }
-}
-
 @layer components { .job-open-hint svg { display: inline-block; width: 12px; height: 12px; vertical-align: -2px; } }
 
 
@@ -812,12 +813,14 @@
   .mobile-nav-icon { display: grid; width: 24px; height: 24px; flex: 0 0 24px; place-items: center; color: currentColor; pointer-events: none; }
   .mobile-nav-icon > .icon { display: block; width: 24px; height: 24px; min-width: 24px; min-height: 24px; }
   .session-actions-icon { display: grid; width: 100%; height: 100%; place-items: center; }
-  .session-actions-icon > .icon { display: block; width: 100%; height: 100%; }
+  .session-actions-icon glimio-icon, .session-actions-icon .icon, .session-actions-icon svg { display: block; width: 100%; height: 100%; }
   .job-row-wrap { position: relative; display: block; min-width: 0; }
   .job-row-wrap > .job-row { box-sizing: border-box; width: 100%; min-width: 0; padding-right: 43px; }
   .job-row-delete { position: absolute; z-index: 2; top: 7px; right: 7px; display: grid; width: 28px; min-width: 28px; height: 28px; min-height: 28px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 7px; color: var(--c-subtle); background: var(--c-surface); cursor: pointer; }
   .job-row-delete .icon { display: block; width: 16px; height: 16px; }
   .job-row-delete:hover:not(:disabled), .job-row-delete:focus-visible { border-color: color-mix(in srgb, var(--c-danger) 30%, var(--c-border-soft)); color: var(--c-danger); background: var(--c-danger-soft); }
+  .job-row-delete:disabled { cursor: not-allowed; opacity: .5; }
+  .job-row-delete > svg { display: block; width: 16px; height: 16px; }
   .diarization-settings-section { padding: 15px 16px 16px; border: 1px solid var(--c-border-soft); border-radius: 12px; background: color-mix(in srgb, var(--c-surface-raised) 65%, transparent); }
   .diarization-settings-section > .diarization-settings-title { margin: 0 0 10px; }
   .diarization-settings-section .diarization-settings { gap: 13px; padding: 0; border: 0; background: transparent; }
@@ -876,8 +879,8 @@
   .control-panel > .card-header { @apply mb-[15px]; }
   .control-panel > .section-heading:first-of-type { @apply mt-[22px]; }
 
-  // Panneau de détail de la séance : padding aligné sur la norme du projet (21px comme .card-pad / .import-panel).
-  .session-detail-panel { @apply p-[21px]; }
+  // Panneau de détail de la séance : padding aligné sur la norme du projet (20px comme .card-pad / .import-panel).
+  .session-detail-panel { @apply p-5; }
   // Espacement standard entre les blocs directs du détail (en-tête, actions, sections).
   .session-detail-panel > * + * { @apply mt-4; }
   .session-detail-panel > .detail-header + * { @apply mt-0; }
@@ -925,13 +928,20 @@
   .search-results > * + * { @apply mt-3; }
 }
 
-/* Glimio — branding : le logo SVG injecté en ligne (public/brand/glimio.svg)
-   change de couleur avec le thème. Ses calques principaux utilisent currentColor
-   (couleur d'accent du thème) et son calque « shadows » utilise --brand-shadow
-   (couleur contrastante du thème, semi-transparente). */
+/* Glimio — les deux calques du logo héritent de la même couleur de thème.
+   La vague (layer3) porte son opacité dans le SVG et non une deuxième couleur. */
 @layer base {
-  .brand-mark {
-    color: var(--c-accent);
-    --brand-shadow: color-mix(in srgb, var(--c-accent-contrast) 55%, transparent);
-  }
+  .brand-mark { color: var(--c-accent); }
+}
+
+
+/* Library detail: documents are primary; actions use the same button language as the rest of the UI. */
+@layer components {
+  .available-documents .artifact-links { @apply mt-3 flex flex-wrap items-center gap-2; }
+  .available-documents .artifact-links .btn { min-height: 38px; }
+  .available-documents .artifact-links glimio-icon { display: inline-flex; width: 16px; height: 16px; flex: 0 0 16px; }
+  .available-documents .artifact-links .icon,
+  .available-documents .artifact-links svg { display: block; width: 100%; height: 100%; }
+  .documents-empty-note { max-width: 62ch; margin: 0; line-height: 1.6; }
+  .search-hint { margin-top: 16px; }
 }

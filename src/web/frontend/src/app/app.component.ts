@@ -29,13 +29,12 @@ export class AppComponent implements OnInit {
   readonly currentPage = signal('Enregistrement');
 
   /**
-   * Logo Glimio injecté en ligne (inline) : ses calques « main » utilisent
-   * currentColor (couleur d'accent du thème) et son calque « shadows » la
-   * variable --brand-shadow, toutes deux définies par .brand-mark selon le
-   * thème courant — le branding change donc de couleur avec le thème.
+   * Logo Glimio injecté en ligne : le calque principal et la vague utilisent
+   * currentColor. La vague conserve une opacité propre pour créer sa profondeur.
+   * Le SVG garde un viewBox légèrement étendu afin de ne pas couper les tracés.
    * Le fichier public/brand/glimio.svg est nettoyé des métadonnées Inkscape ;
    * le nettoyage ci-dessous reste un repli défensif (déclaration XML,
-   * commentaires, attributs sodipodi:/inkscape:, width/height absolus).
+   * commentaires, attributs sodipodi:/inkscape:, dimensions fixes).
    */
   private readonly http = inject(HttpClient);
   private readonly sanitizer = inject(DomSanitizer);
@@ -52,16 +51,18 @@ export class AppComponent implements OnInit {
       .replace(/<(defs|metadata|namedview)\b[^>]*\/>/g, '')
       // …et attributs d'espace de noms restants (sodipodi:, inkscape:).
       .replace(/\s(?:sodipodi|inkscape):[a-zA-Z-]+="[^"]*"/g, '');
-    // Force l'SVG à remplir exactement son conteneur (.brand-mark) : sans
-    // cette étape les width/height natifs (512px) débordent du cadre et une
-    // partie du logo est masquée.
-    cleaned = cleaned.replace(/<svg\b[^>]*/g, tag => {
-      if (tag.includes('viewBox') && !/\sclass="/.test(tag)) {
-        return tag + ' class="brand-logo" width="100%" height="100%" preserveAspectRatio="xMidYMid meet"';
-      }
-      const withBox = tag.replace(/\swidth="[^"]*"/, ' width="100%"').replace(/\sheight="[^"]*"/, ' height="100%"');
-      const boxed = /viewBox=/.test(withBox) ? withBox : withBox + ' viewBox="0 0 512 512"';
-      return boxed + ' preserveAspectRatio="xMidYMid meet"';
+    // Force le SVG à s'adapter à son conteneur sans imposer une taille native
+    // susceptible de déborder dans le bandeau responsive.
+    cleaned = cleaned.replace(/<svg\b[^>]*>/g, tag => {
+      // Normalize rather than append SVG attributes: duplicate width/height or
+      // preserveAspectRatio attributes can produce inconsistent browser parsing.
+      const normalized = tag
+        .replace(/\s(?:width|height|class|preserveAspectRatio)="[^"]*"/g, '')
+        .replace(/>$/, '');
+      const withBox = /\sviewBox="[^"]*"/.test(normalized)
+        ? normalized
+        : normalized + ' viewBox="0 -12 512 524"';
+      return withBox + ' width="100%" height="100%" class="brand-logo" preserveAspectRatio="xMidYMid meet">';
     });
     return this.sanitizer.bypassSecurityTrustHtml(cleaned);
   });

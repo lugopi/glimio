@@ -6,12 +6,12 @@
 
 /* Espacement interne des cartes de la bibliothèque :
    respiration entre le titre, les champs et les actions (complète les règles globales).
-   Norme projet (page Paramètres) : padding de carte 21px, rythme vertical mt-4, gap de grille 14px. */
+   Norme projet (page Paramètres) : padding de carte 20px, rythme vertical mt-4, gap de grille 14px. */
 :host {
   .library-layout > * { @apply min-w-0; }
 
-  /* Carte liste : padding norme projet (21px, comme les panneaux Paramètres/Enregistrement). */
-  .library-list-panel { @apply p-[21px]; }
+  /* Carte liste : padding norme projet (20px, comme les panneaux Paramètres/Enregistrement). */
+  .library-list-panel { @apply p-5; }
 
   .session-processing-options {
     /* Bloc surélevé dans le détail : padding interne harmonisé avec la norme (p-5 = 20px). */
@@ -37,3 +37,11 @@
     @apply mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-3.5;
   }
 }
+
+/* Traitement d'une séance : même panneau partagé que les autres états live. */
+:host .session-live-progress { @apply w-full min-w-0; }
+:host .session-progress-icon > .spinner { width: 16px; height: 16px; }
+:host .session-progress-heading { min-width: 0; }
+:host .session-progress-heading strong { color: var(--c-text); }
+:host .session-live-progress.is-completed .session-progress-icon { color: var(--c-success); background: color-mix(in srgb, var(--c-success) 12%, transparent); }
+:host .session-live-progress.is-error .session-progress-icon { color: var(--c-danger); background: var(--c-danger-soft); }

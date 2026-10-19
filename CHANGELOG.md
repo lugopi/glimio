@@ -1,5 +1,15 @@
 # Changelog
 
+## Correctifs UI, états de séance et capture audio — 2026-10-19
+
+- Bibliothèque Angular : ajout d’un rafraîchissement périodique (2 s) de la liste et du détail de la séance pour refléter les transitions d’état des jobs, sans réinitialiser les aperçus d’artefacts ni les paramètres de traitement en cours d’édition. Le polling résiste aux erreurs réseau passagères et évite les requêtes concurrentes.
+- Bibliothèque : affichage explicite des états En attente / En cours / Terminé / Échec, et des messages d’erreur quand disponibles, dans la liste et dans le panneau de détail. Le panneau de détail réutilise le composant partagé `session-live-progress`.
+- Accessibilité : la carte de séance n’imbrique plus des éléments de type bloc dans un `<button>` ; la zone de sélection est un bouton dédié avec état `aria-pressed` et focus visible, le message de traitement étant son voisin dans la carte.
+- Branding : SVG public sans métadonnées Inkscape/Sodipodi, calques conservés sous `layer3` (ombres) et `layer2` (forme principale), 6 chemins héritant de remplissages dynamiques `var(--brand-shadow, currentColor)` et `currentColor`.
+- Capture audio : correspondance exacte et insensible à la casse en priorité ; les anciennes préférences à correspondance partielle restent acceptées uniquement si le résultat est unique. Les sélections ambiguës et noms exactement dupliqués sont refusés avec un message explicite. Un log met en évidence les noms identiques des deux endpoints Bluetooth sans désactiver arbitrairement l’une des deux pistes.
+- SCSS : normalisation du padding des cartes principales sur `p-5` (20 px), retrait d’un bloc de styles en doublon pour les contrôles d’activité et tests de contrat ciblant le rafraîchissement des états et le SVG. Le vérificateur de contraste référence maintenant le véritable fichier `styles/tokens.scss` au lieu d’un `tokens.css` inexistant.
+- Validation : les tests de `test_audio_streaming.py` passent (6 tests) et les fichiers Python modifiés passent `py_compile`. Le build Angular n’a pas pu être exécuté ici : les dépendances npm ne sont pas intégralement disponibles hors ligne, `ng` reste absent, et la version Node fournie (22.16.0) est inférieure à la version minimale annoncée par Angular 22.2.3 (22.22.3). Tester la compilation complète avec une version Node compatible avant fusion.
+
 ## Correctifs fonctionnels — options par séance et diarisation
 
 - Ajout du module manquant `seance.diarization` avec chargement WAV, exécution locale sherpa-onnx, alignement des segments de voix sur la transcription horodatée, sauvegarde JSON et sauvegardes de la transcription d’origine. Un message explicite indique l’extra Python ou les modèles ONNX manquants.
@@ -209,3 +219,12 @@ Les changements notables sont regroupés par version. Les versions sont celles d
 - Extraction des templates Angular dans des fichiers HTML et des styles locaux dans des fichiers SCSS.
 - Remplacement du pictogramme temporaire par le SVG de marque Glimio dans les interfaces Angular et legacy.
 - Inclusion des nouveaux fichiers HTML/SCSS et de l’asset de marque dans les fichiers distribués.
+
+
+## UI follow-up — 2026-10-19
+
+- Prevented responsive brand mark clipping and aligned the translucent `wave` SVG layer with `currentColor`.
+- Expanded the library session action menu with Heroicons and consistent button controls.
+- Prioritized session documents, then audio tracks, processing status, and per-session settings.
+- Restored an understated AGPL-3.0-or-later license notice in Settings.
+- Standardized spacing for the intelligent-search explanatory text and added contract coverage.

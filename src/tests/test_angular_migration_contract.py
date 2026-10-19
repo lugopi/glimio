@@ -101,3 +101,57 @@ def test_angular_components_keep_logic_and_scss_separate() -> None:
         html_file = component.with_name(component.name + ".html")
         if html_file.is_file():
             assert "templateUrl:" in source, f"{ts_file.name} doit référencer son .html via templateUrl"
+
+
+def test_library_polls_and_exposes_terminal_job_states_in_list_and_detail() -> None:
+    app = ROOT / "src" / "web" / "frontend" / "src" / "app"
+    library = (app / "pages" / "library" / "library.page.ts").read_text(encoding="utf-8")
+    template = (app / "pages" / "library" / "library.page.html").read_text(encoding="utf-8")
+    styles = (ROOT / "src" / "web" / "frontend" / "src" / "styles" / "components.scss").read_text(encoding="utf-8")
+    assert "interval(2000)" in library and "exhaustMap" in library
+    assert "this.api.sessions(options)" in library and "this.api.session(id)" in library
+    assert "processingStateLabel" in template
+    assert "processing.state === 'completed'" in template
+    assert "processing.state === 'error'" in template
+    assert "session-live-progress" in template and 'aria-live=\"polite\"' in template
+    # The session card uses a button with phrasing-content children; status is its sibling.
+    assert '<article class="session-card"' in template
+    assert '<button class="session-card-select"' in template
+    assert ".session-card-select:focus-visible" in styles
+
+
+def test_brand_svg_keeps_dynamic_fill_layers_without_editor_metadata() -> None:
+    svg = (ROOT / "src" / "web" / "frontend" / "public" / "brand" / "glimio.svg").read_text(encoding="utf-8")
+    assert 'id="layer3"' in svg and 'id="layer2"' in svg
+    assert 'fill="currentColor"' in svg
+    assert 'data-layer="wave"' in svg
+    assert 'fill-opacity="0.25"' in svg
+    assert 'viewBox="0 -12 512 524"' in svg
+    assert 'var(--brand-shadow' not in svg
+    assert "inkscape:" not in svg and "sodipodi:" not in svg and "namedview" not in svg
+
+
+def test_library_documents_precede_audio_status_and_settings() -> None:
+    library_template = (ROOT / "src" / "web" / "frontend" / "src" / "app" / "pages" / "library" / "library.page.html").read_text(encoding="utf-8")
+    positions = [
+        library_template.index('class="detail-section available-documents"'),
+        library_template.index('id="session-audio-title"'),
+        library_template.index('class="session-live-progress"'),
+        library_template.index('class="detail-section session-processing-options"'),
+    ]
+    assert positions == sorted(positions)
+    for name in ("document-text", "sparkles", "play", "bars-3", "pencil-square", "arrow-path", "trash"):
+        assert f'name="{name}"' in library_template
+
+
+def test_settings_page_has_open_source_license_notice() -> None:
+    settings = (ROOT / "src" / "web" / "frontend" / "src" / "app" / "pages" / "settings" / "settings.page.html").read_text(encoding="utf-8")
+    assert 'class="license-notice"' in settings
+    assert "AGPL-3.0-or-later" in settings
+    assert 'https://www.gnu.org/licenses/agpl-3.0.html' in settings
+
+
+def test_brand_logo_uses_all_of_its_responsive_container() -> None:
+    styles = (ROOT / "src" / "web" / "frontend" / "src" / "styles" / "components.scss").read_text(encoding="utf-8")
+    assert ".brand-mark { overflow: visible; flex: 0 0 auto; }" in styles
+    assert "width: 100%;\n    height: 100%;" in styles

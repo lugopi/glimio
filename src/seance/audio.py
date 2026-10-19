@@ -77,6 +77,40 @@ def _soundcard():
     return sc
 
 
+def _resolve_named_device(devices: list[Any], requested: str | None, kind: str) -> Any | None:
+    """Resolve a UI-selected device without silently taking the first fuzzy match.
+
+    SoundCard exposes display names for the microphone and speaker collections.
+    Exact, case-insensitive matching is preferred. A partial match is retained for
+    compatibility with older saved preferences only when it identifies one device.
+    """
+    if not requested:
+        return None
+    wanted = str(requested).strip().casefold()
+    if not wanted:
+        return None
+
+    exact = [device for device in devices if str(getattr(device, "name", "")).strip().casefold() == wanted]
+    if len(exact) == 1:
+        return exact[0]
+    if len(exact) > 1:
+        raise SystemExit(
+            f"Several {kind} devices have the exact name {requested!r}. "
+            "Rename or disconnect duplicate device endpoints, then choose again."
+        )
+
+    partial = [device for device in devices if wanted in str(getattr(device, "name", "")).casefold()]
+    if len(partial) == 1:
+        return partial[0]
+    if len(partial) > 1:
+        matches = ", ".join(sorted({str(getattr(device, "name", "")) for device in partial}))
+        raise SystemExit(
+            f"The selected {kind} name {requested!r} matches several devices ({matches}). "
+            "Choose the full device name in Glimio."
+        )
+    return None
+
+
 def list_devices() -> None:
     # Import SoundCard before opening our scoped COM apartment. Its Windows backend
     # initializes COM at module import time and expects that initialization to succeed.
@@ -297,20 +331,16 @@ def _record_impl(
     microphones = sc.all_microphones(include_loopback=False) if capture_microphone else []
     speakers = sc.all_speakers() if capture_windows else []
 
+    microphone_name = getattr(args, "microphone", None)
+    output_name = getattr(args, "output", None)
     microphone = (
-        next(
-            (m for m in microphones if args.microphone.casefold() in m.name.casefold()),
-            None,
-        )
-        if getattr(args, "microphone", None)
+        _resolve_named_device(microphones, microphone_name, "microphone")
+        if microphone_name
         else (sc.default_microphone() if capture_microphone else None)
     )
     speaker = (
-        next(
-            (s for s in speakers if args.output.casefold() in s.name.casefold()),
-            None,
-        )
-        if getattr(args, "output", None)
+        _resolve_named_device(speakers, output_name, "Windows output")
+        if output_name
         else (sc.default_speaker() if capture_windows else None)
     )
 
@@ -415,7 +445,13 @@ def _record_impl(
     else:
         log("Microphone capture disabled.")
     if speaker is not None:
-        log(f"Windows audio: {speaker.name}")
+        log(f"Windows output selected for loopback capture: {speaker.name}")
+        if microphone is not None and microphone.name.casefold() == speaker.name.casefold():
+            log(
+                "Microphone and Windows output have the same display name. "
+                "They are separate capture endpoints; compare the resulting micro.wav and "
+                "windows.wav tracks if the headset routes the same signal to both."
+            )
     else:
         log("Windows audio capture disabled.")
     log("Recording. Press Ctrl+C to stop.")

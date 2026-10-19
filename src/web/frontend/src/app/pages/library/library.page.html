@@ -6,11 +6,22 @@
           <div class="library-stats"><strong>{{ total() }}</strong> séance(s) <span>·</span> <span>{{ sessionsWithSummary() }} résumé(s) sur cette page</span></div>
           <div class="session-list">
             @for (session of pageItems(); track session.id) {
-              <button class="session-card" [class.is-selected]="selectedId() === session.id" type="button" (click)="openSession(session.id)">
-                <div class="session-card-top"><span class="session-date">{{ dateLabel(session.started_at, session.id) }}</span><span class="session-markers">@if (session.summary) { <span class="badge badge--success">Résumé</span> } @if (session.transcript) { <span class="badge">Texte</span> } @if (session.audio) { <span class="badge">Audio</span> }</span></div>
-                <strong>{{ session.title }}</strong><p>{{ session.summary_excerpt || (session.transcript ? 'Transcription disponible' : session.audio ? 'Audio disponible' : 'Aucun document reconnu pour le moment.') }}</p>
-                @if (session.processing?.active) { <div class="session-card-progress"><span class="spinner"></span><span>{{ session.processing.message }}</span></div> }
-              </button>
+              <article class="session-card" [class.is-selected]="selectedId() === session.id">
+                <button class="session-card-select" [attr.aria-pressed]="selectedId() === session.id" type="button" (click)="openSession(session.id)">
+                  <span class="session-card-top"><span class="session-date">{{ dateLabel(session.started_at, session.id) }}</span><span class="session-markers">@if (session.summary) { <span class="badge badge--success">Résumé</span> } @if (session.transcript) { <span class="badge">Texte</span> } @if (session.audio) { <span class="badge">Audio</span> }</span></span>
+                  <strong>{{ session.title }}</strong><span class="session-card-description">{{ session.summary_excerpt || (session.transcript ? 'Transcription disponible' : session.audio ? 'Audio disponible' : 'Aucun document reconnu pour le moment.') }}</span>
+                </button>
+                @if (session.processing; as processing) {
+                  <div class="session-card-progress" aria-live="polite" aria-atomic="true"
+                    [class.is-error]="processing.state === 'error'"
+                    [class.is-completed]="processing.state === 'completed'">
+                    @if (processing.active) { <span class="spinner" aria-hidden="true"></span> }
+                    @else if (processing.state === 'completed') { <glimio-icon name="check-circle" /> }
+                    @else if (processing.state === 'error') { <glimio-icon name="information-circle" /> }
+                    <span><strong>{{ processingStateLabel(processing.state) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processing.error) { <span> · {{ processing.error }}</span> }</span>
+                  </div>
+                }
+              </article>
             } @empty { <div class="library-empty">Aucune séance trouvée. Enregistrez une séance ou importez un fichier depuis le centre de pilotage.</div> }
           </div>
           <div class="library-pagination-footer"><label class="field-label" for="session-page-size">Séances par page</label><select class="select" id="session-page-size" [ngModel]="pageSize()" (ngModelChange)="changePageSize($event)"><option [ngValue]="10">10</option><option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option></select><glimio-pagination [page]="page()" [pageSize]="pageSize()" [totalItems]="total()" label="Pagination de la bibliothèque" (pageChange)="changePage($event)" /></div>
@@ -24,22 +35,61 @@
                 <!-- Menu burger des actions (préservé de l'interface pré-migration). -->
                 <div class="detail-actions">
                   <details class="session-actions-menu" #sessionActionsMenu>
-                    <summary class="session-actions-toggle" role="button" aria-label="Actions sur la séance"><glimio-icon name="bars-3" /></summary>
+                    <summary class="session-actions-toggle" aria-label="Actions sur la séance"><span class="session-actions-icon"><glimio-icon name="bars-3" /></span></summary>
                     <div class="session-actions-panel">
                       <button class="btn btn--ghost btn--small" type="button" (click)="renameSession(); sessionActionsMenu.open = false"><glimio-icon name="pencil-square" /><span class="btn-label">Renommer</span></button>
-                      <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" (click)="runJob('transcribe'); sessionActionsMenu.open = false"><span class="btn-label">Transcrire</span></button>
-                      <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" (click)="runJob('summarize'); sessionActionsMenu.open = false"><span class="btn-label">Résumer</span></button>
+                      <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" (click)="runJob('transcribe'); sessionActionsMenu.open = false"><glimio-icon name="document-text" /><span class="btn-label">Transcrire</span></button>
+                      <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" (click)="runJob('summarize'); sessionActionsMenu.open = false"><glimio-icon name="sparkles" /><span class="btn-label">Résumer</span></button>
                       <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" title="Relancer la synthèse même si un résumé existe déjà" (click)="runJob('summarize', true); sessionActionsMenu.open = false"><glimio-icon name="arrow-path" /><span class="btn-label">Refaire le résumé</span></button>
-                      <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" (click)="runJob('process'); sessionActionsMenu.open = false"><span class="btn-label">Traiter complètement</span></button>
+                      <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" (click)="runJob('process'); sessionActionsMenu.open = false"><glimio-icon name="play" /><span class="btn-label">Traiter complètement</span></button>
                       <button class="btn btn--ghost btn--small is-danger" type="button" (click)="deleteSession(); sessionActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer</span></button>
                     </div>
                   </details>
                 </div>
               </div>
             </div>
+            <section class="detail-section available-documents" aria-labelledby="available-documents-title">
+              <h3 id="available-documents-title">Documents disponibles</h3>
+              <div class="artifact-links">
+                @if (selected()?.summary) {
+                  <button class="btn btn--secondary btn--small" type="button" (click)="loadArtifact('summary')"><glimio-icon name="sparkles" /><span>Afficher le résumé</span></button>
+                }
+                @if (selected()?.transcript) {
+                  <button class="btn btn--secondary btn--small" type="button" (click)="loadArtifact('transcript')"><glimio-icon name="document-text" /><span>Afficher la transcription</span></button>
+                }
+                @if (!selected()?.summary && !selected()?.transcript) {
+                  <p class="field-note documents-empty-note">Aucun résumé ni transcription n’est encore disponible. Vous pouvez lancer un traitement depuis le menu d’actions.</p>
+                }
+              </div>
+              @if (artifactTitle()) { <h4>{{ artifactTitle() }}</h4><pre class="artifact-content">{{ artifactContent() }}</pre> }
+            </section>
+            @if (selected()?.audio_tracks?.length) {
+              <section class="detail-section" aria-labelledby="session-audio-title">
+                <h3 id="session-audio-title">Pistes audio</h3>
+                <div class="audio-track-list">@for (track of selected()?.audio_tracks ?? []; track track) { <div class="audio-track"><div class="audio-track-title"><strong>{{ trackLabel(track) }}</strong><small>{{ track }}</small></div><audio controls preload="metadata" [src]="audioUrl(selected()!.id, track)">Votre navigateur ne prend pas en charge la lecture audio.</audio></div> }</div>
+              </section>
+            }
+            @if (selected()?.processing; as processing) {
+              <section class="session-live-progress" role="status" aria-live="polite" aria-atomic="true"
+                [class.is-active]="processing.active"
+                [class.is-error]="processing.state === 'error'"
+                [class.is-completed]="processing.state === 'completed'">
+                <span class="session-progress-icon" aria-hidden="true">
+                  @if (processing.active) { <span class="spinner"></span> }
+                  @else if (processing.state === 'completed') { <glimio-icon name="check-circle" /> }
+                  @else if (processing.state === 'error') { <glimio-icon name="information-circle" /> }
+                  @else { <glimio-icon name="clock" /> }
+                </span>
+                <div class="session-progress-main">
+                  <div class="session-progress-heading"><strong>{{ processingStateLabel(processing.state) }}</strong><span>{{ processing.kind }}</span></div>
+                  <p>{{ processing.message }}</p>
+                  @if (processing.error) { <p class="session-progress-error">{{ processing.error }}</p> }
+                </div>
+              </section>
+            }
             @if (sessionSettings(); as options) {
               <section class="detail-section session-processing-options" aria-labelledby="session-processing-options-title">
-                <div class="detail-section-heading"><div><h3 id="session-processing-options-title">Options de traitement de cette séance</h3><p class="field-note">Ces choix sont enregistrés avec la séance et utilisés lors des prochains traitements.</p></div><button class="btn btn--secondary btn--small" type="button" [disabled]="working()" (click)="saveSessionSettings()">Enregistrer les options</button></div>
+                <div class="detail-section-heading"><div><h3 id="session-processing-options-title">Options de traitement de cette séance</h3><p class="field-note">Ces choix sont enregistrés avec la séance et utilisés lors des prochains traitements.</p></div><button class="btn btn--secondary btn--small" type="button" [disabled]="working()" (click)="saveSessionSettings()"><glimio-icon name="check-circle" /><span>Enregistrer les options</span></button></div>
                 <div class="settings-grid common-processing-fields">
                   <div><label class="field-label" for="session-language">Langue de transcription</label><select class="select" id="session-language" [ngModel]="options.language" (ngModelChange)="patchSessionSetting('language', $event)"><option value="auto">Automatique</option><option value="detect">Détection Whisper</option><option value="fr">Français</option><option value="en">Anglais</option><option value="de">Allemand</option><option value="it">Italien</option><option value="es">Espagnol</option></select></div>
                   <div><label class="field-label" for="session-format">Format du résumé</label><select class="select" id="session-format" [ngModel]="options.format" (ngModelChange)="patchSessionSetting('format', $event)">@for (format of formats; track format) { <option [value]="format">{{ formatLabel(format) }}</option> }</select></div>
@@ -48,11 +98,6 @@
                 </div>
               </section>
             }
-            @if (selected()?.processing?.active) { <div class="session-progress-panel"><span class="spinner"></span><span>{{ selected()?.processing?.message }}</span></div> }
-            <div class="detail-section"><h3>Documents disponibles</h3><div class="artifact-links">@if (selected()?.summary) { <button class="text-link-button" type="button" (click)="loadArtifact('summary')">Afficher le résumé</button> } @if (selected()?.transcript) { <button class="text-link-button" type="button" (click)="loadArtifact('transcript')">Afficher la transcription</button> } </div>
-              @if (artifactTitle()) { <h4>{{ artifactTitle() }}</h4><pre class="artifact-content">{{ artifactContent() }}</pre> }
-            </div>
-            @if (selected()?.audio_tracks?.length) { <div class="detail-section"><h3>Pistes audio</h3><div class="audio-track-list">@for (track of selected()?.audio_tracks ?? []; track track) { <div class="audio-track"><div class="audio-track-title"><strong>{{ trackLabel(track) }}</strong><small>{{ track }}</small></div><audio controls preload="metadata" [src]="audioUrl(selected()!.id, track)">Votre navigateur ne prend pas en charge la lecture audio.</audio></div> }</div></div> }
           } @else { <div class="panel-placeholder"><div class="placeholder-icon"><glimio-icon name="book-open" /></div><h2>Sélectionnez une séance</h2><p>Le résumé, la transcription, l'audio et les informations de traitement apparaîtront ici.</p></div> }
         </article>
       </section>
