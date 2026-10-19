@@ -15,7 +15,7 @@
 }
 
 
-:host .settings-download-intro { @apply mb-4 max-w-[80ch]; }
+:host .settings-download-intro { @apply mb-4 w-full max-w-none; }
 :host .settings-download-list { @apply mt-4 grid gap-3; }
 :host .settings-download-item { @apply flex min-w-0 items-start justify-between gap-4 rounded-xl border border-border-soft bg-surface p-4; }
 :host .settings-download-item > div { @apply min-w-0 flex-1; }
@@ -31,3 +31,8 @@
   :host .settings-download-item { @apply flex-col; }
   :host .settings-download-item > .btn { @apply w-full justify-center; }
 }
+
+
+/* Use the same official-source action style for every optional model download. */
+:host .settings-download-item > .btn { @apply shrink-0 border-border bg-surface-raised text-text; }
+:host .settings-download-item > .btn:hover:not(:disabled) { background: var(--c-surface-hover); }

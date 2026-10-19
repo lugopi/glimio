@@ -28,7 +28,7 @@ class GitPublicationContractTests(unittest.TestCase):
         model_doc = (ROOT / "docs/MODELS.md").read_text(encoding="utf-8")
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
-        for model in ("LFM2.5-8B-A1B", "ggml-large-v3.bin", "nemo_en_titanet_small.onnx", "model.onnx"):
+        for model in ("LFM2.5-8B-A1B", "ggml-large-v3-q5_0.bin", "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx", "model.onnx"):
             self.assertIn(model, model_doc)
         self.assertIn("LFM Open License v1.0", model_doc)
         self.assertIn("ne remplace pas les conditions distinctes", readme)

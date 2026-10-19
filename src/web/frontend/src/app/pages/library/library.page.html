@@ -122,12 +122,13 @@
                 <div class="audio-track" [class.is-audio-track-disabled]="isAudioTrackDisabled(track)">
                   <div class="audio-track-title"><strong>{{ trackLabel(track) }}</strong><small>{{ track }}</small>@if (isAudioTrackDisabled(track)) { <span class="audio-track-disabled-label">Désactivée pour les prochains traitements</span> }</div>
                   <audio controls preload="metadata" [src]="audioUrl(session.id, track)">Votre navigateur ne prend pas en charge la lecture audio.</audio>
-                  <div class="audio-track-actions">
-                    <button class="btn btn--secondary btn--small" type="button" [disabled]="working() || !canDisableAudioTrack(track)" [title]="!canDisableAudioTrack(track) ? 'Au moins une piste doit rester active' : ''" (click)="setAudioTrackDisabled(track, !isAudioTrackDisabled(track))" [attr.aria-label]="(isAudioTrackDisabled(track) ? 'Réactiver ' : 'Désactiver ') + track">
-                      <glimio-icon [name]="isAudioTrackDisabled(track) ? 'eye' : 'eye-slash'" /> {{ isAudioTrackDisabled(track) ? 'Réactiver' : 'Désactiver' }}
-                    </button>
-                    <button class="btn btn--danger btn--small" type="button" [disabled]="working()" (click)="deleteAudioTrack(track)"><glimio-icon name="trash" /> Supprimer le fichier</button>
-                  </div>
+                  <details class="session-actions-menu audio-track-actions audio-track-actions-menu" #trackActionsMenu>
+                    <summary class="session-actions-toggle" [attr.aria-label]="'Actions pour la piste ' + track"><span class="session-actions-icon"><glimio-icon name="bars-3" size="fill" /></span></summary>
+                    <div class="session-actions-panel">
+                      <button class="btn btn--ghost btn--small" type="button" [disabled]="working() || !canDisableAudioTrack(track)" [title]="!canDisableAudioTrack(track) ? 'Au moins une piste doit rester active' : ''" (click)="setAudioTrackDisabled(track, !isAudioTrackDisabled(track)); trackActionsMenu.open = false"><glimio-icon [name]="isAudioTrackDisabled(track) ? 'eye' : 'eye-slash'" /><span class="btn-label">{{ isAudioTrackDisabled(track) ? 'Réactiver' : 'Désactiver' }}</span></button>
+                      <button class="btn btn--ghost btn--small is-danger" type="button" [disabled]="working()" (click)="deleteAudioTrack(track); trackActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer le fichier</span></button>
+                    </div>
+                  </details>
                 </div>
               }
             </div>

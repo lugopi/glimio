@@ -96,11 +96,13 @@ export class ApiService {
     return this.http.post<Job>('/api/recording/stop', {}).pipe(catchError(this.normalizeError));
   }
 
-  importFile(file: File, settings: GlimioSettings, action: 'process' | 'transcribe'): Observable<Job> {
+  importFile(file: File, settings: GlimioSettings, action: 'process' | 'transcribe', normalizeWindows = true, normalizeGainDb = 30): Observable<Job> {
     const body = new FormData();
     body.append('file', file, file.name);
     body.append('settings_json', JSON.stringify(settings));
     body.append('action', action);
+    body.append('normalize_windows', String(normalizeWindows));
+    body.append('normalize_windows_max_gain_db', String(normalizeGainDb));
     return this.http.post<Job>('/api/import', body).pipe(catchError(this.normalizeError));
   }
 

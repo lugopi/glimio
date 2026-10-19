@@ -8,10 +8,24 @@ from unittest.mock import patch
 from fastapi import HTTPException
 from starlette.requests import Request
 
-from web.app import (AudioTrackToggleRequest, clear_job_history, delete_job_history_item, health, session_audio, sessions, set_session_audio_track_disabled, delete_session_audio_track)
+from web.app import (AudioTrackToggleRequest, AudioDevicesResponse, clear_job_history, delete_job_history_item, devices, health, session_audio, sessions, set_session_audio_track_disabled, delete_session_audio_track)
 
 
 class WebApiSmokeTests(unittest.TestCase):
+    def test_devices_response_schema_accepts_structured_device_records(self) -> None:
+        payload = {
+            "microphones": ["USB Microphone"],
+            "outputs": ["Speakers"],
+            "microphone_devices": [{"id": "mic-1", "key": "mic-1", "name": "USB Microphone"}],
+            "output_devices": [{"id": "out-1", "key": "out-1", "name": "Speakers"}],
+        }
+        with patch("web.app._device_names", return_value=payload):
+            result = devices()
+        self.assertIsInstance(result, AudioDevicesResponse)
+        self.assertEqual(result.microphones, ["USB Microphone"])
+        self.assertEqual(result.output_devices[0].id, "out-1")
+        self.assertEqual(result.output_devices[0].name, "Speakers")
+
     def test_sessions_endpoint_uses_configured_root_and_lists_existing_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "seances"

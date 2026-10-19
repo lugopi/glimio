@@ -214,10 +214,10 @@ def test_library_template_avoids_redundant_audio_tracks_coalescing() -> None:
 
 def test_markdown_tables_are_rendered_in_a_responsive_scroll_region() -> None:
     app = FRONTEND / "src" / "app"
-    library = (app / "pages" / "library" / "library.page.ts").read_text(encoding="utf-8")
+    markdown = (app / "shared" / "markdown.ts").read_text(encoding="utf-8")
     global_styles = (FRONTEND / "src" / "styles" / "components.scss").read_text(encoding="utf-8")
-    assert "isTableSeparator" in library and "<table><thead>" in library
-    assert 'class="artifact-table-wrap"' in library and 'tabindex="0"' in library
+    assert "isTableSeparator" in markdown and "<table><thead>" in markdown
+    assert 'class="artifact-table-wrap"' in markdown and 'tabindex="0"' in markdown
     assert ".artifact-rendered .artifact-table-wrap" in global_styles
 
 

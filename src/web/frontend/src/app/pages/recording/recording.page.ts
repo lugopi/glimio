@@ -361,7 +361,7 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
     const preferences = this.preferences.preferences();
     if (!file || !preferences) return;
     this.importing.set(true);
-    this.api.importFile(file, this.settingsForJob(preferences.settings), this.importAction).subscribe({
+    this.api.importFile(file, this.settingsForJob(preferences.settings), this.importAction, this.normalizeWindows, Number(this.normalizeGain)).subscribe({
       next: () => { this.toast.show('Fichier ajouté à la file de traitement.', 'success'); this.importing.set(false); this.selectedFile.set(null); const fileInput = document.getElementById('import-file') as HTMLInputElement | null; if (fileInput) fileInput.value = ''; this.refreshJobs(); },
       error: error => { this.toast.show(`Échec de l’import : ${error.message}`, 'error'); this.importing.set(false); },
     });

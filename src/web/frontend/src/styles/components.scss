@@ -7,6 +7,10 @@
   button { @apply cursor-pointer; }
   button:disabled { @apply cursor-not-allowed opacity-50; }
   input, select, textarea { color: inherit; }
+  input[type="checkbox"], input[type="radio"] {
+    @apply size-4 shrink-0 accent-accent;
+    vertical-align: middle;
+  }
   a { color: var(--c-accent); text-decoration: none; }
   [hidden] { display: none !important; }
   ::selection { background: var(--c-accent); color: var(--c-accent-contrast); }
@@ -41,7 +45,7 @@
   .sidebar-path small { @apply mb-[7px] block font-mono text-[0.75rem] tracking-[1px] text-subtle; }
   .sidebar-path code { @apply font-mono text-[0.75rem] text-muted; overflow-wrap: anywhere; }
   .main-area { @apply col-start-2 mx-auto grid w-full min-w-0 max-w-[1780px] content-start gap-[18px] px-[34px] pb-8; }
-  .topbar { @apply mb-[31px] flex min-h-[68px] items-center justify-between gap-5 border-b border-border-soft; }
+  .topbar { @apply mb-0 flex min-h-[68px] items-center justify-between gap-5 border-b border-border-soft; }
   .breadcrumbs { @apply flex items-center gap-[9px] text-xs text-subtle; }
   .breadcrumbs strong { @apply font-semibold text-text; }
   .crumb-divider { @apply text-border; }
@@ -355,7 +359,7 @@
   .side-label, .sidebar-bottom { display: none; }
   .nav-list { display: none; }
   .main-area { padding: 0 16px; }
-  .topbar { min-height: 56px; margin-bottom: 23px; }
+  .topbar { @apply mb-0; min-height: 56px; }
   .page-heading { align-items: flex-start; flex-direction: column; }
   .library-recording-banner { align-items: flex-start; flex-direction: column; gap: 11px; margin-top: -7px; }
   .library-recording-banner .btn { width: 100%; }
@@ -950,6 +954,28 @@
 /* Markdown is inserted at runtime via [innerHTML], so its descendants do not get
    Angular's emulated-encapsulation attributes. Keep generated documents within the detail pane. */
 @layer components {
+  .artifact-rendered {
+    @apply mt-4 min-w-0 rounded-xl border border-border-soft bg-surface-raised p-4 text-sm leading-7 text-text;
+    overflow-wrap: anywhere;
+  }
+  .artifact-rendered > :first-child { margin-top: 0; }
+  .artifact-rendered > :last-child { margin-bottom: 0; }
+  .artifact-rendered p { margin: 0 0 1rem; line-height: 1.75; white-space: normal; }
+  .artifact-rendered h2, .artifact-rendered h3, .artifact-rendered h4, .artifact-rendered h5 {
+    margin: 1.25rem 0 .5rem; line-height: 1.4; color: var(--c-text); font-weight: 750;
+  }
+  .artifact-rendered h3 { font-size: 1.05rem; }
+  .artifact-rendered h4 { font-size: .96rem; }
+  .artifact-rendered ul, .artifact-rendered ol { margin: .35rem 0 1rem; padding-left: 1.5rem; }
+  .artifact-rendered ul { list-style: disc; }
+  .artifact-rendered ol { list-style: decimal; }
+  .artifact-rendered li { margin: .3rem 0; padding-left: .15rem; }
+  .artifact-rendered strong { font-weight: 750; color: var(--c-text); }
+  .artifact-rendered a { color: var(--c-accent); text-decoration: underline; text-underline-offset: 3px; }
+  .artifact-rendered blockquote { margin: .75rem 0; padding: .25rem 0 .25rem .9rem; border-left: 3px solid var(--c-accent); color: var(--c-muted); }
+  .artifact-rendered code { border: 1px solid var(--c-border-soft); border-radius: 5px; padding: .08rem .3rem; background: var(--c-surface); font-family: var(--font-code); font-size: .9em; overflow-wrap: anywhere; }
+  .artifact-rendered pre { max-width: 100%; overflow-x: auto; margin: .75rem 0 1rem; padding: .85rem; border: 1px solid var(--c-border-soft); border-radius: 8px; background: var(--c-surface); }
+  .artifact-rendered pre code { border: 0; padding: 0; background: transparent; }
   .artifact-rendered, .artifact-rendered * { box-sizing: border-box; min-width: 0; max-width: 100%; }
   .artifact-rendered :where(p, h1, h2, h3, h4, h5, li, a, strong, em, code, td, th) { overflow-wrap: anywhere; word-break: normal; }
   .artifact-rendered pre, .artifact-rendered pre code { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
@@ -959,4 +985,27 @@
 .artifact-rendered th { background: var(--c-surface); color: var(--c-text); font-weight: 700; }
 .artifact-rendered tbody tr:last-child td { border-bottom: 0; }
   .artifact-rendered img, .artifact-rendered video, .artifact-rendered svg { max-width: 100%; height: auto; }
+}
+
+
+/* Final alignment pass: controls, job badges and compact pagination follow the same baseline. */
+@layer components {
+  .source-card > input[type="checkbox"], .choice-card > input[type="radio"],
+  .diarize-card > input[type="checkbox"], .settings-license-check > input[type="checkbox"] {
+    @apply mt-1 shrink-0;
+    margin-bottom: 0;
+    align-self: flex-start;
+  }
+  .settings-license-check { @apply items-start; }
+  .job-row { @apply items-center; }
+  .job-row > .job-icon, .job-row > .job-main, .job-row > .job-state { @apply self-center; }
+  .job-row-delete { top: 50%; transform: translateY(-50%); }
+  .import-panel .import-workflow-options { @apply grid-cols-2; }
+  .import-panel .import-workflow-options > .choice-card { @apply w-full min-w-0; }
+  .normalization-option { @apply min-w-0; }
+  .normalization-preference-card { @apply mt-0; }
+  .normalization-gain-control { @apply mt-3; }
+  .normalization-gain-control .field-label { @apply flex-wrap justify-between gap-2; }
+  .normalization-gain-control output { @apply text-accent tabular-nums; }
+  .session-actions-menu > summary { cursor: pointer; }
 }

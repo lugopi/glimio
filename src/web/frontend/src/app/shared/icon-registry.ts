@@ -1,6 +1,7 @@
 import { provideIcons } from '@ng-icons/core';
 import {
   heroArrowPath,
+  heroArrowDownTray,
   heroBars3,
   heroBookOpen,
   heroCheckCircle,
@@ -31,6 +32,7 @@ import {
  */
 export const GLIMIO_ICONS = {
   arrowPath: heroArrowPath,
+  arrowDownTray: heroArrowDownTray,
   bars3: heroBars3,
   bookOpen: heroBookOpen,
   checkCircle: heroCheckCircle,
@@ -57,6 +59,7 @@ export const GLIMIO_ICONS = {
 /** Heroicon kebab-case names used in templates → @ng-icons registry keys. */
 const ICON_ALIASES: Record<string, string> = {
   'arrow-path': 'arrowPath',
+  'arrow-down-tray': 'arrowDownTray',
   'bars-3': 'bars3',
   'book-open': 'bookOpen',
   'check-circle': 'checkCircle',

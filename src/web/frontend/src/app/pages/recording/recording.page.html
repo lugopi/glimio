@@ -20,8 +20,6 @@
             </div>
             <p class="field-note">Une source peut être un microphone ou la sortie audio d’un périphérique. Les pistes sont enregistrées séparément. Gardez au moins une source dans la liste.</p>
           </div>
-          <label class="diarize-card"><input type="checkbox" [ngModel]="normalizeWindows" (ngModelChange)="normalizeWindows = $event; persistUiPreferences()"><span><strong>Rehausser automatiquement les pistes de sortie</strong><small>Augmente les pistes audio Windows faibles vers un pic cible de −6 dBFS.</small></span></label>
-          <div class="normalization-gain-control"><label class="field-label" for="normalize-gain">Gain maximal <output>+{{ normalizeGain }} dB maximum</output></label><input class="range-input" id="normalize-gain" type="range" min="0" max="30" step="1" [ngModel]="normalizeGain" (ngModelChange)="normalizeGain = $event; persistUiPreferences()"></div>
           <div class="section-heading"><strong>2. Traitement après l'arrêt</strong><small>Vous pourrez retraiter plus tard</small></div>
           <div class="workflow-options">
             <label class="choice-card"><input type="radio" name="recording-workflow" value="none" [ngModel]="workflow" (ngModelChange)="workflow = $event; persistUiPreferences()"><span><strong>Enregistrer seulement</strong><small>Conserver l'audio, sans lancer de modèle.</small></span></label>
@@ -56,7 +54,7 @@
             @if (selectedFile(); as file) { <strong>{{ file.name }}</strong><small>{{ fileSizeLabel(file) }} · Cliquez ou déposez un autre fichier pour remplacer</small> }
             @else { <strong>Déposez un fichier audio ou vidéo ici</strong><small>ou cliquez pour parcourir vos fichiers · 5 Go maximum</small> }
           </label>
-          <div class="workflow-options"><label class="choice-card"><input type="radio" name="import-action" value="process" [ngModel]="importAction" (ngModelChange)="importAction = $event; persistUiPreferences()"><span><strong>Transcrire + résumer</strong><small>Exécuter la chaîne complète.</small></span></label><label class="choice-card"><input type="radio" name="import-action" value="transcribe" [ngModel]="importAction" (ngModelChange)="importAction = $event; persistUiPreferences()"><span><strong>Transcrire seulement</strong><small>Créer uniquement le texte.</small></span></label></div>
+          <div class="workflow-options import-workflow-options"><label class="choice-card"><input type="radio" name="import-action" value="process" [ngModel]="importAction" (ngModelChange)="importAction = $event; persistUiPreferences()"><span><strong>Transcrire + résumer</strong><small>Exécuter la chaîne complète.</small></span></label><label class="choice-card"><input type="radio" name="import-action" value="transcribe" [ngModel]="importAction" (ngModelChange)="importAction = $event; persistUiPreferences()"><span><strong>Transcrire seulement</strong><small>Créer uniquement le texte.</small></span></label></div>
           <button class="btn btn--primary" type="button" [disabled]="!selectedFile() || importing()" (click)="importFile()">{{ importing() ? 'Import en cours…' : 'Importer et traiter' }}</button>
           <p class="field-note">Taille maximale : 5 Go. Les fichiers sont traités sur cet appareil.</p>
         </section>
@@ -66,10 +64,16 @@
         <div class="card-header"><div><div class="eyebrow">OPTIONS COMMUNES</div><h2 class="card-title" id="processing-options-title">Options communes de traitement</h2><p class="card-description">Ces choix s’appliquent aux nouveaux enregistrements, aux imports et servent de valeurs initiales dans la bibliothèque.</p></div></div>
         @if (settings(); as value) {
           <div class="shared-processing-content common-processing-fields">
+            <div class="normalization-option">
+              <label class="diarize-card normalization-preference-card"><input type="checkbox" [ngModel]="normalizeWindows" (ngModelChange)="normalizeWindows = $event; persistUiPreferences()"><span><strong>Rehausser automatiquement les pistes audio</strong><small>Applique une normalisation de crête à −6 dBFS aux sorties Windows et aux fichiers importés.</small></span></label>
+              @if (normalizeWindows) {
+                <div class="normalization-gain-control"><label class="field-label" for="normalize-gain">Gain maximal <output>+{{ normalizeGain }} dB</output></label><input class="range-input" id="normalize-gain" type="range" min="0" max="30" step="1" [ngModel]="normalizeGain" (ngModelChange)="normalizeGain = numberValue($event); persistUiPreferences()"></div>
+              }
+            </div>
             <div><label class="field-label" for="recording-language">Langue de transcription</label><select class="select" id="recording-language" [ngModel]="value.language" (ngModelChange)="patchSetting('language', $event)"><option value="auto">Automatique (langue de l’interface)</option><option value="detect">Détecter avec Whisper</option><option value="fr">Français</option><option value="en">Anglais</option><option value="de">Allemand</option><option value="it">Italien</option><option value="es">Espagnol</option></select><small class="field-note">La détection automatique n’effectue pas de traduction.</small></div>
             <div><label class="field-label" for="recording-summary-format">Format du résumé par défaut</label><select class="select" id="recording-summary-format" [ngModel]="value.format" (ngModelChange)="patchSetting('format', $event)">@for (format of formats; track format) { <option [value]="format">{{ formatLabel(format) }}</option> }</select></div>
             <div><label class="diarize-card"><input type="checkbox" [ngModel]="value.diarize" (ngModelChange)="patchSetting('diarize', $event)"><span><strong>Diarisation vocale</strong><small>Détecter les différentes voix et associer les segments de transcription aux interlocuteurs.</small></span></label></div>
-            <div><label class="field-label" for="recording-speakers">Nombre d’interlocuteurs</label><select class="select" id="recording-speakers" [ngModel]="value.diarization_num_speakers" (ngModelChange)="patchSetting('diarization_num_speakers', numberValue($event))"><option [ngValue]="-1">Automatique</option>@for (count of speakerCounts; track count) { <option [ngValue]="count">{{ count }}</option> }</select><small class="field-note">Choisissez un nombre connu (1–20, puis des valeurs courantes jusqu’à 100) ; sinon laissez Automatique.</small></div>
+            <div><label class="field-label" for="recording-speakers">Nombre d’interlocuteurs</label><select class="select" id="recording-speakers" [disabled]="!value.diarize" [ngModel]="value.diarization_num_speakers" (ngModelChange)="patchSetting('diarization_num_speakers', numberValue($event))"><option [ngValue]="-1">Automatique</option>@for (count of speakerCounts; track count) { <option [ngValue]="count">{{ count }}</option> }</select><small class="field-note">Choisissez un nombre connu (1–20, puis des valeurs courantes jusqu’à 100) ; sinon laissez Automatique.</small></div>
           </div>
         }
       </section>

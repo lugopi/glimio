@@ -277,6 +277,23 @@ class AudioSourceSelection(BaseModel):
     device_name: str = Field(default="", max_length=500)
 
 
+class AudioDeviceInfo(BaseModel):
+    """Stable API representation of a selectable audio endpoint."""
+
+    id: str
+    name: str
+    key: str
+
+
+class AudioDevicesResponse(BaseModel):
+    """Legacy display-name lists and endpoint records exposed by /api/devices."""
+
+    microphones: list[str]
+    outputs: list[str]
+    microphone_devices: list[AudioDeviceInfo]
+    output_devices: list[AudioDeviceInfo]
+
+
 class RecordRequest(BaseModel):
     title: str = ""
     # Legacy single-source fields remain supported for older clients/CLI workflows.
@@ -871,6 +888,9 @@ def _run_import_job(job_id: str) -> None:
     payload = _job_payload(job_id)
     settings = Settings(**(payload.get("settings") or {}))
     action = str(payload.get("action") or "process")
+    normalization = payload.get("normalization") or {}
+    normalize_audio = bool(normalization.get("enabled", True))
+    normalize_max_gain_db = float(normalization.get("max_gain_db", 30.0))
     session_id = payload.get("session_id")
     if session_id:
         folder = resolve_session_folder(SESSION_ROOT, str(session_id))
@@ -881,7 +901,13 @@ def _run_import_job(job_id: str) -> None:
         from seance.audio_import import import_audio_file
         display_name = str(payload.get("display_name") or source_file.name)
         _set_job(job_id, state="running", phase="importing", message=f"Import local de {display_name}…")
-        folder = import_audio_file(source_file, SESSION_ROOT, ffmpeg=_program_path(settings.ffmpeg))
+        folder = import_audio_file(
+            source_file,
+            SESSION_ROOT,
+            ffmpeg=_program_path(settings.ffmpeg),
+            normalize=normalize_audio,
+            max_gain_db=normalize_max_gain_db,
+        )
         _save_session_processing_settings(folder, settings)
         # Persist the destination session before deleting the temporary upload. If the
         # machine stops now, recovery resumes processing from the session instead of importing twice.
@@ -961,10 +987,13 @@ def save_preferences(request: PreferencesRequest) -> dict[str, Any]:
     return result
 
 
-@app.get("/api/devices")
-def devices() -> dict[str, list[str]]:
+@app.get("/api/devices", response_model=AudioDevicesResponse)
+def devices() -> AudioDevicesResponse:
     try:
-        return _device_names()
+        # Do not annotate this response as dict[str, list[str]]: device_* values
+        # are structured records, not strings. A typed schema keeps serialization
+        # and OpenAPI aligned with the actual contract consumed by Angular.
+        return AudioDevicesResponse(**_device_names())
     except (Exception, SystemExit) as exc:
         raise HTTPException(status_code=503, detail=f"Détection des périphériques impossible : {exc}") from exc
 
@@ -1584,12 +1613,16 @@ async def import_and_process(
     file: UploadFile = File(...),
     settings_json: str = Form("{}"),
     action: Literal["process", "transcribe"] = Form("process"),
+    normalize_windows: bool = Form(True),
+    normalize_windows_max_gain_db: float = Form(30.0),
 ) -> dict[str, Any]:
     try:
         raw_settings = json.loads(settings_json)
         settings = Settings(**raw_settings)
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"Paramètres d'importation invalides : {exc}") from exc
+    if not 0.0 <= normalize_windows_max_gain_db <= 30.0:
+        raise HTTPException(status_code=422, detail="Le gain maximal de normalisation doit être compris entre 0 et 30 dB.")
     SESSION_ROOT.mkdir(parents=True, exist_ok=True)
     upload_dir = SESSION_ROOT / ".web-uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
@@ -1622,7 +1655,12 @@ async def import_and_process(
 
     job_payload = {
         "type": "import", "action": action, "source_file": str(file_path),
-        "display_name": display_name, "settings": _serialize_model(settings),
+        "display_name": display_name,
+        "settings": _serialize_model(settings),
+        "normalization": {
+            "enabled": normalize_windows,
+            "max_gain_db": normalize_windows_max_gain_db,
+        },
     }
     try:
         return _enqueue_job(

@@ -10,3 +10,21 @@
   .search-results { @apply grid min-w-0 gap-[13px]; }
   .source-list { @apply grid min-w-0 gap-0; }
 }
+
+
+:host .search-hero { @apply mb-4; }
+:host .search-hint { @apply mt-4 mb-0; }
+:host .search-source-results { @apply min-w-0; }
+:host .search-source-list { @apply mt-3 gap-1 p-0; }
+:host .search-source-card { @apply border border-border-soft bg-surface-raised; }
+:host .search-source-card > strong { @apply mb-2 block text-sm font-semibold; overflow-wrap: anywhere; }
+:host .search-source-excerpt { @apply mt-1; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; white-space: pre-line; }
+:host .search-source-meta { @apply mt-2 text-xs text-subtle; overflow-wrap: anywhere; }
+:host .source-open { @apply mt-3; }
+:host .search-source-pagination { @apply mt-3 border-t border-border-soft pt-3; }
+:host .search-answer-markdown { @apply mt-0 rounded-none border-0 bg-transparent p-0; }
+:host .search-answer-markdown > :first-child { @apply mt-0; }
+@media (max-width: 600px) {
+  :host .search-source-card { @apply px-3 py-3; }
+  :host .source-open { @apply mt-3; }
+}
