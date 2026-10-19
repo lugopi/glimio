@@ -1,47 +1,129 @@
 @reference '../../../styles/tailwind-ref.scss';
 
-:host {
-  @apply block min-w-0;
+:host { @apply block min-w-0; }
+:host .library-layout > * { @apply min-w-0; }
+:host .library-list-panel { @apply p-5; }
+:host .session-processing-options {
+  /* Align with adjacent detail sections: the outer panel owns the common horizontal gutter. */
+  @apply border-t border-border-soft px-0 pb-1 pt-5;
+  > .detail-section-heading { @apply mb-4; }
+  > .settings-grid { @apply mt-0; }
+  .common-processing-fields { @apply mt-4 gap-x-4 gap-y-4; }
+  .diarize-card { @apply mt-0 flex items-start gap-3 border border-border-soft bg-surface p-3.5; }
+  .field-label { @apply mb-2; }
+  .field-note { @apply mt-2; }
 }
-
-/* Espacement interne des cartes de la bibliothèque :
-   respiration entre le titre, les champs et les actions (complète les règles globales).
-   Norme projet (page Paramètres) : padding de carte 20px, rythme vertical mt-4, gap de grille 14px. */
-:host {
-  .library-layout > * { @apply min-w-0; }
-
-  /* Carte liste : padding norme projet (20px, comme les panneaux Paramètres/Enregistrement). */
-  .library-list-panel { @apply p-5; }
-
-  .session-processing-options {
-    /* Bloc surélevé dans le détail : padding interne harmonisé avec la norme (p-5 = 20px). */
-    @apply p-5;
-
-    > .detail-section-heading { @apply mb-4; }
-    > .settings-grid { @apply mt-0; }
-    .common-processing-fields { @apply mt-4 gap-x-[16px] gap-y-[18px]; }
-    .diarize-card { @apply mt-0 flex items-start gap-3 border border-border-soft bg-surface p-[14px_16px]; }
-    .field-label { @apply mb-2; }
-    .field-note { @apply mt-2; }
-  }
-
-  /* Le menu burger remplace l'ancienne rangée d'actions : pas de rangée visible. */
-  .session-action-row { @apply hidden; }
-
-  .detail-section + .detail-section { @apply mt-5; }
-
-  .artifact-links { @apply mt-3 flex flex-wrap items-center gap-2.5; }
-  .card-actions { @apply mt-4 flex flex-wrap items-center gap-2.5; }
-
-  .library-pagination-footer {
-    @apply mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-3.5;
-  }
-}
-
-/* Traitement d'une séance : même panneau partagé que les autres états live. */
+:host .session-action-row { @apply hidden; }
+:host .detail-section + .detail-section { @apply mt-5; }
+:host .card-actions { @apply mt-4 flex flex-wrap items-center gap-2.5; }
+:host .library-pagination-footer { @apply mt-4 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border-t border-border-soft pt-3.5; }
+:host .library-pagination-footer glimio-pagination { @apply min-w-0; }
+:host .page-size-control { @apply flex items-center gap-2; }
+:host .page-size-control .field-label { @apply mb-0 whitespace-nowrap; }
+:host .page-size-control .select { width: 80px; min-width: 80px; }
 :host .session-live-progress { @apply w-full min-w-0; }
 :host .session-progress-icon > .spinner { width: 16px; height: 16px; }
 :host .session-progress-heading { min-width: 0; }
 :host .session-progress-heading strong { color: var(--c-text); }
 :host .session-live-progress.is-completed .session-progress-icon { color: var(--c-success); background: color-mix(in srgb, var(--c-success) 12%, transparent); }
 :host .session-live-progress.is-error .session-progress-icon { color: var(--c-danger); background: var(--c-danger-soft); }
+
+:host .detail-heading-copy { flex: 1 1 auto; min-width: 0; }
+:host .detail-heading-copy .card-title { margin: 4px 0 5px; overflow-wrap: anywhere; }
+:host .detail-meta { margin: 0; }
+:host .detail-actions { flex: 0 0 auto; align-items: center; }
+:host .detail-process-button { min-height: 44px; white-space: nowrap; }
+:host .session-actions-toggle { display: flex; align-items: stretch; justify-content: stretch; box-sizing: border-box; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; }
+:host .session-actions-icon { display: flex; flex: 1 1 auto; align-items: center; justify-content: center; width: 100%; height: 100%; min-width: 0; min-height: 0; }
+:host .session-actions-icon glimio-icon { display: flex; flex: 1 1 auto; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 36px; }
+:host .session-actions-icon .icon,
+:host .session-actions-icon svg { display: block; width: 100%; height: 100%; max-width: none; max-height: none; }
+:host .detail-processing-status { @apply mt-3 flex max-w-full items-start gap-2 rounded-lg border border-border-soft bg-surface-raised px-3 py-2 text-xs leading-relaxed text-muted; overflow-wrap: anywhere; }
+:host .detail-processing-status > glimio-icon { @apply mt-px shrink-0; width: 16px; height: 16px; }
+:host .detail-processing-status > .spinner { @apply mt-0.5 shrink-0; width: 14px; height: 14px; }
+:host .detail-processing-status.is-running { color: var(--c-accent); }
+:host .detail-processing-status.is-completed { color: var(--c-success); }
+:host .detail-processing-status.is-error { color: var(--c-danger); border-color: color-mix(in srgb, var(--c-danger) 30%, var(--c-border)); background: var(--c-danger-soft); }
+:host .detail-actions .session-actions-menu { flex: 0 0 auto; }
+
+:host .detail-section-heading { @apply flex flex-wrap items-start justify-between gap-3; }
+:host .detail-section-heading h3 { margin: 0; }
+:host .detail-section-heading .field-note { margin: 5px 0 0; }
+:host .artifact-tabs { @apply mt-3 flex flex-wrap items-stretch gap-1 border-b border-border-soft; }
+:host .artifact-tab { @apply inline-flex min-h-11 items-center justify-center gap-2 border-0 border-b-2 border-transparent px-4 py-2 text-left text-sm font-semibold text-muted; background: transparent; cursor: pointer; }
+:host .artifact-tab[tabindex="-1"] { outline: none; }
+:host .artifact-tab:hover { color: var(--c-text); background: var(--c-surface-raised); }
+:host .artifact-tab.is-active { color: var(--c-accent); border-bottom-color: var(--c-accent); background: var(--c-accent-soft); }
+:host .artifact-tab:focus-visible { outline: 2px solid var(--c-accent); outline-offset: -2px; }
+:host .artifact-tab glimio-icon { width: 17px; height: 17px; }
+:host .artifact-tab .icon, :host .artifact-tab svg { display: block; width: 100%; height: 100%; }
+:host .artifact-loading { @apply flex items-center gap-2 py-5 text-sm text-muted; }
+:host .artifact-rendered { @apply mt-4 min-w-0 rounded-xl border border-border-soft bg-surface-raised p-4 text-sm leading-7 text-text; overflow-wrap: anywhere; }
+:host .artifact-rendered > :first-child { margin-top: 0; }
+:host .artifact-rendered > :last-child { margin-bottom: 0; }
+:host .artifact-rendered p { margin: 0 0 1rem; line-height: 1.75; white-space: normal; }
+:host .artifact-rendered h2, :host .artifact-rendered h3, :host .artifact-rendered h4, :host .artifact-rendered h5 { margin: 1.25rem 0 .5rem; line-height: 1.4; color: var(--c-text); font-weight: 750; }
+:host .artifact-rendered h3 { font-size: 1.05rem; }
+:host .artifact-rendered h4 { font-size: .96rem; }
+:host .artifact-rendered ul, :host .artifact-rendered ol { margin: .35rem 0 1rem; padding-left: 1.5rem; }
+:host .artifact-rendered ul { list-style: disc; }
+:host .artifact-rendered ol { list-style: decimal; }
+:host .artifact-rendered li { margin: .3rem 0; padding-left: .15rem; }
+:host .artifact-rendered strong { font-weight: 750; color: var(--c-text); }
+:host .artifact-rendered a { color: var(--c-accent); text-decoration: underline; text-underline-offset: 3px; }
+:host .artifact-rendered blockquote { margin: .75rem 0; padding: .25rem 0 .25rem .9rem; border-left: 3px solid var(--c-accent); color: var(--c-muted); }
+:host .artifact-rendered code { border: 1px solid var(--c-border-soft); border-radius: 5px; padding: .08rem .3rem; background: var(--c-surface); font-family: var(--font-code); font-size: .9em; overflow-wrap: anywhere; }
+:host .artifact-rendered pre { max-width: 100%; overflow-x: auto; margin: .75rem 0 1rem; padding: .85rem; border: 1px solid var(--c-border-soft); border-radius: 8px; background: var(--c-surface); }
+:host .artifact-rendered pre code { border: 0; padding: 0; background: transparent; }
+:host .documents-empty { @apply mt-4 flex items-start gap-3 rounded-xl border border-dashed border-border-soft p-4 text-sm text-muted; }
+:host .documents-empty > glimio-icon { @apply mt-0.5 shrink-0 text-accent; width: 20px; height: 20px; }
+:host .documents-empty strong { display: block; color: var(--c-text); }
+:host .documents-empty p { margin: .25rem 0 0; line-height: 1.6; }
+:host .session-card-top { align-items: flex-start; }
+:host .session-markers { justify-content: flex-end; }
+:host .session-markers .badge { @apply inline-flex items-center gap-1.5; }
+:host .session-markers glimio-icon { width: 12px; height: 12px; }
+:host .session-markers .icon, :host .session-markers svg { width: 100%; height: 100%; }
+
+@media (max-width: 640px) {
+  :host .library-pagination-footer { @apply grid-cols-1; }
+  :host .library-pagination-footer glimio-pagination { width: 100%; }
+  :host .page-size-control { @apply justify-between; }
+  :host .detail-header-top { @apply flex-col; }
+  :host .detail-actions { @apply w-full justify-between; }
+  :host .detail-process-button { flex: 1 1 auto; }
+  :host .session-actions-menu { flex: 0 0 44px; }
+  :host .artifact-tab { @apply flex-1 px-3; }
+  :host .artifact-rendered { @apply p-3 text-sm; }
+}
+
+
+/* Interactive processing status remains a real button, so even failed jobs open the session. */
+:host .session-card-status-button {
+  display: flex; width: 100%; min-width: 0; padding-inline: 0; color: inherit;
+  text-align: left; background: transparent; border-left: 0; border-right: 0; border-bottom: 0;
+  cursor: pointer;
+}
+:host .session-card-status-button:hover { background: color-mix(in srgb, var(--c-surface-hover) 50%, transparent); }
+:host .session-card-status-button:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; border-radius: 5px; }
+:host .artifact-content-pane, :host #artifact-content-pane { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+:host .artifact-rendered { box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0; overflow-wrap: anywhere; word-break: normal; }
+:host .artifact-rendered p, :host .artifact-rendered h2, :host .artifact-rendered h3, :host .artifact-rendered h4, :host .artifact-rendered li, :host .artifact-rendered a { max-width: 100%; overflow-wrap: anywhere; }
+:host .artifact-rendered pre { max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+:host .artifact-rendered pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
+:host .audio-stale-notice { @apply my-4 flex min-w-0 items-start gap-3 rounded-xl border border-warning bg-surface-raised p-4 text-sm text-muted; }
+:host .audio-stale-notice > glimio-icon { @apply mt-0.5 shrink-0 text-warning; width: 19px; height: 19px; }
+:host .audio-stale-notice > div { min-width: 0; flex: 1 1 auto; }
+:host .audio-stale-notice strong { color: var(--c-text); }
+:host .audio-stale-notice p { margin: .25rem 0 0; line-height: 1.6; }
+:host .audio-track { min-width: 0; }
+:host .audio-track audio { width: 100%; max-width: 100%; }
+:host .audio-track-title { min-width: 0; overflow-wrap: anywhere; }
+:host .audio-track-disabled-label { display: block; color: var(--c-warning); font-size: .75rem; margin-top: 3px; }
+:host .audio-track.is-audio-track-disabled { opacity: .8; }
+:host .audio-track-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+@media (max-width: 600px) {
+  :host .audio-stale-notice { flex-wrap: wrap; }
+  :host .audio-stale-notice > .btn { width: 100%; }
+  :host .audio-track-actions > .btn { flex: 1 1 auto; }
+}

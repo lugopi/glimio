@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from seance.audio import _soundcard, audio_com_apartment, record
-from seance.layout import get_audio_path, get_transcript_path, has_audio
+from seance.layout import get_audio_path, get_transcript_path, has_audio, list_audio_paths
 from seance.pipeline import minutes_folder, process_folder, transcribe_folder
 from seance.llm import (
     LLMCancelled, LLMError, run_completion_resilient,
@@ -30,7 +30,7 @@ from seance.llm import (
 from .project_paths import discover_project_root, resolve_session_root
 from .services.library import (
     describe_session, list_sessions, list_sessions_page, read_artifact,
-    resolve_session_folder, retrieve_passages,
+    resolve_session_folder, retrieve_passages, summary_path, transcript_path,
 )
 from .services.sqlite_db import SQLiteDatabase, database_path
 from .services.job_store import JobStore
@@ -215,8 +215,8 @@ class Settings(BaseModel):
     openvino_device: str | None = None
     ffmpeg: str = "ffmpeg"
     diarize: bool = False
-    diarization_segmentation_model: str = "models/diarization/segmentation.onnx"
-    diarization_embedding_model: str = "models/diarization/embedding.onnx"
+    diarization_segmentation_model: str = "models/diarization/segmentation/segmentation.onnx"
+    diarization_embedding_model: str = "models/diarization/embedding/embedding.onnx"
     diarization_num_speakers: int = Field(default=-1, ge=-1, le=256)
     audio_bitrate_kbps: Literal[128, 256, 384, 512, 768] = 256
     diarization_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
@@ -256,6 +256,10 @@ class SessionSettingsRequest(BaseModel):
     settings: Settings
 
 
+class AudioTrackToggleRequest(BaseModel):
+    disabled: bool
+
+
 class RenameSessionRequest(BaseModel):
     title: str = Field(min_length=1, max_length=120)
 
@@ -267,12 +271,21 @@ class JobRequest(BaseModel):
     force: bool = False
 
 
+class AudioSourceSelection(BaseModel):
+    kind: Literal["microphone", "output"]
+    device_id: str = Field(default="", max_length=1000)
+    device_name: str = Field(default="", max_length=500)
+
+
 class RecordRequest(BaseModel):
     title: str = ""
+    # Legacy single-source fields remain supported for older clients/CLI workflows.
     microphone: str = ""
     output: str = ""
     capture_microphone: bool = True
     capture_windows: bool = True
+    # New clients can select multiple microphone and loopback endpoints.
+    sources: list[AudioSourceSelection] | None = Field(default=None, max_length=16)
     normalize_windows: bool = True
     normalize_windows_max_gain_db: float = Field(default=30.0, ge=0.0, le=30.0)
     auto_transcribe: bool = False
@@ -287,11 +300,12 @@ class SearchRequest(BaseModel):
 
 
 class UIPreferences(BaseModel):
-    theme: Literal["dark", "light", "midnight", "forest"] = "dark"
+    theme: Literal["dark", "light", "midnight", "forest", "dracula", "monokai"] = "dark"
     microphone: str = Field(default="", max_length=500)
     output: str = Field(default="", max_length=500)
     capture_microphone: bool = True
     capture_windows: bool = True
+    audio_sources: list[AudioSourceSelection] = Field(default_factory=list, max_length=16)
     normalize_windows: bool = True
     normalize_windows_max_gain_db: float = Field(default=30.0, ge=0.0, le=30.0)
     recording_workflow: Literal["none", "transcribe", "summary"] = "summary"
@@ -511,8 +525,8 @@ def _get_preferences() -> dict[str, Any]:
             "whisper_cli": (("bin/asr/transcriber.exe", "bin/whisper/whisper-cli.exe"), "bin/asr/whisper-cli.exe"),
             "gguf": (("models/llm/model.gguf",), "models/llm/model.gguf"),
             "llama_completion": (("bin/llm/inference.exe", "bin/llama-cpp/llama-completion.exe"), "bin/llm/llama-completion.exe"),
-            "diarization_segmentation_model": (("models/diarization/segmentation/model.onnx",), "models/diarization/segmentation.onnx"),
-            "diarization_embedding_model": (("models/diarization/embedding/nemo_en_titanet_small.onnx",), "models/diarization/embedding.onnx"),
+            "diarization_segmentation_model": (("models/diarization/segmentation/model.onnx", "models/diarization/segmentation.onnx"), "models/diarization/segmentation/segmentation.onnx"),
+            "diarization_embedding_model": (("models/diarization/embedding/nemo_en_titanet_small.onnx", "models/diarization/embedding.onnx"), "models/diarization/embedding/embedding.onnx"),
         }
         for key, (old_paths, new_path) in legacy_paths.items():
             # Keep an explicitly configured executable if it exists; migrate only known stale defaults.
@@ -741,7 +755,7 @@ def _get_job_or_404(job_id: str) -> dict[str, Any]:
         return _job_public(job)
 
 
-def _device_names() -> dict[str, list[str]]:
+def _device_names() -> dict[str, Any]:
     # Import before the scoped initialization: SoundCard initializes its module-level
     # COM helper during import. In the normal Web path it was already warmed up at
     # startup; doing this in the correct order also makes direct calls safe.
@@ -749,9 +763,22 @@ def _device_names() -> dict[str, list[str]]:
     # FastAPI executes this synchronous endpoint in a worker thread. COM initialization
     # on the event-loop thread does not carry over to this worker.
     with audio_com_apartment():
-        microphones = [str(mic.name) for mic in sc.all_microphones(include_loopback=False)]
-        outputs = [str(speaker.name) for speaker in sc.all_speakers()]
-    return {"microphones": microphones, "outputs": outputs}
+        microphone_objects = list(sc.all_microphones(include_loopback=False))
+        output_objects = list(sc.all_speakers())
+        microphones = [str(mic.name) for mic in microphone_objects]
+        outputs = [str(speaker.name) for speaker in output_objects]
+        def device_record(device: Any, index: int, kind: str) -> dict[str, str]:
+            device_id = str(getattr(device, "id", "") or "")
+            name = str(device.name)
+            return {"id": device_id, "key": device_id or f"{kind}:{index}:{name}", "name": name}
+        microphone_devices = [device_record(device, index, "microphone") for index, device in enumerate(microphone_objects)]
+        output_devices = [device_record(device, index, "output") for index, device in enumerate(output_objects)]
+    return {
+        "microphones": microphones,
+        "outputs": outputs,
+        "microphone_devices": microphone_devices,
+        "output_devices": output_devices,
+    }
 
 
 def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
@@ -776,6 +803,14 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
 
     args = settings.namespace(folder=str(folder))
 
+    def mark_outputs_current(*, transcript: bool = False, summary: bool = False) -> None:
+        metadata = _read_session_metadata(folder)
+        if transcript:
+            metadata["audio_transcript_stale"] = False
+        if summary:
+            metadata["audio_summary_stale"] = False
+        _write_session_metadata(folder, metadata)
+
     def save_checkpoint(value: str) -> None:
         current = _job_payload(job_id)
         current.update({"type": "session", "action": action, "session_id": folder.name,
@@ -787,11 +822,19 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
         if checkpoint != "transcribed":
             publish("Préparation de Whisper…")
             transcribe_folder(folder, args, on_status=publish)
+            mark_outputs_current(transcript=True)
             save_checkpoint("transcribed")
     elif action == "summarize":
         if checkpoint != "summarized":
+            session_metadata = _read_session_metadata(folder)
+            if session_metadata.get("audio_transcript_stale"):
+                raise SystemExit(
+                    "La transcription est signalée comme obsolète après une modification des pistes audio. "
+                    "Lancez d’abord la transcription ou le traitement complet avant de régénérer le résumé."
+                )
             publish("Préparation de la synthèse locale…")
             minutes_folder(folder, args, on_status=publish)
+            mark_outputs_current(summary=True)
             save_checkpoint("summarized")
     elif action == "process":
         if checkpoint not in {"transcribed", "summarized"}:
@@ -800,12 +843,15 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
             # behavior when a valid transcript already existed before this queued task.
             resume_phase = payload.get("resume_phase")
             transcript_path = get_transcript_path(folder)
-            should_transcribe = resume_phase == "transcribing" or not transcript_path.is_file()
+            session_metadata = _read_session_metadata(folder)
+            should_transcribe = (resume_phase == "transcribing" or not transcript_path.is_file()
+                                 or bool(session_metadata.get("audio_transcript_stale")))
             if should_transcribe:
                 if not has_audio(folder):
                     raise SystemExit(f"Aucune transcription et aucune piste audio exploitable dans {folder}.")
                 publish("Transcription absente ou interrompue · lancement de Whisper…")
                 transcribe_folder(folder, args, on_status=publish)
+                mark_outputs_current(transcript=True)
             else:
                 publish("Transcription existante détectée · réutilisation du texte")
             save_checkpoint("transcribed")
@@ -813,6 +859,7 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
         if checkpoint != "summarized":
             publish("Transcription prête · génération du résumé local…")
             minutes_folder(folder, args, on_status=publish)
+            mark_outputs_current(summary=True)
             save_checkpoint("summarized")
     else:
         raise ValueError(f"Action de traitement inconnue : {action}")
@@ -1064,6 +1111,41 @@ def _write_metadata_atomically(path: Path, metadata: dict[str, Any]) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _read_session_metadata(folder: Path) -> dict[str, Any]:
+    path = _session_metadata_path(folder)
+    if not path.is_file():
+        return {}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8-sig"))
+        return value if isinstance(value, dict) else {}
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        raise HTTPException(status_code=409, detail="Les métadonnées de la séance sont illisibles ; aucune piste n’a été modifiée.")
+
+
+def _write_session_metadata(folder: Path, metadata: dict[str, Any]) -> None:
+    try:
+        _write_metadata_atomically(_session_metadata_path(folder), metadata)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Impossible d’enregistrer les métadonnées de la séance : {exc}") from exc
+
+
+def _mark_audio_outputs_stale(folder: Path, metadata: dict[str, Any]) -> None:
+    # Keep generated artifacts but explicitly tell the UI they no longer reflect
+    # the currently enabled audio set. Successful jobs clear each flag separately.
+    if transcript_path(folder) is not None:
+        metadata["audio_transcript_stale"] = True
+    if summary_path(folder) is not None:
+        metadata["audio_summary_stale"] = True
+
+
+def _ensure_session_idle_for_audio_edit(folder: Path) -> None:
+    with STATE_LOCK:
+        active = [job for job in JOBS.values() if job.get("session_id") == folder.name
+                  and job.get("state") in {"running", "stopping", "queued"}]
+    if active:
+        raise HTTPException(status_code=409, detail="Impossible de modifier une piste pendant l’enregistrement ou le traitement de cette séance.")
+
+
 @app.patch("/api/sessions/{session_id}")
 def rename_session(session_id: str, request: RenameSessionRequest) -> dict[str, Any]:
     try:
@@ -1142,11 +1224,89 @@ def delete_session(session_id: str) -> dict[str, Any]:
     return {"deleted": True, "id": session_id}
 
 
+@app.patch("/api/sessions/{session_id}/audio/{filename}")
+def set_session_audio_track_disabled(session_id: str, filename: str, request: AudioTrackToggleRequest) -> dict[str, Any]:
+    """Soft-disable an audio track for subsequent transcription and diarization."""
+    if Path(filename).name != filename or not filename.lower().endswith(".wav"):
+        raise HTTPException(status_code=404, detail="Piste audio inconnue.")
+    try:
+        folder = resolve_session_folder(SESSION_ROOT, session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
+    _ensure_session_idle_for_audio_edit(folder)
+    if filename not in {path.name for path in list_audio_paths(folder)}:
+        raise HTTPException(status_code=404, detail="Fichier audio introuvable.")
+    metadata = _read_session_metadata(folder)
+    disabled = metadata.get("disabled_audio_tracks", [])
+    disabled_set = {item for item in disabled if isinstance(item, str)} if isinstance(disabled, list) else set()
+    if request.disabled:
+        candidate_disabled = disabled_set | {filename}
+        available_tracks = {path.name for path in list_audio_paths(folder)}
+        if not (available_tracks - candidate_disabled):
+            raise HTTPException(
+                status_code=422,
+                detail="Au moins une piste audio doit rester active pour permettre un nouveau traitement.",
+            )
+        disabled_set.add(filename)
+    else:
+        disabled_set.discard(filename)
+    metadata["disabled_audio_tracks"] = sorted(disabled_set)
+    _mark_audio_outputs_stale(folder, metadata)
+    _write_session_metadata(folder, metadata)
+    return {"id": folder.name, "filename": filename, "disabled_audio_tracks": sorted(disabled_set), "metadata": metadata}
+
+
+@app.delete("/api/sessions/{session_id}/audio/{filename}")
+def delete_session_audio_track(session_id: str, filename: str) -> dict[str, Any]:
+    """Hard-delete an audio file and its per-track SRT; combined artifacts are kept but marked stale."""
+    if Path(filename).name != filename or not filename.lower().endswith(".wav"):
+        raise HTTPException(status_code=404, detail="Piste audio inconnue.")
+    try:
+        folder = resolve_session_folder(SESSION_ROOT, session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
+    _ensure_session_idle_for_audio_edit(folder)
+    known_tracks = {path.name: path for path in list_audio_paths(folder)}
+    audio_path = known_tracks.get(filename)
+    if audio_path is None or not audio_path.is_file():
+        raise HTTPException(status_code=404, detail="Fichier audio introuvable.")
+    metadata = _read_session_metadata(folder)
+    try:
+        audio_path.unlink()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Impossible de supprimer la piste audio : {exc}") from exc
+
+    warnings: list[str] = []
+    stem = Path(filename).stem
+    for candidate in (folder / "transcript" / f"{stem}.srt", folder / f"{stem}.srt"):
+        try:
+            candidate.unlink(missing_ok=True)
+        except OSError as exc:
+            warnings.append(f"La transcription individuelle {candidate.name} n’a pas pu être supprimée : {exc}")
+
+    disabled = metadata.get("disabled_audio_tracks", [])
+    if isinstance(disabled, list):
+        metadata["disabled_audio_tracks"] = [item for item in disabled if item != filename]
+    sources = metadata.get("audio_sources", [])
+    if isinstance(sources, list):
+        metadata["audio_sources"] = [item for item in sources if not (isinstance(item, dict) and item.get("filename") == filename)]
+    captured = metadata.get("captured_tracks", [])
+    if isinstance(captured, list):
+        metadata["captured_tracks"] = [item for item in captured if item != stem]
+    _mark_audio_outputs_stale(folder, metadata)
+    _write_session_metadata(folder, metadata)
+    remaining = [path.name for path in list_audio_paths(folder)]
+    return {"id": folder.name, "filename": filename, "audio_tracks": remaining, "metadata": metadata, "warnings": warnings}
+
+
 @app.get("/api/sessions/{session_id}/audio/{filename}")
 def session_audio(session_id: str, filename: str, request: Request):
     """Stream an existing WAV track with HTTP Range support for native audio controls."""
-    allowed = {"micro.wav", "windows.wav", "audio_import.wav"}
-    if filename not in allowed:
+    if Path(filename).name != filename or not filename.lower().endswith(".wav"):
         raise HTTPException(status_code=404, detail="Piste audio inconnue.")
     try:
         folder = resolve_session_folder(SESSION_ROOT, session_id)
@@ -1168,8 +1328,9 @@ def session_audio(session_id: str, filename: str, request: Request):
             detail="La piste audio sera lisible après la finalisation de l'enregistrement.",
         )
 
-    path = get_audio_path(folder, filename)
-    if not path.is_file():
+    known_tracks = {path.name: path for path in list_audio_paths(folder)}
+    path = known_tracks.get(filename)
+    if path is None or not path.is_file():
         raise HTTPException(status_code=404, detail="Fichier audio introuvable.")
 
     size = path.stat().st_size
@@ -1321,7 +1482,15 @@ def start_session_job(request: JobRequest) -> dict[str, Any]:
 def start_recording(request: RecordRequest) -> dict[str, Any]:
     if request.settings.format not in VALID_FORMATS:
         raise HTTPException(status_code=422, detail="Format de résumé invalide.")
-    if not request.capture_microphone and not request.capture_windows:
+    if request.sources is not None:
+        if not request.sources:
+            raise HTTPException(status_code=422, detail="Ajoutez au moins une source audio avant de démarrer.")
+        identities = [(source.kind, source.device_id or source.device_name.casefold()) for source in request.sources]
+        if len(set(identities)) != len(identities):
+            raise HTTPException(status_code=422, detail="Une même source audio ne peut pas être ajoutée deux fois.")
+        request.capture_microphone = any(source.kind == "microphone" for source in request.sources)
+        request.capture_windows = any(source.kind == "output" for source in request.sources)
+    elif not request.capture_microphone and not request.capture_windows:
         raise HTTPException(status_code=422, detail="Activez au moins une source audio : microphone ou audio Windows.")
     stop_event = threading.Event()
     holder: dict[str, Path] = {}
@@ -1360,6 +1529,7 @@ def start_recording(request: RecordRequest) -> dict[str, Any]:
         args.output = request.output.strip() or None
         args.capture_microphone = request.capture_microphone
         args.capture_windows = request.capture_windows
+        args.audio_sources = [source.model_dump() for source in request.sources] if request.sources is not None else None
         args.normalize_windows = bool(request.normalize_windows and request.capture_windows)
         args.normalize_windows_max_gain_db = request.normalize_windows_max_gain_db
         # Web capture must end as soon as WAVs are finalized. Model work goes to

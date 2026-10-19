@@ -38,12 +38,23 @@ class WebSettingsContractTests(unittest.TestCase):
             "whisper_cli": DEFAULT_WHISPER_CLI,
             "gguf": DEFAULT_GGUF,
             "llama_completion": DEFAULT_LLAMA_COMPLETION,
-            "diarization_segmentation_model": "models/diarization/segmentation.onnx",
-            "diarization_embedding_model": "models/diarization/embedding.onnx",
+            "diarization_segmentation_model": "models/diarization/segmentation/segmentation.onnx",
+            "diarization_embedding_model": "models/diarization/embedding/embedding.onnx",
         }
         for key, path in expected.items():
             self.assertIn(key, settings, f"Champ manquant dans /api/preferences : {key}")
             self.assertEqual(settings[key], path, f"Défaut divergent pour {key}")
+
+    def test_daily_format_is_exposed_by_api_and_accepted_by_settings(self) -> None:
+        from fastapi.testclient import TestClient
+        from web.app import app, UIPreferences
+
+        client = TestClient(app)
+        config = client.get("/api/config").json()
+        self.assertIn("daily", config["formats"])
+        self.assertEqual(Settings(format="daily").format, "daily")
+        self.assertEqual(UIPreferences(theme="dracula").theme, "dracula")
+        self.assertEqual(UIPreferences(theme="monokai").theme, "monokai")
 
     def test_cli_fallbacks_use_upstream_executable_names(self) -> None:
         src_root = Path(__file__).parents[1]

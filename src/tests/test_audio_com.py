@@ -95,7 +95,25 @@ class AudioComApartmentTests(unittest.TestCase):
             result = _device_names()
 
         self.assertEqual(order, ["soundcard-import", "com-enter", "com-exit"])
-        self.assertEqual(result, {"microphones": ["USB Mic"], "outputs": ["Speakers"]})
+        self.assertEqual(result, {
+            "microphones": ["USB Mic"],
+            "outputs": ["Speakers"],
+            "microphone_devices": [{"id": "", "key": "microphone:0:USB Mic", "name": "USB Mic"}],
+            "output_devices": [{"id": "", "key": "output:0:Speakers", "name": "Speakers"}],
+        })
+
+
+    def test_device_enumeration_preserves_endpoint_ids_for_unambiguous_selection(self) -> None:
+        backend = SimpleNamespace(
+            all_microphones=lambda include_loopback=False: [SimpleNamespace(id="mic-42", name="Bluetooth Headset")],
+            all_speakers=lambda: [SimpleNamespace(id="spk-42", name="Bluetooth Headset")],
+        )
+
+        with patch("web.app._soundcard", return_value=backend), patch("web.app.audio_com_apartment"):
+            result = _device_names()
+
+        self.assertEqual(result["microphone_devices"], [{"id": "mic-42", "key": "mic-42", "name": "Bluetooth Headset"}])
+        self.assertEqual(result["output_devices"], [{"id": "spk-42", "key": "spk-42", "name": "Bluetooth Headset"}])
 
     def test_record_imports_backend_before_scoped_com_initialization(self) -> None:
         order: list[str] = []

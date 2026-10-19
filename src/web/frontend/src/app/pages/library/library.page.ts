@@ -32,9 +32,13 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly working = signal(false);
   readonly sessionSettings = signal<GlimioSettings | null>(null);
   readonly formats = ['auto', 'summary', 'daily', 'technical', 'formal', 'brainstorm'];
-  readonly speakerCounts = Array.from({ length: 16 }, (_, index) => index + 1);
+  readonly speakerCounts = [...Array.from({ length: 20 }, (_, index) => index + 1), 25, 30, 40, 50, 100];
   readonly artifactTitle = signal('');
   readonly artifactContent = signal('');
+  readonly artifactKind = signal<'summary' | 'transcript' | null>(null);
+  readonly artifactLoading = signal(false);
+  readonly artifactHtml = computed(() => this.markdownToHtml(this.artifactContent()));
+  private artifactRequest = 0;
   query = '';
   filter = 'all';
   private searchTimer?: number;
@@ -90,7 +94,17 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
         this.sessions.set(result.items);
         this.total.set(result.count);
         this.libraryState.total.set(result.count);
-        if (detail && id && this.selectedId() === id) this.selected.set(detail);
+        if (detail && id && this.selectedId() === id) {
+          const previous = this.selected();
+          this.selected.set(detail);
+          const defaultKind = detail.summary ? 'summary' : detail.transcript ? 'transcript' : null;
+          if (!this.artifactKind() && defaultKind) {
+            this.loadArtifact(defaultKind);
+          } else if (previous?.processing?.active && !detail.processing?.active && this.artifactKind() && (detail.summary || detail.transcript)) {
+            const kind = this.artifactKind()!;
+            if ((kind === 'summary' && detail.summary) || (kind === 'transcript' && detail.transcript)) this.loadArtifact(kind);
+          }
+        }
       },
     });
   }
@@ -125,7 +139,9 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
         this.pendingSessionId = null;
         const currentId = requestedId ?? this.selectedId();
         if (requestedId) this.openSession(requestedId);
-        else if (currentId && result.items.some(item => item.id === currentId)) this.openSession(currentId);
+        else if (currentId && result.items.some(item => item.id === currentId)) {
+          if (this.selectedId() !== currentId || !this.selected()) this.openSession(currentId);
+        }
         else if (result.items[0]) this.openSession(result.items[0].id);
         else { this.selectedId.set(null); this.selected.set(null); }
       },
@@ -138,16 +154,23 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   openSession(id: string): void {
     this.selectedId.set(id);
-    this.artifactTitle.set(''); this.artifactContent.set('');
+    this.artifactRequest++;
+    this.artifactKind.set(null);
+    this.artifactTitle.set('');
+    this.artifactContent.set('');
+    this.artifactLoading.set(false);
     this.api.session(id).subscribe({
       next: detail => {
+        if (this.selectedId() !== id) return;
         this.selected.set(detail);
         const fallback = this.preferences.preferences()?.settings;
         const stored = detail.metadata?.['processing_settings'];
         const saved = stored && typeof stored === 'object' ? stored as Partial<GlimioSettings> : null;
         this.sessionSettings.set(fallback ? { ...fallback, ...(saved ?? {}) } : saved as GlimioSettings | null);
+        const firstArtifact = detail.summary ? 'summary' : detail.transcript ? 'transcript' : null;
+        if (firstArtifact) this.loadArtifact(firstArtifact);
       },
-      error: error => this.toast.show(error.message, 'error'),
+      error: error => { if (this.selectedId() === id) this.toast.show(error.message, 'error'); },
     });
   }
 
@@ -166,7 +189,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   }
 
   numberValue(value: string | number): number { return Number(value); }
-  formatLabel(value: string): string { return ({ auto: 'Automatique', summary: 'Synthèse générale', daily: 'Compte rendu', technical: 'Technique', formal: 'Formel', brainstorm: 'Brainstorming' } as Record<string, string>)[value] ?? value; }
+  formatLabel(value: string): string { return ({ auto: 'Automatique', summary: 'Synthèse générale', daily: 'Daily — compte rendu de réunion', technical: 'Technique', formal: 'Formel', brainstorm: 'Brainstorming' } as Record<string, string>)[value] ?? value; }
 
   saveSessionSettings(): void {
     const session = this.selected(); const settings = this.sessionSettings();
@@ -208,12 +231,213 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     this.api.deleteSession(session.id).subscribe({ next: () => { this.toast.show('Séance supprimée.', 'success'); this.selected.set(null); this.selectedId.set(null); this.loadSessions(true); }, error: error => this.toast.show(error.message, 'error') });
   }
 
-  loadArtifact(kind: 'summary' | 'transcript'): void {
-    const session = this.selected(); if (!session) return;
-    this.api.sessionArtifact(session.id, kind).subscribe({
-      next: result => { this.artifactTitle.set(({ summary: 'Résumé', transcript: 'Transcription' } as Record<string, string>)[kind]); this.artifactContent.set(result.content ?? 'Contenu indisponible.'); },
-      error: error => this.toast.show(error.message, 'error'),
+  trackLabel(filename: string): string {
+    const rawSources = this.selected()?.metadata?.['audio_sources'];
+    if (!Array.isArray(rawSources)) return filename;
+    const source = rawSources.find((item): item is Record<string, unknown> =>
+      Boolean(item) && typeof item === 'object' && (item as Record<string, unknown>)['filename'] === filename,
+    );
+    if (!source) return filename;
+    const name = typeof source['name'] === 'string' ? source['name'].trim() : '';
+    const kind = source['kind'] === 'microphone' ? 'Microphone' : source['kind'] === 'output' ? 'Sortie audio' : 'Source audio';
+    const suffixMatch = filename.match(/-(\d+)\.wav$/i);
+    const suffix = suffixMatch ? ` · piste ${suffixMatch[1]}` : '';
+    return `${kind}${name ? ` — ${name}` : ''}${suffix}`;
+  }
+
+  canDisableAudioTrack(filename: string): boolean {
+    if (this.isAudioTrackDisabled(filename)) return true;
+    const active = (this.selected()?.audio_tracks ?? []).filter(track => !this.isAudioTrackDisabled(track));
+    return active.length > 1;
+  }
+
+  isAudioTrackDisabled(filename: string): boolean {
+    const disabled = this.selected()?.metadata?.['disabled_audio_tracks'];
+    return Array.isArray(disabled) && disabled.includes(filename);
+  }
+
+  audioArtifactsStale(): boolean {
+    const metadata = this.selected()?.metadata;
+    return metadata?.['audio_transcript_stale'] === true || metadata?.['audio_summary_stale'] === true;
+  }
+
+  setAudioTrackDisabled(filename: string, disabled: boolean): void {
+    const session = this.selected();
+    if (!session) return;
+    this.working.set(true);
+    this.api.setAudioTrackDisabled(session.id, filename, disabled).subscribe({
+      next: result => {
+        if (this.selectedId() === session.id) {
+          this.selected.update(current => current ? { ...current, metadata: result.metadata } : current);
+        }
+        this.toast.show(disabled ? 'Piste désactivée pour les prochains traitements. Le fichier est conservé.' : 'Piste réactivée.', 'success');
+        this.working.set(false);
+      },
+      error: error => { this.toast.show(`Impossible de modifier la piste : ${error.message}`, 'error'); this.working.set(false); },
     });
+  }
+
+  deleteAudioTrack(filename: string): void {
+    const session = this.selected();
+    if (!session) return;
+    const isLastTrack = (session.audio_tracks ?? []).length <= 1;
+    const lastTrackWarning = isLastTrack
+      ? '\n\nC’est la dernière piste audio. Après suppression, il sera impossible de régénérer la transcription ou le résumé à partir de cette séance, sauf si vous réimportez une source audio.'
+      : '';
+    const approved = window.confirm(
+      `Supprimer définitivement « ${filename} » ?\n\nLe fichier audio et sa transcription individuelle éventuelle seront supprimés. Le résumé et la transcription globale existants seront conservés, mais peuvent toujours contenir les informations de cette piste et seront signalés comme obsolètes. Cette action est irréversible.${lastTrackWarning}`,
+    );
+    if (!approved) return;
+    this.working.set(true);
+    this.api.deleteAudioTrack(session.id, filename).subscribe({
+      next: result => {
+        if (this.selectedId() === session.id) {
+          this.selected.update(current => current ? {
+            ...current,
+            audio_tracks: result.audio_tracks,
+            audio: result.audio_tracks.length > 0,
+            metadata: result.metadata,
+            files: current.files ? { ...current.files, audio_tracks: result.audio_tracks } : current.files,
+          } : current);
+        }
+        this.toast.show(result.warnings?.length ? `Piste supprimée. ${result.warnings.join(' ')}` : 'Piste audio supprimée.', result.warnings?.length ? 'info' : 'success');
+        this.working.set(false);
+        this.loadSessions();
+      },
+      error: error => { this.toast.show(`Impossible de supprimer la piste : ${error.message}`, 'error'); this.working.set(false); },
+    });
+  }
+
+  onArtifactTabKeydown(event: KeyboardEvent, current: 'summary' | 'transcript'): void {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    const session = this.selected();
+    if (!session) return;
+    const available: Array<'summary' | 'transcript'> = [];
+    if (session.summary) available.push('summary');
+    if (session.transcript) available.push('transcript');
+    if (!available.length) return;
+    const currentIndex = Math.max(0, available.indexOf(current));
+    const targetIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? available.length - 1
+        : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + available.length) % available.length;
+    const target = available[targetIndex];
+    event.preventDefault();
+    this.loadArtifact(target);
+    document.getElementById(`artifact-tab-${target}`)?.focus();
+  }
+
+  loadArtifact(kind: 'summary' | 'transcript'): void {
+    const session = this.selected();
+    if (!session || (kind === 'summary' && !session.summary) || (kind === 'transcript' && !session.transcript)) return;
+    const request = ++this.artifactRequest;
+    this.artifactKind.set(kind);
+    this.artifactTitle.set(kind === 'summary' ? 'Résumé' : 'Transcription');
+    this.artifactContent.set('');
+    this.artifactLoading.set(true);
+    this.api.sessionArtifact(session.id, kind).subscribe({
+      next: result => {
+        if (request !== this.artifactRequest || this.selectedId() !== session.id) return;
+        this.artifactContent.set(result.content ?? 'Contenu indisponible.');
+        this.artifactLoading.set(false);
+      },
+      error: error => {
+        if (request !== this.artifactRequest || this.selectedId() !== session.id) return;
+        this.artifactLoading.set(false);
+        this.toast.show(error.message, 'error');
+      },
+    });
+  }
+
+  durationLabel(value?: number | null): string {
+    if (value == null || !Number.isFinite(value) || value < 0) return '—';
+    const seconds = Math.floor(value);
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const rest = seconds % 60;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return hours > 0 ? `${hours}:${pad(minutes)}:${pad(rest)}` : `${pad(minutes)}:${pad(rest)}`;
+  }
+
+  private markdownToHtml(markdown: string): string {
+    if (!markdown) return '';
+    const escapeHtml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const inline = (value: string) => {
+      let output = escapeHtml(value);
+      output = output.replace(/`([^`]+)`/g, '<code>$1</code>');
+      output = output.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)(?:\s+[^)]*)?\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+      output = output.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      output = output.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+      output = output.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+      return output;
+    };
+    const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
+    const blocks: string[] = [];
+    let paragraph: string[] = [];
+    let listType: 'ul' | 'ol' | null = null;
+    let listItems: string[] = [];
+    let codeLines: string[] = [];
+    let inCode = false;
+    const flushParagraph = () => { if (paragraph.length) { blocks.push(`<p>${paragraph.map(inline).join('<br>')}</p>`); paragraph = []; } };
+    const flushList = () => { if (listType && listItems.length) blocks.push(`<${listType}>${listItems.map(item => `<li>${inline(item)}</li>`).join('')}</${listType}>`); listType = null; listItems = []; };
+    const splitTableRow = (value: string): string[] => {
+      let row = value.trim();
+      if (row.startsWith('|')) row = row.slice(1);
+      if (row.endsWith('|')) row = row.slice(0, -1);
+      return row.split(/(?<!\\)\|/).map(cell => cell.replace(/\\\|/g, '|').trim());
+    };
+    const isTableSeparator = (value: string): boolean =>
+      /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(value);
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index];
+      // Render standard Markdown tables instead of exposing pipe-delimited source.
+      if (!inCode && line.includes('|') && index + 1 < lines.length && isTableSeparator(lines[index + 1])) {
+        flushParagraph(); flushList();
+        const headers = splitTableRow(line);
+        const separators = splitTableRow(lines[index + 1]);
+        const rows: string[][] = [];
+        index += 2;
+        while (index < lines.length && lines[index].trim() && lines[index].includes('|')) {
+          rows.push(splitTableRow(lines[index]));
+          index++;
+        }
+        index--;
+        const columnCount = Math.max(1, headers.length, ...rows.map(row => row.length));
+        const normalizeRow = (cells: string[]) => Array.from({ length: columnCount }, (_, column) => cells[column] ?? '');
+        const textAlignment = (column: number): string => {
+          const marker = separators[column] ?? '---';
+          return marker.startsWith(':') && marker.endsWith(':') ? 'center' : marker.endsWith(':') ? 'right' : 'left';
+        };
+        const headingCells = normalizeRow(headers).map((cell, column) => `<th scope="col" style="text-align:${textAlignment(column)}">${inline(cell)}</th>`).join('');
+        const bodyRows = rows.map(row => `<tr>${normalizeRow(row).map((cell, column) => `<td style="text-align:${textAlignment(column)}">${inline(cell)}</td>`).join('')}</tr>`).join('');
+        blocks.push(`<div class="artifact-table-wrap" role="region" aria-label="Tableau du contenu" tabindex="0"><table><thead><tr>${headingCells}</tr></thead><tbody>${bodyRows}</tbody></table></div>`);
+        continue;
+      }
+      if (/^\s*```/.test(line)) {
+        flushParagraph(); flushList();
+        if (inCode) { blocks.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`); codeLines = []; inCode = false; }
+        else inCode = true;
+        continue;
+      }
+      if (inCode) { codeLines.push(line); continue; }
+      if (!line.trim()) { flushParagraph(); flushList(); continue; }
+      const heading = /^(#{1,4})\s+(.+)$/.exec(line);
+      if (heading) { flushParagraph(); flushList(); const level = heading[1].length; blocks.push(`<h${level + 1}>${inline(heading[2])}</h${level + 1}>`); continue; }
+      const unordered = /^\s*[-*+]\s+(.+)$/.exec(line);
+      const ordered = /^\s*\d+[.)]\s+(.+)$/.exec(line);
+      if (unordered || ordered) {
+        flushParagraph(); const nextType = unordered ? 'ul' : 'ol';
+        if (listType && listType !== nextType) flushList();
+        listType = nextType; listItems.push((unordered || ordered)![1]); continue;
+      }
+      const quote = /^\s*>\s?(.*)$/.exec(line);
+      if (quote) { flushParagraph(); flushList(); blocks.push(`<blockquote><p>${inline(quote[1])}</p></blockquote>`); continue; }
+      flushList(); paragraph.push(line);
+    }
+    if (inCode) blocks.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+    flushParagraph(); flushList();
+    return blocks.join('');
   }
 
   dateLabel(value?: string, fallback = ''): string {
@@ -221,6 +445,5 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('fr-CH', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
   }
-  trackLabel(filename: string): string { return filename.toLowerCase().includes('micro') ? 'Microphone' : filename.toLowerCase().includes('windows') ? 'Audio Windows' : filename; }
   audioUrl(id: string, filename: string): string { return `/api/sessions/${encodeURIComponent(id)}/audio/${encodeURIComponent(filename)}`; }
 }

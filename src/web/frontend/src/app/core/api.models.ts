@@ -1,4 +1,4 @@
-export type ThemeName = 'dark' | 'light' | 'midnight' | 'forest';
+export type ThemeName = 'dark' | 'light' | 'midnight' | 'forest' | 'dracula' | 'monokai';
 export type ViewName = 'recording' | 'library' | 'search' | 'settings';
 export type JobState = 'queued' | 'running' | 'stopping' | 'completed' | 'error';
 export type JobAction = 'transcribe' | 'summarize' | 'process';
@@ -33,6 +33,7 @@ export interface UiPreferences {
   output: string;
   capture_microphone: boolean;
   capture_windows: boolean;
+  audio_sources: AudioSourceSelection[];
   normalize_windows: boolean;
   normalize_windows_max_gain_db: number;
   recording_workflow: 'none' | 'transcribe' | 'summary';
@@ -55,9 +56,25 @@ export interface AppConfig {
   formats: string[];
 }
 
+export type AudioSourceKind = 'microphone' | 'output';
+
+export interface AudioSourceSelection {
+  kind: AudioSourceKind;
+  device_id: string;
+  device_name: string;
+}
+
+export interface AudioDeviceInfo {
+  id: string;
+  name: string;
+  key?: string;
+}
+
 export interface AudioDevices {
   microphones: string[];
   outputs: string[];
+  microphone_devices?: AudioDeviceInfo[];
+  output_devices?: AudioDeviceInfo[];
 }
 
 export interface ProcessingInfo {
@@ -79,6 +96,7 @@ export interface SessionSummary {
   transcript: boolean;
   audio: boolean;
   audio_tracks?: string[];
+  duration_seconds?: number | null;
   processing?: ProcessingInfo | null;
 }
 

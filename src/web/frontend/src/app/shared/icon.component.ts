@@ -8,12 +8,12 @@ import { glimioIconKey, GLIMIO_ICONS } from './icon-registry';
   imports: [NgIconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [provideIcons(GLIMIO_ICONS)],
-  template: `<ng-icon [name]="iconKey()" [class.icon--large]="size() === 'large'" class="icon" aria-hidden="true"></ng-icon>`,
+  template: `<ng-icon [name]="iconKey()" [class.icon--large]="size() === 'large'" [class.icon--fill]="size() === 'fill'" class="icon" aria-hidden="true"></ng-icon>`,
   styleUrl: './icon.component.scss',
 })
 export class IconComponent {
   readonly name = input.required<string>();
-  readonly size = input<'normal' | 'large'>('normal');
+  readonly size = input<'normal' | 'large' | 'fill'>('normal');
   readonly strokeWidth = input('1.6');
   readonly iconKey = computed(() => glimioIconKey(this.name()));
 }

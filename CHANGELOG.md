@@ -1,11 +1,19 @@
 # Changelog
 
+## Correctifs prioritaires build Angular et modèles — 2026-10-19
+
+- Compilation : ajout explicite de `IconComponent` aux imports de `PaginationComponent`, supprimant la cause des erreurs `NG8001` du composant de pagination ; suppression du `?? []` redondant ciblé par `NG8102`.
+- Bibliothèque : rendu Markdown des tableaux en HTML accessible avec défilement horizontal et focus clavier ; confirmation renforcée lors de la suppression de la dernière piste audio et message correct si aucun audio ne reste.
+- Modèles : liens officiels dédiés pour les modèles Whisper, LFM2.5, segmentation pyannote et embedding 3D-Speaker ; les liens LFM, pyannote et 3D-Speaker sont conditionnés à une confirmation de lecture des licences/conditions. Glimio n’exécute pas automatiquement de binaires tiers.
+- Thèmes et ressources : vérification des contrastes documentés dans les six thèmes et mise à jour des contrats autour du favicon SVG.
+- Validation ciblée : 39 tests de contrat/API/audio passés et `py_compile` réussi. Build Angular non exécuté dans cet environnement faute du binaire `ng` ; les avertissements de dépréciation Sass `@import` restent non bloquants et devront être retirés par une migration globale vérifiée.
+
 ## Correctifs UI, états de séance et capture audio — 2026-10-19
 
 - Bibliothèque Angular : ajout d’un rafraîchissement périodique (2 s) de la liste et du détail de la séance pour refléter les transitions d’état des jobs, sans réinitialiser les aperçus d’artefacts ni les paramètres de traitement en cours d’édition. Le polling résiste aux erreurs réseau passagères et évite les requêtes concurrentes.
 - Bibliothèque : affichage explicite des états En attente / En cours / Terminé / Échec, et des messages d’erreur quand disponibles, dans la liste et dans le panneau de détail. Le panneau de détail réutilise le composant partagé `session-live-progress`.
 - Accessibilité : la carte de séance n’imbrique plus des éléments de type bloc dans un `<button>` ; la zone de sélection est un bouton dédié avec état `aria-pressed` et focus visible, le message de traitement étant son voisin dans la carte.
-- Branding : SVG public sans métadonnées Inkscape/Sodipodi, calques conservés sous `layer3` (ombres) et `layer2` (forme principale), 6 chemins héritant de remplissages dynamiques `var(--brand-shadow, currentColor)` et `currentColor`.
+- Branding : SVG public sans métadonnées Inkscape/Sodipodi, calques conservés sous `layer3` (wave) et `layer2` (forme principale), les deux utilisant `currentColor` ; la vague se distingue uniquement par une opacité de 25 %.
 - Capture audio : correspondance exacte et insensible à la casse en priorité ; les anciennes préférences à correspondance partielle restent acceptées uniquement si le résultat est unique. Les sélections ambiguës et noms exactement dupliqués sont refusés avec un message explicite. Un log met en évidence les noms identiques des deux endpoints Bluetooth sans désactiver arbitrairement l’une des deux pistes.
 - SCSS : normalisation du padding des cartes principales sur `p-5` (20 px), retrait d’un bloc de styles en doublon pour les contrôles d’activité et tests de contrat ciblant le rafraîchissement des états et le SVG. Le vérificateur de contraste référence maintenant le véritable fichier `styles/tokens.scss` au lieu d’un `tokens.css` inexistant.
 - Validation : les tests de `test_audio_streaming.py` passent (6 tests) et les fichiers Python modifiés passent `py_compile`. Le build Angular n’a pas pu être exécuté ici : les dépendances npm ne sont pas intégralement disponibles hors ligne, `ng` reste absent, et la version Node fournie (22.16.0) est inférieure à la version minimale annoncée par Angular 22.2.3 (22.22.3). Tester la compilation complète avec une version Node compatible avant fusion.
@@ -52,7 +60,7 @@
 ## 0.4.0 — Paramètres centralisés, qualité audio et licence copyleft
 
 - Ajout d’une page **Paramètres** dédiée qui centralise les chemins des modèles et exécutables, le moteur FFmpeg, la langue de transcription, les options OpenVINO, les budgets de génération, les réglages de diarisation et les préférences de qualité audio.
-- Les chemins par défaut du code sont génériques et basés sur le rôle du fichier (`models/asr/model.bin`, `models/llm/model.gguf`, `models/diarization/segmentation.onnx`, `models/diarization/embedding.onnx`, `bin/asr/transcriber.exe`, `bin/llm/inference.exe`). Les sources et noms upstream restent documentés dans `docs/MODELS.md`.
+- Les chemins par défaut du code sont génériques et basés sur le rôle du fichier (`models/asr/model.bin`, `models/llm/model.gguf`, `models/diarization/segmentation/segmentation.onnx`, `models/diarization/embedding/embedding.onnx`, `bin/asr/transcriber.exe`, `bin/llm/inference.exe`). Les sources et noms upstream restent documentés dans `docs/MODELS.md`.
 - Ajout du choix de débit d’enregistrement PCM mono 16 bits (128/256/384/512/768 kbps, correspondant à 8/16/24/32/48 kHz) ; les métadonnées de séance conservent le débit et la fréquence choisis.
 - Passage à la licence `AGPL-3.0-or-later` pour le code Glimio. Ajout d’une note expliquant les droits de revente, le copyleft réseau, la distinction entre licence Open Source et restriction commerciale, et la séparation de la marque et des licences de modèles tiers.
 

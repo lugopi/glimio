@@ -945,3 +945,18 @@
   .documents-empty-note { max-width: 62ch; margin: 0; line-height: 1.6; }
   .search-hint { margin-top: 16px; }
 }
+
+
+/* Markdown is inserted at runtime via [innerHTML], so its descendants do not get
+   Angular's emulated-encapsulation attributes. Keep generated documents within the detail pane. */
+@layer components {
+  .artifact-rendered, .artifact-rendered * { box-sizing: border-box; min-width: 0; max-width: 100%; }
+  .artifact-rendered :where(p, h1, h2, h3, h4, h5, li, a, strong, em, code, td, th) { overflow-wrap: anywhere; word-break: normal; }
+  .artifact-rendered pre, .artifact-rendered pre code { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+  .artifact-rendered .artifact-table-wrap { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; border: 1px solid var(--c-border-soft); border-radius: 8px; margin: .75rem 0 1rem; }
+.artifact-rendered table { width: 100%; border-collapse: collapse; margin: 0; }
+.artifact-rendered th, .artifact-rendered td { padding: .55rem .75rem; border-bottom: 1px solid var(--c-border-soft); text-align: left; vertical-align: top; }
+.artifact-rendered th { background: var(--c-surface); color: var(--c-text); font-weight: 700; }
+.artifact-rendered tbody tr:last-child td { border-bottom: 0; }
+  .artifact-rendered img, .artifact-rendered video, .artifact-rendered svg { max-width: 100%; height: auto; }
+}

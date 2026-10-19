@@ -141,8 +141,8 @@ def _ensure_transcript(folder: Path, args: argparse.Namespace) -> Path:
         threads=max(1, int(getattr(args, "threads", 1))),
         ffmpeg=getattr(args, "ffmpeg", "ffmpeg"),
         diarize=getattr(args, "diarize", False),
-        diarization_segmentation_model=getattr(args, "diarization_segmentation_model", "models/diarization/segmentation.onnx"),
-        diarization_embedding_model=getattr(args, "diarization_embedding_model", "models/diarization/embedding.onnx"),
+        diarization_segmentation_model=getattr(args, "diarization_segmentation_model", "models/diarization/segmentation/segmentation.onnx"),
+        diarization_embedding_model=getattr(args, "diarization_embedding_model", "models/diarization/embedding/embedding.onnx"),
         diarization_num_speakers=getattr(args, "diarization_num_speakers", -1),
         diarization_threshold=getattr(args, "diarization_threshold", 0.5),
     )
@@ -190,8 +190,8 @@ def _ensure_diarization(folder: Path, args: argparse.Namespace) -> None:
         threads=max(1, int(getattr(args, "threads", 1))),
         ffmpeg=getattr(args, "ffmpeg", "ffmpeg"),
         diarize=True,
-        diarization_segmentation_model=getattr(args, "diarization_segmentation_model", "models/diarization/segmentation.onnx"),
-        diarization_embedding_model=getattr(args, "diarization_embedding_model", "models/diarization/embedding.onnx"),
+        diarization_segmentation_model=getattr(args, "diarization_segmentation_model", "models/diarization/segmentation/segmentation.onnx"),
+        diarization_embedding_model=getattr(args, "diarization_embedding_model", "models/diarization/embedding/embedding.onnx"),
         diarization_num_speakers=getattr(args, "diarization_num_speakers", -1),
         diarization_threshold=getattr(args, "diarization_threshold", 0.5),
     )

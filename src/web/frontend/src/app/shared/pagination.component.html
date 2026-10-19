@@ -1,11 +1,20 @@
-    @if (totalItems() > 0 && totalPages() > 1) {
-      <nav class="pagination" [attr.aria-label]="label()">
-        <span class="pagination-summary">{{ rangeStart() }}–{{ rangeEnd() }} sur {{ totalItems() }}</span>
-        <div class="pagination-controls">
-          <button class="btn btn--secondary btn--small" type="button" [disabled]="page() <= 1" (click)="pageChange.emit(page() - 1)">Précédent</button>
-          <span class="pagination-indicator" aria-live="polite">Page {{ page() }} / {{ totalPages() }}</span>
-          <button class="btn btn--secondary btn--small" type="button" [disabled]="page() >= totalPages()" (click)="pageChange.emit(page() + 1)">Suivant</button>
+@if (totalItems() > 0) {
+  <nav class="pagination" [attr.aria-label]="label()">
+    <p class="pagination-summary" aria-live="polite">{{ rangeStart() }}–{{ rangeEnd() }} sur {{ totalItems() }} éléments</p>
+    @if (totalPages() > 1) {
+      <div class="pagination-controls">
+        <button class="pagination-arrow" type="button" [disabled]="page() <= 1" (click)="selectPage(page() - 1)" aria-label="Page précédente"><glimio-icon name="chevron-left" size="fill" /><span>Précédent</span></button>
+        <div class="pagination-pages" aria-label="Choisir une page">
+          @for (token of pageTokens(); track token) {
+            @if (isPageNumber(token)) {
+              <button class="pagination-page" type="button" [attr.aria-current]="token === page() ? 'page' : null" [attr.aria-label]="'Page ' + token" [class.is-current]="token === page()" (click)="selectPage(token)">{{ token }}</button>
+            } @else {
+              <span class="pagination-ellipsis" aria-hidden="true">…</span>
+            }
+          }
         </div>
-      </nav>
+        <button class="pagination-arrow" type="button" [disabled]="page() >= totalPages()" (click)="selectPage(page() + 1)" aria-label="Page suivante"><span>Suivant</span><glimio-icon name="chevron-right" size="fill" /></button>
+      </div>
     }
-  
+  </nav>
+}

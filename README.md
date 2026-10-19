@@ -74,8 +74,8 @@ L’interface locale est normalement ouverte à `http://127.0.0.1:8765`. Le serv
 | Modèle Whisper large-v3 | `models/asr/model.bin` |
 | llama.cpp | `bin/llm/llama-completion.exe` |
 | Modèle LFM2.5 GGUF | `models/llm/model.gguf` |
-| Modèle de segmentation | `models/diarization/segmentation.onnx` |
-| Modèle d’embedding Titanet | `models/diarization/embedding.onnx` |
+| Modèle de segmentation | `models/diarization/segmentation/segmentation.onnx` |
+| Modèle d’embedding Titanet | `models/diarization/embedding/embedding.onnx` |
 
 Ces noms et chemins sont des valeurs par défaut configurables ; ils ne signifient pas que Glimio redistribue ces ressources. Voir les sources et les restrictions connues dans [`docs/MODELS.md`](docs/MODELS.md), en particulier pour la licence LFM Open et les modèles de diarisation.
 

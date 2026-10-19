@@ -8,7 +8,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 from starlette.requests import Request
 
-from web.app import clear_job_history, delete_job_history_item, health, session_audio, sessions
+from web.app import (AudioTrackToggleRequest, clear_job_history, delete_job_history_item, health, session_audio, sessions, set_session_audio_track_disabled, delete_session_audio_track)
 
 
 class WebApiSmokeTests(unittest.TestCase):
@@ -36,6 +36,59 @@ class WebApiSmokeTests(unittest.TestCase):
         self.assertEqual(status["session_root"], str(root))
         self.assertTrue(status["session_root_exists"])
 
+
+    def test_soft_disable_cannot_disable_the_last_active_audio_track(self) -> None:
+        import json
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "seances"
+            session = root / "2026-10-17_10-30-00"
+            (session / "audio").mkdir(parents=True)
+            (session / "audio" / "micro.wav").write_bytes(b"wav")
+            with patch("web.app.SESSION_ROOT", root), patch("web.app.JOBS", {}):
+                with self.assertRaises(HTTPException) as raised:
+                    set_session_audio_track_disabled(session.name, "micro.wav", AudioTrackToggleRequest(disabled=True))
+            self.assertEqual(raised.exception.status_code, 422)
+            self.assertIn("Au moins une piste audio", str(raised.exception.detail))
+            self.assertTrue((session / "audio" / "micro.wav").is_file())
+
+    def test_soft_disable_marks_existing_artifacts_stale_and_preserves_audio(self) -> None:
+        import json
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "seances"
+            session = root / "2026-10-17_10-30-00"
+            (session / "audio").mkdir(parents=True)
+            (session / "transcript").mkdir()
+            (session / "summary").mkdir()
+            (session / "audio" / "micro.wav").write_bytes(b"wav1")
+            (session / "audio" / "windows.wav").write_bytes(b"wav2")
+            (session / "transcript" / "transcription.md").write_text("# Transcript", encoding="utf-8")
+            (session / "summary" / "resume_audio.md").write_text("# Summary", encoding="utf-8")
+            with patch("web.app.SESSION_ROOT", root), patch("web.app.JOBS", {}):
+                result = set_session_audio_track_disabled(session.name, "micro.wav", AudioTrackToggleRequest(disabled=True))
+            self.assertEqual(result["disabled_audio_tracks"], ["micro.wav"])
+            self.assertTrue(result["metadata"]["audio_transcript_stale"])
+            self.assertTrue(result["metadata"]["audio_summary_stale"])
+            self.assertTrue((session / "audio" / "micro.wav").is_file())
+
+    def test_hard_delete_removes_one_track_and_marks_combined_artifacts_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "seances"
+            session = root / "2026-10-17_10-30-00"
+            (session / "audio").mkdir(parents=True)
+            (session / "transcript").mkdir()
+            (session / "summary").mkdir()
+            (session / "audio" / "micro.wav").write_bytes(b"wav1")
+            (session / "audio" / "windows.wav").write_bytes(b"wav2")
+            (session / "transcript" / "micro.srt").write_text("track text", encoding="utf-8")
+            (session / "transcript" / "transcription.md").write_text("# Transcript", encoding="utf-8")
+            (session / "summary" / "resume_audio.md").write_text("# Summary", encoding="utf-8")
+            with patch("web.app.SESSION_ROOT", root), patch("web.app.JOBS", {}):
+                result = delete_session_audio_track(session.name, "micro.wav")
+            self.assertEqual(result["audio_tracks"], ["windows.wav"])
+            self.assertFalse((session / "audio" / "micro.wav").exists())
+            self.assertFalse((session / "transcript" / "micro.srt").exists())
+            self.assertTrue(result["metadata"]["audio_transcript_stale"])
+            self.assertTrue(result["metadata"]["audio_summary_stale"])
 
     def test_audio_endpoint_does_not_serve_a_wav_while_recording_is_active(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

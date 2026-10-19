@@ -1,14 +1,23 @@
 @reference '../../styles/tailwind-ref.scss';
 
-:host {
-  @apply block min-w-0;
-}
-
-/* Rangée de pagination : écart constant entre indicateurs et contrôles. */
-.pagination-controls {
-  @apply flex flex-wrap items-center justify-center gap-2.5 py-1;
-}
-
-.pagination-indicator {
-  @apply whitespace-nowrap font-mono text-[0.75rem] text-subtle;
+:host { @apply block min-w-0; }
+.pagination { @apply flex min-w-0 flex-wrap items-center justify-between gap-3; }
+.pagination-summary { @apply m-0 text-xs text-muted; font-variant-numeric: tabular-nums; }
+.pagination-controls { @apply flex min-w-0 flex-wrap items-center justify-end gap-1.5; }
+.pagination-pages { @apply flex flex-wrap items-center gap-1; }
+.pagination-arrow, .pagination-page { @apply inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface-raised px-2 text-xs font-semibold text-text; }
+.pagination-arrow { @apply px-2.5; }
+.pagination-arrow glimio-icon { display: inline-flex; flex: 0 0 1rem; width: 1rem; height: 1rem; font-size: 1rem; }
+.pagination-arrow glimio-icon .icon, .pagination-arrow glimio-icon svg { display: block; width: 100%; height: 100%; }
+.pagination-arrow:disabled { @apply cursor-not-allowed opacity-45; }
+.pagination-page:hover:not(.is-current), .pagination-arrow:hover:not(:disabled) { border-color: var(--c-accent); background: var(--c-accent-soft); }
+.pagination-page.is-current { @apply border-accent bg-accent-soft text-accent; }
+.pagination-page[aria-current="page"] { outline: 1px solid color-mix(in srgb, var(--c-accent) 35%, transparent); outline-offset: 1px; }
+.pagination-arrow:focus-visible, .pagination-page:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+.pagination-ellipsis { @apply inline-flex min-h-9 min-w-5 items-center justify-center text-muted; }
+@media (max-width: 520px) {
+  .pagination { @apply items-start; }
+  .pagination-controls { @apply w-full justify-between; }
+  .pagination-arrow { @apply px-2; }
+  .pagination-arrow span { @apply sr-only; }
 }

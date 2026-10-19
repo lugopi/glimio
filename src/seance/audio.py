@@ -111,6 +111,25 @@ def _resolve_named_device(devices: list[Any], requested: str | None, kind: str) 
     return None
 
 
+def _resolve_device_id(devices: list[Any], requested_id: str | None, requested_name: str | None, kind: str) -> Any | None:
+    """Resolve a selected endpoint by its backend ID first, with safe name fallback."""
+    wanted_id = str(requested_id or "").strip()
+    if wanted_id:
+        matches = [device for device in devices if str(getattr(device, "id", "")).strip() == wanted_id]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise SystemExit(f"Several {kind} endpoints expose the same device ID {wanted_id!r}.")
+        if not requested_name:
+            raise SystemExit(f"The selected {kind} device is no longer available. Refresh the device list.")
+    if requested_name:
+        resolved = _resolve_named_device(devices, requested_name, kind)
+        if resolved is None:
+            raise SystemExit(f"The selected {kind} device {requested_name!r} is no longer available. Refresh the device list.")
+        return resolved
+    return None
+
+
 def list_devices() -> None:
     # Import SoundCard before opening our scoped COM apartment. Its Windows backend
     # initializes COM at module import time and expects that initialization to succeed.
@@ -304,8 +323,8 @@ def _record_impl(
         sample_rate = sample_rate_for_bitrate(bitrate_kbps)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    capture_microphone = bool(getattr(args, "capture_microphone", True))
-    capture_windows = bool(getattr(args, "capture_windows", True))
+    legacy_capture_microphone = bool(getattr(args, "capture_microphone", True))
+    legacy_capture_windows = bool(getattr(args, "capture_windows", True))
     normalize_windows_arg = getattr(args, "normalize_windows", None)
     if normalize_windows_arg is None:
         env_value = os.environ.get("SEANCE_NORMALIZE_WINDOWS", "1").strip().casefold()
@@ -323,40 +342,99 @@ def _record_impl(
         max_gain_db = float(max_gain_arg)
     if not math.isfinite(max_gain_db) or not 0.0 <= max_gain_db <= 30.0:
         raise SystemExit("Windows normalization maximum gain must be between 0 and 30 dB.")
-    normalize_windows = normalize_windows and capture_windows
-    if not capture_microphone and not capture_windows:
-        raise SystemExit("At least one audio source must be enabled: microphone or Windows audio.")
 
     sc = _soundcard()
-    microphones = sc.all_microphones(include_loopback=False) if capture_microphone else []
-    speakers = sc.all_speakers() if capture_windows else []
+    all_microphones = sc.all_microphones(include_loopback=False)
+    all_speakers = sc.all_speakers()
+    loopback_microphones = [mic for mic in sc.all_microphones(include_loopback=True) if getattr(mic, "isloopback", False)]
+    requested_sources = getattr(args, "audio_sources", None)
+    selected_sources: list[dict[str, Any]] = []
 
-    microphone_name = getattr(args, "microphone", None)
-    output_name = getattr(args, "output", None)
-    microphone = (
-        _resolve_named_device(microphones, microphone_name, "microphone")
-        if microphone_name
-        else (sc.default_microphone() if capture_microphone else None)
-    )
-    speaker = (
-        _resolve_named_device(speakers, output_name, "Windows output")
-        if output_name
-        else (sc.default_speaker() if capture_windows else None)
-    )
+    if requested_sources is not None:
+        if not isinstance(requested_sources, (list, tuple)) or not requested_sources:
+            raise SystemExit("At least one audio source must be selected.")
+        seen_sources: set[tuple[str, str]] = set()
+        for raw_source in requested_sources:
+            source = raw_source.model_dump() if hasattr(raw_source, "model_dump") else raw_source
+            if not isinstance(source, dict):
+                raise SystemExit("Invalid audio source selection.")
+            kind = str(source.get("kind", "")).strip().casefold()
+            if kind not in {"microphone", "output"}:
+                raise SystemExit(f"Unsupported audio source type: {kind!r}.")
+            device_id = str(source.get("device_id") or "").strip()
+            device_name = str(source.get("device_name") or "").strip()
+            if kind == "microphone":
+                device = _resolve_device_id(all_microphones, device_id, device_name, "microphone") if (device_id or device_name) else sc.default_microphone()
+            else:
+                speaker = _resolve_device_id(all_speakers, device_id, device_name, "Windows output") if (device_id or device_name) else sc.default_speaker()
+                if speaker is None:
+                    raise SystemExit("Windows output not found. Refresh the device list and choose another source.")
+                speaker_id = str(getattr(speaker, "id", "") or "")
+                try:
+                    device = _resolve_device_id(loopback_microphones, speaker_id, str(speaker.name), "Windows loopback")
+                except SystemExit:
+                    raise
+                if device is None:
+                    raise SystemExit(f"Could not map output {speaker.name!r} to a Windows loopback input.")
+                device_id = speaker_id or device_id
+                device_name = str(speaker.name)
+            if device is None:
+                label = "microphone" if kind == "microphone" else "Windows output"
+                raise SystemExit(f"{label.capitalize()} not found. Refresh the device list and choose another source.")
+            resolved_id = str(getattr(device, "id", "") or device_id or "")
+            resolved_name = str(getattr(device, "name", "") or device_name or "Périphérique par défaut")
+            source_identity = resolved_id or resolved_name.casefold()
+            identity = (kind, source_identity)
+            if identity in seen_sources:
+                raise SystemExit(f"The same {kind} device is selected more than once: {resolved_name}.")
+            seen_sources.add(identity)
+            selected_sources.append({"kind": kind, "device_id": resolved_id, "name": resolved_name, "device": device})
+    else:
+        # Compatibility path for the original CLI and saved preferences.
+        microphone = (
+            _resolve_named_device(all_microphones, getattr(args, "microphone", None), "microphone")
+            if getattr(args, "microphone", None)
+            else (sc.default_microphone() if legacy_capture_microphone else None)
+        )
+        speaker = (
+            _resolve_named_device(all_speakers, getattr(args, "output", None), "Windows output")
+            if getattr(args, "output", None)
+            else (sc.default_speaker() if legacy_capture_windows else None)
+        )
+        if legacy_capture_microphone and microphone is None:
+            raise SystemExit("Microphone not found. Run `glimio devices` or choose another source.")
+        if legacy_capture_windows and speaker is None:
+            raise SystemExit("Audio output not found. Run `glimio devices` or choose another source.")
+        if legacy_capture_microphone and microphone is not None:
+            selected_sources.append({"kind": "microphone", "device_id": str(getattr(microphone, "id", "") or ""), "name": str(microphone.name), "device": microphone})
+        if legacy_capture_windows and speaker is not None:
+            speaker_id = str(getattr(speaker, "id", "") or "")
+            try:
+                loopback = _resolve_device_id(loopback_microphones, speaker_id, str(speaker.name), "Windows loopback")
+            except SystemExit:
+                loopback = None
+            if loopback is None:
+                try:
+                    loopback = sc.get_microphone(id=speaker_id or str(speaker.name), include_loopback=True)
+                except Exception as exc:
+                    raise SystemExit(f"Could not open Windows output {speaker.name}: {exc}") from exc
+            selected_sources.append({"kind": "output", "device_id": speaker_id, "name": str(speaker.name), "device": loopback})
 
-    if capture_microphone and microphone is None:
-        raise SystemExit("Microphone not found. Run `glimio devices` or choose another source.")
-    if capture_windows and speaker is None:
-        raise SystemExit("Audio output not found. Run `glimio devices` or choose another source.")
+    if not selected_sources:
+        raise SystemExit("At least one audio source must be selected.")
+    capture_microphone = any(source["kind"] == "microphone" for source in selected_sources)
+    capture_windows = any(source["kind"] == "output" for source in selected_sources)
+    normalize_windows = normalize_windows and capture_windows
 
-    loopback = None
-    if capture_windows:
-        try:
-            loopback = sc.get_microphone(id=str(speaker.name), include_loopback=True)
-        except Exception as exc:
-            raise SystemExit(
-                f"Could not open Windows output {speaker.name}: {exc}"
-            ) from exc
+    # Keep the classic micro.wav / windows.wav names for the first stream of each type.
+    # Additional endpoints get stable numbered names, allowing N independent tracks.
+    kind_indices: dict[str, int] = {"microphone": 0, "output": 0}
+    for source in selected_sources:
+        kind = source["kind"]
+        kind_indices[kind] += 1
+        base = "micro" if kind == "microphone" else "windows"
+        number = kind_indices[kind]
+        source["filename"] = f"{base}.wav" if number == 1 else f"{base}-{number}.wav"
 
     started = datetime.now().astimezone()
     root = Path(args.directory).resolve()
@@ -377,11 +455,9 @@ def _record_impl(
     stop = stop_event if stop_event is not None else threading.Event()
     errors: list[str] = []
     errors_lock = threading.Lock()
-    frame_counts: dict[str, int] = {"micro": 0, "windows": 0}
-    track_paths = {
-        "micro": layout["audio"] / "micro.wav",
-        "windows": layout["audio"] / "windows.wav",
-    }
+    frame_counts: dict[str, int] = {source["filename"]: 0 for source in selected_sources}
+    track_paths = {source["filename"]: layout["audio"] / source["filename"] for source in selected_sources}
+    source_by_filename = {source["filename"]: source for source in selected_sources}
 
     def capture(name: str, device: Any) -> None:
         try:
@@ -408,19 +484,15 @@ def _record_impl(
                 errors.append(f"{name}: {exc}")
             stop.set()
 
-    capture_targets: list[tuple[str, Any]] = []
-    if capture_microphone:
-        capture_targets.append(("micro", microphone))
-    if capture_windows:
-        capture_targets.append(("windows", loopback))
+    capture_targets: list[tuple[str, Any]] = [(source["filename"], source["device"]) for source in selected_sources]
     threads = [
         threading.Thread(
             target=capture,
-            args=(name, device),
-            name=f"capture-{name}",
+            args=(filename, device),
+            name=f"capture-{Path(filename).stem}",
             daemon=True,
         )
-        for name, device in capture_targets
+        for filename, device in capture_targets
     ]
     for thread in threads:
         thread.start()
@@ -433,27 +505,19 @@ def _record_impl(
                 # UI reporting must never break or stop an audio capture.
                 pass
 
-    selected_sources = []
-    if capture_microphone:
-        selected_sources.append("microphone")
-    if capture_windows:
-        selected_sources.append("audio Windows")
-    update_status("Enregistrement en cours · capture de " + " + ".join(selected_sources))
+    display_sources = [f"{'microphone' if source['kind'] == 'microphone' else 'audio Windows'} · {source['name']}" for source in selected_sources]
+    update_status("Enregistrement en cours · capture de " + " + ".join(display_sources))
     log(f"Session folder: {folder}")
-    if microphone is not None:
-        log(f"Microphone: {microphone.name}")
-    else:
-        log("Microphone capture disabled.")
-    if speaker is not None:
-        log(f"Windows output selected for loopback capture: {speaker.name}")
-        if microphone is not None and microphone.name.casefold() == speaker.name.casefold():
+    for source in selected_sources:
+        log(f"{'Microphone' if source['kind'] == 'microphone' else 'Windows output / loopback'}: {source['name']} -> {source['filename']}")
+    microphone_names = [source["name"] for source in selected_sources if source["kind"] == "microphone"]
+    output_names = [source["name"] for source in selected_sources if source["kind"] == "output"]
+    for mic_name in microphone_names:
+        if any(mic_name.casefold() == output_name.casefold() for output_name in output_names):
             log(
-                "Microphone and Windows output have the same display name. "
-                "They are separate capture endpoints; compare the resulting micro.wav and "
-                "windows.wav tracks if the headset routes the same signal to both."
+                f"Microphone and Windows output share the display name {mic_name!r}. "
+                "The endpoints are selected separately by ID; inspect their saved tracks if the headset routes the same signal to both."
             )
-    else:
-        log("Windows audio capture disabled.")
     log("Recording. Press Ctrl+C to stop.")
 
     try:
@@ -485,54 +549,53 @@ def _record_impl(
             "gain_applied_db": 0.0,
             "status": "not_captured" if not capture_windows else "no_samples",
         }
-        for source, filename in (("micro", "micro.wav"), ("windows", "windows.wav")):
-            path = track_paths[source]
-            if frame_counts[source] > 0 and path.is_file():
-                if source == "windows" and "capture-windows" not in live_capture_threads:
+        normalization_tracks: list[dict[str, Any]] = []
+        for source in selected_sources:
+            filename = source["filename"]
+            path = track_paths[filename]
+            thread_name = f"capture-{Path(filename).stem}"
+            if frame_counts[filename] > 0 and path.is_file():
+                normalization_info = None
+                if source["kind"] == "output" and thread_name not in live_capture_threads:
                     try:
-                        windows_normalization = _normalize_wav_peak(
-                            path, enabled=normalize_windows, max_gain_db=max_gain_db
-                        )
-                        peak_before = windows_normalization.get("peak_before_dbfs")
-                        peak_after = windows_normalization.get("peak_after_dbfs")
-                        rms_before = windows_normalization.get("rms_before_dbfs")
-                        rms_after = windows_normalization.get("rms_after_dbfs")
-                        gain_db = float(windows_normalization.get("gain_applied_db", 0.0))
+                        normalization_info = _normalize_wav_peak(path, enabled=normalize_windows, max_gain_db=max_gain_db)
+                        peak_before = normalization_info.get("peak_before_dbfs")
+                        peak_after = normalization_info.get("peak_after_dbfs")
+                        rms_before = normalization_info.get("rms_before_dbfs")
+                        rms_after = normalization_info.get("rms_after_dbfs")
+                        gain_db = float(normalization_info.get("gain_applied_db", 0.0))
                         if gain_db > 0.01:
-                            log(
-                                f"Windows audio level raised by +{gain_db:.1f} dB "
-                                f"(peak {peak_before} -> {peak_after} dBFS; "
-                                f"RMS {rms_before} -> {rms_after} dBFS; target peak -6 dBFS, "
-                                f"maximum gain +{max_gain_db:.0f} dB)."
-                            )
-                        elif windows_normalization.get("status") == "already_at_or_above_target":
-                            log(f"Windows audio level already sufficient (peak {peak_before} dBFS); no gain applied.")
-                        elif windows_normalization.get("status") == "silence":
-                            log("Windows audio track is silent; normalization skipped.", error=True)
+                            log(f"{filename} raised by +{gain_db:.1f} dB (peak {peak_before} -> {peak_after} dBFS; RMS {rms_before} -> {rms_after} dBFS).")
+                        elif normalization_info.get("status") == "already_at_or_above_target":
+                            log(f"{filename} level already sufficient (peak {peak_before} dBFS); no gain applied.")
+                        elif normalization_info.get("status") == "silence":
+                            log(f"{filename} is silent; normalization skipped.", error=True)
                         elif not normalize_windows:
-                            log(
-                                f"Windows audio normalization disabled (peak {peak_before} dBFS; "
-                                f"RMS {rms_before} dBFS)."
-                            )
+                            log(f"Normalization disabled for {filename} (peak {peak_before} dBFS; RMS {rms_before} dBFS).")
                     except Exception as exc:
-                        # Keep the original finalized WAV if normalization fails; audio is more
-                        # important than the optional gain step, so don't block transcription.
-                        windows_normalization.update({"status": "failed", "error": str(exc)})
-                        log(f"Windows audio normalization failed; preserving the WAV as recorded: {exc}", error=True)
-                elif source == "windows":
-                    windows_normalization.update({
-                        "status": "skipped_capture_thread_still_active",
-                        "error": "WAV was not normalized because its capture thread did not stop cleanly.",
-                    })
-                log(f"Saved track: {path} ({frame_counts[source]} frames)")
+                        normalization_info = {"status": "failed", "error": str(exc), "enabled": normalize_windows, "max_gain_db": max_gain_db}
+                        log(f"Normalization failed for {filename}; preserving original track: {exc}", error=True)
+                elif source["kind"] == "output":
+                    normalization_info = {"status": "skipped_capture_thread_still_active", "error": "WAV was not normalized because its capture thread did not stop cleanly."}
+                if normalization_info is not None:
+                    normalization_info["filename"] = filename
+                    normalization_info["device_name"] = source["name"]
+                    normalization_tracks.append(normalization_info)
+                    if filename == "windows.wav" or (source["kind"] == "output" and not windows_normalization.get("filename")):
+                        windows_normalization = dict(normalization_info)
+                log(f"Saved track: {path} ({frame_counts[filename]} frames)")
             else:
-                # An opened writer with no samples leaves an empty WAV; don't expose it
-                # as a real track in the library.
+                # An opened writer with no samples leaves an empty WAV; don't expose it as a real track.
                 try:
                     path.unlink(missing_ok=True)
                 except OSError as exc:
                     write_errors.append(f"{filename}: could not remove empty track: {exc}")
 
+        audio_source_metadata = [
+            {"kind": source["kind"], "device_id": source["device_id"], "name": source["name"], "filename": source["filename"]}
+            for source in selected_sources
+            if frame_counts[source["filename"]] > 0
+        ]
         metadata = {
             "title": session_title or "Session",
             "title_source": "user" if session_title else "default",
@@ -540,15 +603,15 @@ def _record_impl(
             "timezone": str(started.tzinfo),
             "sample_rate": sample_rate,
             "audio_bitrate_kbps": bitrate_kbps,
-            "microphone": microphone.name if microphone is not None else None,
-            "windows_output": speaker.name if speaker is not None else None,
+            "duration_seconds": max((frames / sample_rate for frames in frame_counts.values()), default=0),
+            "microphone": microphone_names[0] if len(microphone_names) == 1 else microphone_names or None,
+            "windows_output": output_names[0] if len(output_names) == 1 else output_names or None,
             "capture_microphone": capture_microphone,
             "capture_windows": capture_windows,
-            "captured_tracks": [
-                name for name, filename in (("micro", "micro.wav"), ("windows", "windows.wav"))
-                if frame_counts[name] > 0
-            ],
+            "audio_sources": audio_source_metadata,
+            "captured_tracks": [Path(filename).stem for filename, frames in frame_counts.items() if frames > 0],
             "windows_normalization": windows_normalization,
+            "audio_normalization": normalization_tracks,
             "capture_errors": errors,
         }
         try:
@@ -563,7 +626,7 @@ def _record_impl(
         raise SystemExit(
             "Errors during recording:\n- " + "\n- ".join(errors + write_errors)
         )
-    if not frame_counts["micro"] and not frame_counts["windows"]:
+    if not any(frame_counts.values()):
         raise SystemExit(f"No audio recorded in {folder}.")
 
     log(f"Recording finished: {folder}")
@@ -596,9 +659,13 @@ def record(
     Keeps the historical CLI API intact while making it safe to invoke from FastAPI
     worker threads, which do not inherit COM initialization from the main thread.
     """
+    requested_sources = getattr(args, "audio_sources", None)
     capture_microphone = bool(getattr(args, "capture_microphone", True))
     capture_windows = bool(getattr(args, "capture_windows", True))
-    if not capture_microphone and not capture_windows:
+    if requested_sources is not None:
+        if not isinstance(requested_sources, (list, tuple)) or not requested_sources:
+            raise SystemExit("At least one audio source must be selected.")
+    elif not capture_microphone and not capture_windows:
         raise SystemExit("At least one audio source must be enabled: microphone or Windows audio.")
 
     # SoundCard's Windows module initializes COM during import; do that before our

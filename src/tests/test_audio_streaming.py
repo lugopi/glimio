@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from seance.audio import SAMPLE_RATE, _resolve_named_device, _write_audio_chunk, record
+from seance.audio import SAMPLE_RATE, _resolve_device_id, _resolve_named_device, _write_audio_chunk, record
 
 
 class StreamingWaveTests(unittest.TestCase):
@@ -17,6 +17,11 @@ class StreamingWaveTests(unittest.TestCase):
         exact = SimpleNamespace(name="Bluetooth Headset")
         partial = SimpleNamespace(name="Bluetooth Headset Hands-Free")
         self.assertIs(_resolve_named_device([partial, exact], "bluetooth headset", "microphone"), exact)
+
+    def test_stable_device_id_wins_when_display_names_are_identical(self) -> None:
+        first = SimpleNamespace(id="input-1", name="Bluetooth Headset")
+        second = SimpleNamespace(id="input-2", name="Bluetooth Headset")
+        self.assertIs(_resolve_device_id([first, second], "input-2", "Bluetooth Headset", "microphone"), second)
 
     def test_device_resolution_rejects_ambiguous_partial_match(self) -> None:
         devices = [

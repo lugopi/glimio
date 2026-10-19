@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { GlimioSettings, PreferencesPayload } from '../../core/api.models';
@@ -15,6 +15,21 @@ import { IconComponent } from '../../shared/icon.component';
 export class SettingsPageComponent {
   readonly preferences = inject(PreferencesService);
   readonly settings = computed(() => this.preferences.preferences()?.settings ?? null);
+  readonly lfmLicenseReviewed = signal(false);
+  readonly segmentationLicenseReviewed = signal(false);
+  readonly embeddingLicenseReviewed = signal(false);
+
+  setSegmentationLicenseReviewed(event: Event): void {
+    this.segmentationLicenseReviewed.set((event.target as HTMLInputElement).checked);
+  }
+
+  setEmbeddingLicenseReviewed(event: Event): void {
+    this.embeddingLicenseReviewed.set((event.target as HTMLInputElement).checked);
+  }
+
+  setLfmLicenseReviewed(event: Event): void {
+    this.lfmLicenseReviewed.set((event.target as HTMLInputElement).checked);
+  }
 
 
   patch<K extends keyof GlimioSettings>(key: K, value: GlimioSettings[K]): void {
@@ -32,5 +47,5 @@ export class SettingsPageComponent {
       ? bitrate as GlimioSettings['audio_bitrate_kbps']
       : 256;
   }
-  formatLabel(value: string): string { return ({ auto: 'Automatique', summary: 'Synthèse générale', daily: 'Compte rendu', technical: 'Technique', formal: 'Formel', brainstorm: 'Brainstorming' } as Record<string, string>)[value] ?? value; }
+  formatLabel(value: string): string { return ({ auto: 'Automatique', summary: 'Synthèse générale', daily: 'Daily — compte rendu de réunion', technical: 'Technique', formal: 'Formel', brainstorm: 'Brainstorming' } as Record<string, string>)[value] ?? value; }
 }

@@ -8,6 +8,7 @@ import { LibraryStateService } from './core/library-state.service';
 import { ToastService } from './core/toast.service';
 import { IconComponent } from './shared/icon.component';
 import { ThemeName } from './core/api.models';
+import { ApiService } from './core/api.service';
 
 @Component({
   selector: 'glimio-root',
@@ -22,6 +23,7 @@ export class AppComponent implements OnInit {
   readonly toasts = inject(ToastService);
   private readonly router = inject(Router);
   private readonly libraryState = inject(LibraryStateService);
+  private readonly api = inject(ApiService);
   readonly mobileMenuOpen = signal(false);
   readonly currentPath = signal('/recording');
   readonly libraryCount = this.libraryState.total.asReadonly();
@@ -30,7 +32,7 @@ export class AppComponent implements OnInit {
 
   /**
    * Logo Glimio injecté en ligne : le calque principal et la vague utilisent
-   * currentColor. La vague conserve une opacité propre pour créer sa profondeur.
+   * currentColor ; la vague conserve une opacité propre pour créer sa profondeur.
    * Le SVG garde un viewBox légèrement étendu afin de ne pas couper les tracés.
    * Le fichier public/brand/glimio.svg est nettoyé des métadonnées Inkscape ;
    * le nettoyage ci-dessous reste un repli défensif (déclaration XML,
@@ -75,6 +77,11 @@ export class AppComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Hydrate the sidebar count on app startup, without waiting for the user to open the library.
+    this.api.sessions({ limit: 1, offset: 0 }).subscribe({
+      next: result => this.libraryState.total.set(result.count),
+      error: () => { /* The library page retries when it opens. */ },
+    });
     this.http.get('brand/glimio.svg', { responseType: 'text' })
       .subscribe({
         next: svg => this.rawBrandLogo.set(svg),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import wave
 from datetime import datetime
 from pathlib import Path
 from collections.abc import Iterator
@@ -145,6 +146,22 @@ def _summary_excerpt(path: Path | None, width: int = 320) -> str:
     return re.sub(r"\s+", " ", " ".join(lines))[:width]
 
 
+def _audio_duration_seconds(folder: Path, metadata: dict[str, Any]) -> float | None:
+    recorded = metadata.get("duration_seconds")
+    if isinstance(recorded, (int, float)) and recorded >= 0:
+        return float(recorded)
+    durations: list[float] = []
+    for path in list_audio_paths(folder):
+        try:
+            with wave.open(str(path), "rb") as stream:
+                rate = stream.getframerate()
+                if rate > 0:
+                    durations.append(stream.getnframes() / rate)
+        except (OSError, wave.Error, EOFError):
+            continue
+    return max(durations) if durations else None
+
+
 def _session_record(folder: Path, query: str = "") -> dict[str, Any]:
     metadata = _metadata(folder)
     summary = summary_path(folder)
@@ -160,6 +177,7 @@ def _session_record(folder: Path, query: str = "") -> dict[str, Any]:
         "transcript": transcript is not None,
         "audio": has_audio(folder),
         "audio_tracks": [path.name for path in list_audio_paths(folder)],
+        "duration_seconds": _audio_duration_seconds(folder, metadata),
         "summary_excerpt": _summary_excerpt(summary),
         "has_metadata": bool(metadata),
     }

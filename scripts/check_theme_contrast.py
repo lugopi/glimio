@@ -27,7 +27,7 @@ def contrast_ratio(foreground: str, background: str) -> float:
 def _themes(css: str) -> dict[str, dict[str, str]]:
     pattern = re.compile(
         r'(?s)(:root(?:\s*,\s*:root\[data-theme="dark"\])?|'
-        r':root\[data-theme="(light|midnight|forest)"\])\s*\{([^}]+)\}'
+        r':root\[data-theme="(light|midnight|forest|dracula|monokai)"\])\s*\{([^}]+)\}'
     )
     found: dict[str, dict[str, str]] = {}
     for match in pattern.finditer(css):
@@ -46,7 +46,7 @@ def _themes(css: str) -> dict[str, dict[str, str]]:
 def check(css: str) -> tuple[bool, list[str]]:
     themes = _themes(css)
     failures: list[str] = []
-    required = {"dark", "light", "midnight", "forest"}
+    required = {"dark", "light", "midnight", "forest", "dracula", "monokai"}
     missing = sorted(required - set(themes))
     if missing:
         failures.append(f"Thèmes absents ou non analysés : {', '.join(missing)}")
@@ -80,7 +80,7 @@ def main() -> int:
         print(f"ÉCHEC: {failure}")
     if not passed:
         return 1
-    print("OK — les paires de jetons textuelles documentées dépassent 7:1 sur la surface élevée dans les quatre thèmes.")
+    print("OK — les paires de jetons textuelles documentées dépassent 7:1 sur la surface élevée dans les six thèmes.")
     print("Limite : ce contrôle ne mesure pas tous les éléments/states du site et ne certifie pas WCAG AAA.")
     return 0
 
