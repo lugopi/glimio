@@ -94,7 +94,7 @@ export class AppComponent implements OnInit {
     this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(event => {
       const url = (event as NavigationEnd).urlAfterRedirects.split('?')[0];
       this.currentPath.set(url);
-      this.currentPage.set(({ '/recording': 'Enregistrement', '/library': 'Bibliothèque', '/search': 'Recherche intelligente', '/settings': 'Paramètres' } as Record<string, string>)[url] ?? 'Enregistrement');
+      this.currentPage.set(({ '/recording': 'Enregistrement', '/jobs': 'Traitements', '/library': 'Bibliothèque', '/search': 'Recherche intelligente', '/settings': 'Paramètres' } as Record<string, string>)[url] ?? 'Enregistrement');
       this.closeMobileMenu();
     });
   }

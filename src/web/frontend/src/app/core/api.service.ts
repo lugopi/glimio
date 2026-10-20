@@ -72,6 +72,10 @@ export class ApiService {
     return this.get<JobsResponse>('/api/jobs');
   }
 
+  cancelJob(id: string): Observable<Job> {
+    return this.http.post<Job>(`/api/jobs/${encodeURIComponent(id)}/cancel`, {}).pipe(catchError(this.normalizeError));
+  }
+
   deleteJob(id: string): Observable<{ deleted: string }> {
     return this.http.delete<{ deleted: string }>(`/api/jobs/${encodeURIComponent(id)}`).pipe(catchError(this.normalizeError));
   }

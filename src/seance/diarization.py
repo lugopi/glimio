@@ -116,6 +116,9 @@ def _format_timestamp(seconds: float) -> str:
 
 def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backup_existing: bool = False) -> dict[str, Any]:
     """Detect speaker turns and align them to Whisper's timestamped transcript."""
+    cancel_event = getattr(args, "_cancel_event", None)
+    if cancel_event is not None and cancel_event.is_set():
+        raise SystemExit("Traitement annulé.")
     root = Path(folder).expanduser().resolve()
     json_path = get_transcript_path(root, "transcription.json")
     markdown_path = get_transcript_path(root, "transcription.md")
@@ -164,7 +167,11 @@ def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backu
     audio = _combined_audio(root, int(diarizer.sample_rate))
     if not audio.size:
         raise SystemExit("Les pistes audio sont vides : impossible de lancer la diarisation.")
+    if cancel_event is not None and cancel_event.is_set():
+        raise SystemExit("Traitement annulé.")
     detected = diarizer.process(audio).sort_by_start_time()
+    if cancel_event is not None and cancel_event.is_set():
+        raise SystemExit("Traitement annulé.")
     detected_segments = [
         {"start": float(item.start), "end": float(item.end), "speaker": int(item.speaker)}
         for item in detected if float(item.end) > float(item.start)

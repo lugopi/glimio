@@ -5,7 +5,12 @@ type Language = 'fr' | 'en';
 const ENGLISH: Record<string, string> = {
   'Aller au contenu principal': 'Skip to main content', 'ESPACE DE TRAVAIL': 'WORKSPACE',
   'Enregistrement': 'Recording', 'Bibliothèque': 'Library', 'Recherche intelligente': 'Smart search',
-  'Paramètres': 'Settings', 'Traitement local': 'Local processing', 'Les modèles sont exécutés sur cet appareil.': 'Models run on this device.',
+  'Paramètres': 'Settings', 'Traitements': 'Processing', 'Traitements en cours': 'Active processing', 'Traitement local': 'Local processing', 'Les modèles sont exécutés sur cet appareil.': 'Models run on this device.',
+  'Consultez les tâches actives et en attente. Vous pouvez annuler un traitement qui semble bloqué.': 'View active and queued tasks. You can cancel a task that appears stuck.',
+  'tâche(s) en attente · les modèles sont exécutés séquentiellement.': 'task(s) queued · models run sequentially.',
+  'Aucun traitement en cours ou en attente.': 'No active or queued processing.', 'Annulation…': 'Cancelling…',
+  'Annulation demandée.': 'Cancellation requested.', 'Actualiser les traitements': 'Refresh processing tasks', 'Impossible de récupérer les traitements :': 'Unable to retrieve processing tasks:',
+  'Impossible d’annuler le traitement :': 'Unable to cancel processing:', 'Une annulation active arrête le processus de transcription ou de génération en cours. Les fichiers déjà enregistrés restent disponibles.': 'Cancelling an active task stops the transcription or generation process. Files already saved remain available.',
   'DOSSIER DES SÉANCES': 'SESSION FOLDER', 'Copier': 'Copy', 'Thème de l’interface': 'Interface theme',
   'Sombre': 'Dark', 'Clair': 'Light', 'Minuit': 'Midnight', 'Forêt': 'Forest',
   'Fermer le menu principal': 'Close main menu', 'Ouvrir le menu principal': 'Open main menu',

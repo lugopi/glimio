@@ -49,6 +49,7 @@ def transcribe_folder(
         diarization_embedding_model=getattr(source_args, "diarization_embedding_model", "models/diarization/embedding/embedding.onnx"),
         diarization_num_speakers=getattr(source_args, "diarization_num_speakers", -1),
         diarization_threshold=getattr(source_args, "diarization_threshold", 0.5),
+        _cancel_event=getattr(source_args, "_cancel_event", None),
         status_callback=callback,
     )
     transcribe(args)
@@ -153,6 +154,7 @@ def minutes_folder(
         diarization_embedding_model=getattr(source_args, "diarization_embedding_model", "models/diarization/embedding/embedding.onnx"),
         diarization_num_speakers=getattr(source_args, "diarization_num_speakers", -1),
         diarization_threshold=getattr(source_args, "diarization_threshold", 0.5),
+        _cancel_event=getattr(source_args, "_cancel_event", None),
         status_callback=callback,
     )
     monitor_stop = threading.Event()
@@ -166,8 +168,12 @@ def minutes_folder(
         )
         monitor.start()
     try:
+        from .llm import reset_job_cancel_event, set_job_cancel_event
+        cancel_token = set_job_cancel_event(getattr(args, "_cancel_event", None))
         summarize(args)
     finally:
+        if "cancel_token" in locals():
+            reset_job_cancel_event(cancel_token)
         monitor_stop.set()
         if monitor is not None:
             monitor.join(timeout=1.5)

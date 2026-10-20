@@ -1,6 +1,6 @@
 export type ThemeName = 'dark' | 'light' | 'midnight' | 'forest' | 'dracula' | 'monokai';
-export type ViewName = 'recording' | 'library' | 'search' | 'settings';
-export type JobState = 'queued' | 'running' | 'stopping' | 'completed' | 'error';
+export type ViewName = 'recording' | 'jobs' | 'library' | 'search' | 'settings';
+export type JobState = 'queued' | 'running' | 'stopping' | 'completed' | 'cancelled' | 'error';
 export type JobAction = 'transcribe' | 'summarize' | 'process';
 
 export interface GlimioSettings {

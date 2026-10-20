@@ -369,7 +369,7 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
   }
 
   jobLabel(job: Job): string { return ({ recording: 'Enregistrement', transcribe: 'Transcription Whisper', summarize: 'Résumé', process: 'Traitement complet', import: 'Import audio / vidéo' } as Record<string, string>)[job.kind] ?? job.kind; }
-  stateLabel(state: string): string { return ({ queued: 'Dans la file', running: 'En cours', stopping: 'Finalisation', completed: 'Terminé', error: 'Erreur' } as Record<string, string>)[state] ?? state; }
+  stateLabel(state: string): string { return ({ queued: 'Dans la file', running: 'En cours', stopping: 'Finalisation', completed: 'Terminé', cancelled: 'Annulé', error: 'Erreur' } as Record<string, string>)[state] ?? state; }
   isDeletable(job: Job): boolean { return !['running', 'stopping', 'queued'].includes(job.state); }
   hasDeletableJobs(): boolean { return this.jobs().some(job => this.isDeletable(job)); }
 

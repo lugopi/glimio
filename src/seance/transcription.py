@@ -128,13 +128,14 @@ def _audio_duration(path: Path) -> float | None:
         return None
 
 
-def _extract_chunk(source: Path, target: Path, start: float, end: float, ffmpeg: str) -> None:
+def _extract_chunk(source: Path, target: Path, start: float, end: float, ffmpeg: str,
+                   cancel_event: Any = None) -> None:
     command = [
         ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-ss", f"{start:.3f}",
         "-i", str(source), "-t", f"{max(0.1, end - start):.3f}", "-c", "copy", str(target),
     ]
     try:
-        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+        result = _run_cancellable_command(command, cwd=source.parent, cancel_event=cancel_event)
     except OSError as exc:
         raise SystemExit(f"Could not extract an audio chunk with {ffmpeg}: {exc}") from exc
     if result.returncode != 0 or not target.is_file() or target.stat().st_size == 0:
@@ -168,17 +169,37 @@ def _render_transcript(segments: list[dict[str, Any]], *, in_progress: bool = Fa
     return "\n".join(lines) + "\n"
 
 
-def _run_command(command: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
+def _run_cancellable_command(command: list[str], *, cwd: Path, cancel_event: Any = None) -> subprocess.CompletedProcess[str]:
+    if cancel_event is not None and cancel_event.is_set():
+        raise SystemExit("Traitement annulé.")
+    process = subprocess.Popen(
+        command, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, encoding="utf-8", errors="replace",
+    )
+    while True:
+        if cancel_event is not None and cancel_event.is_set():
+            process.terminate()
+            try:
+                process.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
+            raise SystemExit("Traitement annulé.")
+        try:
+            stdout, stderr = process.communicate(timeout=0.25)
+            return subprocess.CompletedProcess(command, process.returncode or 0, stdout, stderr)
+        except subprocess.TimeoutExpired:
+            continue
+
+
+def _run_command(command: list[str], *, cwd: Path, cancel_event: Any = None) -> subprocess.CompletedProcess[str]:
     log(f"Waiting for the local AI engine slot: {Path(command[0]).name}")
     try:
         # Share the same process-local slot with llama.cpp. This prevents Whisper and
         # LLM model processes from competing for memory/CPU while still allowing capture.
         with AI_ENGINE_LOCK:
             log(f"Running: {Path(command[0]).name}")
-            result = subprocess.run(
-                command, cwd=str(cwd), capture_output=True, text=True,
-                encoding="utf-8", errors="replace", check=False,
-            )
+            result = _run_cancellable_command(command, cwd=cwd, cancel_event=cancel_event)
     except OSError as exc:
         raise SystemExit(f"Could not run {command[0]}: {exc}") from exc
 
@@ -242,6 +263,9 @@ def transcribe(args: argparse.Namespace) -> None:
     tracks = [path for path in list_audio_paths(folder) if path.name not in disabled_tracks]
     (transcript_dir / "transcription_en_cours.md").unlink(missing_ok=True)
     for audio_path in tracks:
+        cancel_event = getattr(args, "_cancel_event", None)
+        if cancel_event is not None and cancel_event.is_set():
+            raise SystemExit("Traitement annulé.")
         filename = audio_path.name
         source_meta = metadata_sources.get(filename, {})
         if source_meta.get("name"):
@@ -276,7 +300,7 @@ def transcribe(args: argparse.Namespace) -> None:
                 source_path = audio_path
                 if chunk_count > 1:
                     source_path = temp_path / f"audio_{chunk_index + 1:04d}.wav"
-                    _extract_chunk(audio_path, source_path, media_start, media_end, str(getattr(args, "ffmpeg", "ffmpeg")))
+                    _extract_chunk(audio_path, source_path, media_start, media_end, str(getattr(args, "ffmpeg", "ffmpeg")), cancel_event)
                 output_base = temp_path / f"{audio_path.stem}_{chunk_index + 1:04d}"
                 srt_path = output_base.with_suffix(".srt")
                 command = [
@@ -290,7 +314,7 @@ def transcribe(args: argparse.Namespace) -> None:
                     command.extend(["--ov-e-device", args.openvino_device])
                 _status(args, f"Whisper · {filename} · segment {chunk_index + 1}/{chunk_count}…")
                 log(f"Transcribing {filename}, segment {chunk_index + 1}/{chunk_count}...")
-                _run_command(command, cwd=folder)
+                _run_command(command, cwd=folder, cancel_event=cancel_event)
                 if not srt_path.is_file():
                     raise SystemExit(f"Expected SRT file was not created: {srt_path}")
                 segments = _read_srt(srt_path, source_name)
