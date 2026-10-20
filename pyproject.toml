@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "glimio-notes"
-version = "0.4.3"
+version = "0.4.4"
 description = "Glimio — local audio recording and import, speech transcription, speaker diarization, AI summaries, and searchable session notes"
 readme = "README.md"
 license = { file = "LICENSE" }

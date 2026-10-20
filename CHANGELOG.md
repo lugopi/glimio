@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.4 — temps réel, UI mobile fluide et harmonisation du design — 2026-10-21
+
+**Temps réel de la Bibliothèque**
+- L'état d'avancement d'une séance (En attente / En cours / Terminé / Échec) s'affiche en temps réel dans la liste et le panneau de détail grâce à un rafraîchissement périodique des données de jobs, sans réinitialiser les aperçus d'artefacts ni les options de traitement en cours d'édition.
+- Le rafraîchissement automatique évite les requêtes concurrentes et reste actif malgré les erreurs réseau passagères ; les messages d'erreur des jobs sont affichés dès qu'ils sont disponibles.
+- Suivi de phase de l'artefact en cours : l'aperçu suit automatiquement la nouvelle phase de traitement tant que l'utilisateur n'a pas changé d'onglet manuellement.
+
+**Interface fluide sur mobile**
+- Composants `glimio-ui` rendus fluides sur petit écran : typographie et espacements en unités relatives (`clamp()`), cibles tactiles élargies (boutons, sélecteurs, onglets ≥ 44 px), grilles et panneaux qui passent en une colonne sous les breakpoints mobile.
+- Barre latérale et panneau de détail de la Bibliothèque adaptés au mobile : empilement vertical, défilement indépendant des zones et masquage progressif plutôt que destruction du contenu.
+- Sélection de phase, dialogue de confirmation et champs de formulaire repensés pour rester entièrement visibles et utilisables sans zoom sur mobile.
+
+**Harmonisation du design**
+- Palette, arrondis, ombres et états de survol/focus unifiés autour des tokens de `tailwind.css` ; suppression des styles ad hoc redondants dans les pages.
+- Alignement des cartes, en-têtes et listes sur une échelle d'espacement commune ; badges de statut homogénéisés (couleur, taille, libellés).
+- Transitions cohérentes entre les changements d'état (sélection de séance, onglets d'artefacts, progression des jobs) pour une sensation visuelle continue.
+
+**Autres correctifs**
+- Pipeline : sauvegarde fiable des artefacts intermédiaires et réutilisation correcte des modèles chargés.
+- API web : gestion renforcée des jobs et réponses d'erreur 4xx explicites.
+- Application desktop : corrections de navigation et de bascule automatique entre vues.
+- Accessibilité : zones de statut en `role="status"` + `aria-live="polite"` pour annoncer les transitions sans interrompre la navigation clavier.
+- Versions API (`FastAPI`), frontend (`package.json` / `package-lock.json`) et projet Python alignées sur `0.4.4`.
+
 ## 0.4.3 — éditions Windows et publication GitHub
 
 - Ajout d’un CLI pour enregistrer, transcrire, résumer ou traiter un fichier audio/vidéo ou une séance depuis le terminal.
