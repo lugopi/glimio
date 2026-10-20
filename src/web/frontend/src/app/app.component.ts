@@ -25,6 +25,8 @@ export class AppComponent implements OnInit {
   private readonly libraryState = inject(LibraryStateService);
   private readonly api = inject(ApiService);
   readonly mobileMenuOpen = signal(false);
+  readonly sidebarCollapsed = signal(window.innerWidth <= 1100 && window.innerWidth > 850);
+  private compactViewport = window.innerWidth <= 1100 && window.innerWidth > 850;
   readonly currentPath = signal('/recording');
   readonly libraryCount = this.libraryState.total.asReadonly();
   readonly theme = signal<ThemeName>('dark');
@@ -98,6 +100,14 @@ export class AppComponent implements OnInit {
 
   toggleMobileMenu(): void { this.mobileMenuOpen.update(open => !open); }
   closeMobileMenu(): void { this.mobileMenuOpen.set(false); }
+
+  toggleSidebar(): void { this.sidebarCollapsed.update(collapsed => !collapsed); }
+
+  @HostListener('window:resize') onWindowResize(): void {
+    const compact = window.innerWidth <= 1100 && window.innerWidth > 850;
+    if (compact !== this.compactViewport) this.sidebarCollapsed.set(compact);
+    this.compactViewport = compact;
+  }
 
   @HostListener('document:keydown.escape') onEscape(): void { this.closeMobileMenu(); }
   @HostListener('document:click', ['$event']) onOutsideClick(event: MouseEvent): void {

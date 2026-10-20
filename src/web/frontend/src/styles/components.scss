@@ -17,7 +17,7 @@
   .skip-link { position: fixed; z-index: 1000; top: 10px; left: 10px; transform: translateY(calc(-100% - 14px)); padding: 11px 15px; border: 2px solid var(--c-accent-contrast); border-radius: 10px; color: var(--c-accent-contrast); background: var(--c-accent); font-weight: 700; box-shadow: 0 4px 18px rgb(0 0 0 / .24); }
   .skip-link:focus { transform: translateY(0); }
   .app-shell { @apply grid min-h-screen; grid-template-columns: 250px minmax(0, 1fr); }
-  .sidebar { @apply fixed inset-y-0 left-0 z-20 flex w-[250px] flex-col border-r border-border-soft; padding: 25px 15px 18px; background: var(--c-sidebar); }
+  .sidebar { @apply sticky top-0 z-20 flex h-dvh w-[250px] flex-col self-start overflow-y-auto border-r border-border-soft; padding: 25px 15px 18px; background: var(--c-sidebar); }
   .brand { @apply flex items-center gap-[12px] px-[11px] pb-[33px]; }
   .brand-mark { @apply flex size-[48px] items-center justify-center gap-[3px] text-accent; border: 0; background: transparent; }
   /* Logo injecté en ligne : sizing via .brand-logo (svg) et repli img. */
@@ -180,6 +180,8 @@
   .document-content ul { @apply list-disc pl-[21px]; }
   .document-content code { @apply rounded bg-surface-raised px-[5px] py-0.5 font-mono; }
   .session-live-progress { @apply mb-[13px] flex items-start gap-[11px] rounded-[11px] border border-border bg-surface-raised p-[13px]; }
+  .detail-processing-status { @apply w-fit max-w-full; overflow-wrap: anywhere; }
+  .detail-processing-status > span { @apply min-w-0; overflow-wrap: anywhere; }
   .session-live-progress.is-active { border-color: color-mix(in srgb, var(--c-accent) 42%, var(--c-border)); }
   .session-live-progress.is-error { border-color: color-mix(in srgb, var(--c-danger) 45%, var(--c-border)); }
   .session-live-progress.is-completed { border-color: color-mix(in srgb, var(--c-success) 40%, var(--c-border)); }
@@ -346,7 +348,7 @@
 @media (max-width: 850px) {
   .app-shell { display: block; }
   .main-area { @apply col-auto gap-0 pb-6; }
-  .sidebar { position: sticky; inset: 0 0 auto; z-index: 30; width: 100%; height: auto; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--c-border); }
+  .sidebar { position: sticky; inset: 0 0 auto; z-index: 30; width: 100%; height: auto; max-height: none; overflow: visible; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--c-border); }
   .brand { @apply gap-2.5 px-[5px] pb-2.5; }
   .brand-mark { @apply size-[34px] rounded-[9px]; flex-basis: 34px; }
   .brand-mark .brand-logo, .brand-mark img { width: 100%; height: 100%; }
@@ -731,6 +733,62 @@
 }
 @media (max-width: 380px) {
   .brand-caption { display: none; }
+}
+
+/* Desktop navigation can be compacted without changing the mobile menu. */
+@layer components {
+  .app-shell { transition: grid-template-columns 180ms ease; }
+  .sidebar { transition: width 180ms ease, padding 180ms ease; }
+  .nav-link, .offline-indicator, .sidebar-path { transition: padding 180ms ease, background-color 180ms ease, border-radius 180ms ease; }
+  .brand-copy, .nav-label { max-width: 220px; min-width: 0; overflow: hidden; opacity: 1; transition: max-width 180ms ease, opacity 120ms ease; }
+  .nav-label { white-space: nowrap; }
+  .app-shell.is-sidebar-collapsed { grid-template-columns: 76px minmax(0, 1fr); }
+  .app-shell.is-sidebar-collapsed .sidebar { @apply w-[76px] items-center px-2; }
+  .app-shell.is-sidebar-collapsed .brand { @apply w-full justify-center gap-0 px-0 pb-[33px]; }
+  .app-shell.is-sidebar-collapsed .side-label,
+  .app-shell.is-sidebar-collapsed .nav-count { @apply hidden; }
+  .app-shell.is-sidebar-collapsed .brand-copy,
+  .app-shell.is-sidebar-collapsed .nav-label { max-width: 0; opacity: 0; }
+  .app-shell.is-sidebar-collapsed .nav-list { @apply w-full; }
+  .app-shell.is-sidebar-collapsed .nav-link { @apply justify-center gap-0 px-2; }
+  .app-shell.is-sidebar-collapsed .nav-collapse-toggle { @apply mt-2 border-t border-border-soft; }
+  .app-shell.is-sidebar-collapsed .sidebar-bottom { @apply w-full gap-3; }
+  .app-shell.is-sidebar-collapsed .runtime-indicator { @apply mx-auto w-full flex-col justify-center gap-1.5 px-1 py-2; min-height: 50px; }
+  .app-shell.is-sidebar-collapsed .runtime-indicator strong { max-width: 100%; font-size: .625rem; line-height: 1.15; text-align: center; white-space: normal; }
+  .app-shell.is-sidebar-collapsed .runtime-indicator small { @apply hidden; }
+  .app-shell.is-sidebar-collapsed .sidebar-path { @apply flex justify-center overflow-visible px-0; }
+  .app-shell.is-sidebar-collapsed .sidebar-path-heading { @apply w-full justify-center; }
+  .app-shell.is-sidebar-collapsed .sidebar-path-heading small,
+  .app-shell.is-sidebar-collapsed .sidebar-path code { @apply hidden; }
+  .path-copy-button { @apply inline-flex items-center justify-center gap-1.5; }
+  .path-copy-button glimio-icon { @apply size-3.5 shrink-0; }
+  .app-shell.is-sidebar-collapsed .path-copy-button--compact { @apply h-12 w-full flex-col gap-1 rounded-lg border border-border bg-surface p-1 no-underline; }
+  .app-shell.is-sidebar-collapsed .path-copy-button--compact glimio-icon { @apply size-[18px]; }
+  .app-shell.is-sidebar-collapsed .path-copy-button--compact span { @apply text-[0.625rem] leading-none; }
+}
+@media (max-width: 850px) {
+  .nav-collapse-toggle { @apply hidden; }
+  .brand-copy { @apply min-w-0; flex: 1 1 auto; max-width: none; }
+  .brand-caption { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-nav-toggle { @apply ml-auto; }
+  .app-shell.is-sidebar-collapsed { display: block; }
+  .app-shell.is-sidebar-collapsed .sidebar { @apply w-full items-stretch px-3; }
+  .app-shell.is-sidebar-collapsed .brand { @apply w-full justify-start gap-2.5 px-[5px] pb-2.5; }
+  .app-shell.is-sidebar-collapsed .brand-copy,
+  .app-shell.is-sidebar-collapsed .nav-label { max-width: 220px; opacity: 1; }
+  .app-shell.is-sidebar-collapsed .nav-link { @apply justify-start gap-[11px] px-3; }
+  .app-shell.is-sidebar-collapsed .nav-count { @apply inline; }
+}
+
+@media (min-width: 851px) and (max-width: 1200px) {
+  .app-shell.is-sidebar-collapsed { grid-template-columns: 76px minmax(0, 1fr); }
+  .app-shell.is-sidebar-collapsed .sidebar { width: 76px; padding-inline: 8px; }
+}
+@media (max-width: 850px) {
+  .app-shell, .sidebar { transition: none; }
+  .sidebar { padding-inline: 16px; }
+  .brand { padding-inline: 0; }
+  .brand-caption { letter-spacing: .04em; }
 }
 
 

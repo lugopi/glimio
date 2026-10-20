@@ -16,11 +16,22 @@ import { IconComponent } from '../../shared/icon.component';
 export class SettingsPageComponent {
   readonly preferences = inject(PreferencesService);
   readonly settings = computed(() => this.preferences.preferences()?.settings ?? null);
+  readonly ui = computed(() => this.preferences.preferences()?.ui ?? null);
   patch<K extends keyof GlimioSettings>(key: K, value: GlimioSettings[K]): void {
     const current = this.preferences.preferences();
     if (!current) return;
     const updated: PreferencesPayload = { ...current, settings: { ...current.settings, [key]: value } };
     this.preferences.updatePreferences(updated);
+  }
+
+  patchSessionRoot(value: string): void {
+    const current = this.preferences.preferences();
+    if (current) this.preferences.updatePreferences({ ...current, ui: { ...current.ui, session_root: value } });
+  }
+
+  patchLanguage(value: 'fr' | 'en'): void {
+    const current = this.preferences.preferences();
+    if (current) this.preferences.updatePreferences({ ...current, ui: { ...current.ui, language: value } });
   }
 
   numberValue(value: string | number): number { return Number(value); }

@@ -326,6 +326,8 @@ class SearchRequest(BaseModel):
 
 class UIPreferences(BaseModel):
     theme: Literal["dark", "light", "midnight", "forest", "dracula", "monokai"] = "dark"
+    language: Literal["fr", "en"] = "fr"
+    session_root: str = Field(default="", max_length=2000)
     microphone: str = Field(default="", max_length=500)
     output: str = Field(default="", max_length=500)
     capture_microphone: bool = True
@@ -530,6 +532,7 @@ def _initialize_persistence() -> None:
         db.initialize()
         JOB_STORE = JobStore(db)
         PREFERENCES_STORE = PreferencesStore(db)
+        _get_preferences()  # Apply a saved session output directory before job recovery.
         _restore_persisted_jobs()
 
 
@@ -538,6 +541,7 @@ def _default_preferences() -> dict[str, Any]:
 
 
 def _get_preferences() -> dict[str, Any]:
+    global SESSION_ROOT
     _initialize_persistence()
     saved = PREFERENCES_STORE.get() if PREFERENCES_STORE else None
     if not saved:
@@ -560,6 +564,8 @@ def _get_preferences() -> dict[str, Any]:
                 saved_settings[key] = new_path
         settings = Settings(**saved_settings)
         ui = UIPreferences(**(saved.get("ui") or {}))
+        SESSION_ROOT = resolve_session_root(PROJECT_ROOT, ui.session_root or None)
+        ui.session_root = str(SESSION_ROOT)
     except Exception as exc:
         print(f"[preferences] Ignoring invalid saved preferences: {exc}", flush=True)
         return defaults
@@ -965,6 +971,7 @@ def health() -> dict[str, Any]:
 
 @app.get("/api/config")
 def config() -> dict[str, Any]:
+    preferences = _get_preferences()
     defaults = Settings()
     return {
         "session_root": str(SESSION_ROOT),
@@ -973,7 +980,7 @@ def config() -> dict[str, Any]:
         "processing_mode": "local",
         "offline_local_mode": True,
         "defaults": _serialize_model(defaults),
-        "preferences": _get_preferences(),
+        "preferences": preferences,
         "formats": ["auto", "summary", "daily", "technical", "formal", "brainstorm"],
     }
 
@@ -985,13 +992,17 @@ def get_preferences() -> dict[str, Any]:
 
 @app.put("/api/preferences")
 def save_preferences(request: PreferencesRequest) -> dict[str, Any]:
+    global SESSION_ROOT
     _initialize_persistence()
+    requested_session_root = resolve_session_root(PROJECT_ROOT, request.ui.session_root or None)
+    request.ui.session_root = str(requested_session_root)
     result = {"settings": _serialize_model(request.settings), "ui": _serialize_model(request.ui)}
     assert PREFERENCES_STORE is not None
     try:
         PREFERENCES_STORE.save(result)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Impossible d'enregistrer les préférences dans SQLite : {exc}") from exc
+    SESSION_ROOT = requested_session_root
     return result
 
 

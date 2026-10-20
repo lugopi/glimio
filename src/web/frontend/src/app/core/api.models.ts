@@ -29,6 +29,8 @@ export interface GlimioSettings {
 
 export interface UiPreferences {
   theme: ThemeName;
+  language: 'fr' | 'en';
+  session_root: string;
   microphone: string;
   output: string;
   capture_microphone: boolean;

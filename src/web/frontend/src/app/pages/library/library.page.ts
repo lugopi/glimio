@@ -383,7 +383,8 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   dateLabel(value?: string, fallback = ''): string {
     if (!value) return fallback;
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('fr-CH', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+    const locale = document.documentElement.lang === 'en' ? 'en-CH' : 'fr-CH';
+    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
   }
   audioUrl(id: string, filename: string): string { return `/api/sessions/${encodeURIComponent(id)}/audio/${encodeURIComponent(filename)}`; }
 }
