@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -17,6 +18,7 @@ def import_audio_file(
     ffmpeg: str = "ffmpeg",
     normalize: bool = True,
     max_gain_db: float = 30.0,
+    cancel_event: threading.Event | None = None,
 ) -> Path:
     """Convert a source to mono PCM WAV, optionally normalize it, and persist metadata."""
     if not 0.0 <= float(max_gain_db) <= 30.0:
@@ -52,7 +54,25 @@ def import_audio_file(
         "-c:a", "pcm_s16le", str(output),
     ]
     try:
-        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+        process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            encoding="utf-8", errors="replace",
+        )
+        while True:
+            if cancel_event is not None and cancel_event.is_set():
+                process.terminate()
+                try:
+                    process.communicate(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.communicate()
+                raise RuntimeError("Import annulé.")
+            try:
+                stdout, stderr = process.communicate(timeout=0.25)
+                result = subprocess.CompletedProcess(command, process.returncode or 0, stdout, stderr)
+                break
+            except subprocess.TimeoutExpired:
+                continue
         if result.returncode != 0 or not output.is_file() or output.stat().st_size <= 44:
             detail = (result.stderr or result.stdout or "aucune piste audio exploitable").strip()
             raise RuntimeError(f"Impossible de convertir le fichier avec FFmpeg : {detail[-3000:]}")

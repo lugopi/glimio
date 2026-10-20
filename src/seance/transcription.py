@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
+import wave
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +16,9 @@ from .common import log
 from .layout import ensure_session_layout, get_audio_path, transcript_output_path
 from .sessions import resolve_session
 from .runtime import AI_ENGINE_LOCK
+
+TRANSCRIPTION_CHUNK_SECONDS = 15 * 60
+TRANSCRIPTION_CHUNK_OVERLAP_SECONDS = 10
 
 
 def _status(args: argparse.Namespace, message: str) -> None:
@@ -105,17 +111,95 @@ def _stamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
-def _run_command(command: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
+def _srt_stamp(seconds: float) -> str:
+    milliseconds = max(0, round(seconds * 1000))
+    hours, remainder = divmod(milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    whole_seconds, milliseconds = divmod(remainder, 1000)
+    return f"{hours:02d}:{minutes:02d}:{whole_seconds:02d},{milliseconds:03d}"
+
+
+def _audio_duration(path: Path) -> float | None:
+    try:
+        with wave.open(str(path), "rb") as source:
+            rate = source.getframerate()
+            return source.getnframes() / rate if rate > 0 else None
+    except (OSError, wave.Error, EOFError):
+        return None
+
+
+def _extract_chunk(source: Path, target: Path, start: float, end: float, ffmpeg: str,
+                   cancel_event: Any = None) -> None:
+    command = [
+        ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-ss", f"{start:.3f}",
+        "-i", str(source), "-t", f"{max(0.1, end - start):.3f}", "-c", "copy", str(target),
+    ]
+    try:
+        result = _run_cancellable_command(command, cwd=source.parent, cancel_event=cancel_event)
+    except OSError as exc:
+        raise SystemExit(f"Could not extract an audio chunk with {ffmpeg}: {exc}") from exc
+    if result.returncode != 0 or not target.is_file() or target.stat().st_size == 0:
+        detail = result.stderr.strip()[-2000:]
+        raise SystemExit(f"Could not extract audio chunk from {source.name}: {detail or result.returncode}")
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(text.rstrip() + "\n", encoding="utf-8")
+        temporary.replace(path)
+    except OSError as exc:
+        raise SystemExit(f"Could not write {path}: {exc}") from exc
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _render_transcript(segments: list[dict[str, Any]], *, in_progress: bool = False) -> str:
+    lines = [
+        "# Transcription audio", "",
+        "Les étiquettes indiquent la piste source (Micro, Audio Windows ou Audio importé), pas nécessairement l'identité des personnes. Cette version ne réalise pas de diarisation automatique.", "",
+    ]
+    if in_progress:
+        lines.extend(["> Transcription partielle, actualisée après chaque segment audio traité.", ""])
+    for item in segments:
+        lines.append(
+            f"[{_stamp(item['start'])}–{_stamp(item['end'])}] "
+            f"**{item['speaker']}**: {item['text']}"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _run_cancellable_command(command: list[str], *, cwd: Path, cancel_event: Any = None) -> subprocess.CompletedProcess[str]:
+    if cancel_event is not None and cancel_event.is_set():
+        raise SystemExit("Traitement annulé.")
+    process = subprocess.Popen(
+        command, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, encoding="utf-8", errors="replace",
+    )
+    while True:
+        if cancel_event is not None and cancel_event.is_set():
+            process.terminate()
+            try:
+                process.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
+            raise SystemExit("Traitement annulé.")
+        try:
+            stdout, stderr = process.communicate(timeout=0.25)
+            return subprocess.CompletedProcess(command, process.returncode or 0, stdout, stderr)
+        except subprocess.TimeoutExpired:
+            continue
+
+
+def _run_command(command: list[str], *, cwd: Path, cancel_event: Any = None) -> subprocess.CompletedProcess[str]:
     log(f"Waiting for the local AI engine slot: {Path(command[0]).name}")
     try:
         # Share the same process-local slot with llama.cpp. This prevents Whisper and
         # LLM model processes from competing for memory/CPU while still allowing capture.
         with AI_ENGINE_LOCK:
             log(f"Running: {Path(command[0]).name}")
-            result = subprocess.run(
-                command, cwd=str(cwd), capture_output=True, text=True,
-                encoding="utf-8", errors="replace", check=False,
-            )
+            result = _run_cancellable_command(command, cwd=cwd, cancel_event=cancel_event)
     except OSError as exc:
         raise SystemExit(f"Could not run {command[0]}: {exc}") from exc
 
@@ -177,7 +261,11 @@ def transcribe(args: argparse.Namespace) -> None:
     except (OSError, ValueError, TypeError):
         metadata_sources = {}
     tracks = [path for path in list_audio_paths(folder) if path.name not in disabled_tracks]
+    (transcript_dir / "transcription_en_cours.md").unlink(missing_ok=True)
     for audio_path in tracks:
+        cancel_event = getattr(args, "_cancel_event", None)
+        if cancel_event is not None and cancel_event.is_set():
+            raise SystemExit("Traitement annulé.")
         filename = audio_path.name
         source_meta = metadata_sources.get(filename, {})
         if source_meta.get("name"):
@@ -191,25 +279,71 @@ def transcribe(args: argparse.Namespace) -> None:
         else:
             source_name = filename[:-4].replace("-", " ").replace("_", " ").title()
         tracks_found += 1
-        _status(args, f"Whisper · transcription de {filename}…")
-        srt_path = transcript_dir / f"{audio_path.stem}.srt"
-        output_base = transcript_dir / audio_path.stem
-        command = [
-            str(executable), "-m", str(model_path), "-f", str(audio_path),
-            "-l", args.language, "-osrt", "-of", str(output_base),
-            "-t", str(args.threads), "-bs", "1", "-bo", "1",
-        ]
-        if args.openvino_device:
-            command.extend(["--ov-e-device", args.openvino_device])
-        srt_path.unlink(missing_ok=True)
-        log(f"Transcribing {filename}...")
-        _run_command(command, cwd=folder)
-        if not srt_path.is_file():
-            raise SystemExit(f"Expected SRT file was not created: {srt_path}")
-        segments = _read_srt(srt_path, source_name)
-        log(f"Read {len(segments)} segments from {filename}.")
-        all_segments.extend(segments)
-        _status(args, f"Whisper · {filename} terminé ({len(segments)} segments)")
+        duration = _audio_duration(audio_path)
+        if duration is not None and duration > TRANSCRIPTION_CHUNK_SECONDS:
+            chunk_ranges = []
+            chunk_count = (int(duration) + TRANSCRIPTION_CHUNK_SECONDS - 1) // TRANSCRIPTION_CHUNK_SECONDS
+            for chunk_index in range(chunk_count):
+                logical_start = chunk_index * TRANSCRIPTION_CHUNK_SECONDS
+                logical_end = min(duration, logical_start + TRANSCRIPTION_CHUNK_SECONDS)
+                media_start = max(0.0, logical_start - TRANSCRIPTION_CHUNK_OVERLAP_SECONDS)
+                media_end = min(duration, logical_end + TRANSCRIPTION_CHUNK_OVERLAP_SECONDS)
+                chunk_ranges.append((chunk_index, chunk_count, logical_start, logical_end, media_start, media_end))
+        else:
+            chunk_ranges = [(0, 1, 0.0, duration or 0.0, 0.0, duration or 0.0)]
+
+        _status(args, f"Whisper · transcription de {filename} en {len(chunk_ranges)} segment(s)…")
+        track_segments: list[dict[str, Any]] = []
+        with tempfile.TemporaryDirectory(prefix="glimio-transcript-", dir=transcript_dir) as temp_dir:
+            temp_path = Path(temp_dir)
+            for chunk_index, chunk_count, logical_start, logical_end, media_start, media_end in chunk_ranges:
+                source_path = audio_path
+                if chunk_count > 1:
+                    source_path = temp_path / f"audio_{chunk_index + 1:04d}.wav"
+                    _extract_chunk(audio_path, source_path, media_start, media_end, str(getattr(args, "ffmpeg", "ffmpeg")), cancel_event)
+                output_base = temp_path / f"{audio_path.stem}_{chunk_index + 1:04d}"
+                srt_path = output_base.with_suffix(".srt")
+                command = [
+                    str(executable), "-m", str(model_path), "-f", str(source_path),
+                    "-l", args.language, "-osrt", "-of", str(output_base),
+                    # Prefer more robust decoding over greedy speed, especially on long
+                    # recordings where a bad phrase can otherwise reinforce later windows.
+                    "-t", str(args.threads), "-bs", "5", "-mc", "512",
+                ]
+                if args.openvino_device:
+                    command.extend(["--ov-e-device", args.openvino_device])
+                _status(args, f"Whisper · {filename} · segment {chunk_index + 1}/{chunk_count}…")
+                log(f"Transcribing {filename}, segment {chunk_index + 1}/{chunk_count}...")
+                _run_command(command, cwd=folder, cancel_event=cancel_event)
+                if not srt_path.is_file():
+                    raise SystemExit(f"Expected SRT file was not created: {srt_path}")
+                segments = _read_srt(srt_path, source_name)
+                for item in segments:
+                    item["start"] += media_start
+                    item["end"] += media_start
+                # Adjacent chunks include a short overlap. Keep each recognized segment
+                # only in the chunk containing its midpoint to avoid duplicate speech.
+                if chunk_count > 1:
+                    segments = [
+                        item for item in segments
+                        if logical_start <= (item["start"] + item["end"]) / 2 < logical_end
+                    ]
+                all_segments.extend(segments)
+                track_segments.extend(segments)
+                all_segments.sort(key=lambda item: (item["start"], item["end"]))
+                track_segments.sort(key=lambda item: (item["start"], item["end"]))
+                log(f"Read {len(segments)} segments from {filename} segment {chunk_index + 1}/{chunk_count}.")
+                if all_segments:
+                    _atomic_write_text(transcript_dir / "transcription_en_cours.md", _render_transcript(all_segments, in_progress=True))
+        srt_lines: list[str] = []
+        for index, item in enumerate(track_segments, start=1):
+            srt_lines.extend([
+                str(index),
+                f"{_srt_stamp(item['start'])} --> {_srt_stamp(item['end'])}",
+                str(item["text"]),
+                "",
+            ])
+        _atomic_write_text(transcript_dir / f"{audio_path.stem}.srt", "\n".join(srt_lines))
 
     if tracks_found == 0:
         raise SystemExit(f"No supported audio track found in {folder}.")
@@ -223,17 +357,9 @@ def transcribe(args: argparse.Namespace) -> None:
         json.dumps({"language": args.language, "language_mode": "automatic" if str(args.language).casefold() == "auto" else "forced", "segments": all_segments}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    lines = [
-        "# Transcription audio", "",
-        "Les étiquettes indiquent la piste source (Micro, Audio Windows ou Audio importé), pas nécessairement l'identité des personnes. Cette version ne réalise pas de diarisation automatique.", "",
-    ]
-    for item in all_segments:
-        lines.append(
-            f"[{_stamp(item['start'])}–{_stamp(item['end'])}] "
-            f"**{item['speaker']}**: {item['text']}"
-        )
     markdown_path = transcript_output_path(folder, "transcription.md")
-    markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _atomic_write_text(markdown_path, _render_transcript(all_segments))
+    (transcript_dir / "transcription_en_cours.md").unlink(missing_ok=True)
     # Fresh transcription invalidates diarization from an older transcript.
     transcript_output_path(folder, "speaker_diarization.json").unlink(missing_ok=True)
     log(f"Transcript created: {markdown_path}")

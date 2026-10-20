@@ -25,3 +25,7 @@
   --font-sans: var(--font-ui);
   --font-mono: var(--font-code);
 }
+
+@theme {
+  --breakpoint-xs: 24rem;
+}

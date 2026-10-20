@@ -20,7 +20,7 @@
 :host .search-source-pagination-footer glimio-pagination { @apply min-w-0 flex-1; }
 :host .search-answer-markdown { @apply mt-0 rounded-none border-0 bg-transparent p-0; }
 :host .search-answer-markdown > :first-child { @apply mt-0; }
-@media (max-width: 600px) {
+@media (width < theme(--breakpoint-sm)) {
   :host .search-source-card { @apply px-3 py-3; }
   :host .search-source-footer { @apply items-start; }
   :host .source-open { @apply ml-auto; }

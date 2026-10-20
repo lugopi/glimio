@@ -15,7 +15,7 @@
 .pagination-page[aria-current="page"] { outline: 1px solid color-mix(in srgb, var(--c-accent) 35%, transparent); outline-offset: 1px; }
 .pagination-arrow:focus-visible, .pagination-page:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
 .pagination-ellipsis { @apply inline-flex min-h-9 min-w-4 items-center justify-center text-muted; }
-@media (max-width: 520px) {
+@media (width < theme(--breakpoint-sm)) {
   .pagination { @apply gap-2; }
   .pagination-summary { @apply text-[0.6875rem]; }
   .pagination-controls { @apply flex-1 gap-0.5; }

@@ -1,8 +1,8 @@
 @reference '../../styles/tailwind-ref.scss';
 
 :host { @apply block min-w-0; }
-.checkbox-field { @apply grid min-w-0 content-start; }
-.checkbox-field-heading { @apply mb-2 w-fit cursor-pointer appearance-none border-0 bg-transparent p-0 text-left font-sans text-[0.8125rem] font-semibold text-muted; }
+.checkbox-field { @apply grid min-w-0 content-start gap-0; }
+.checkbox-field-heading { @apply m-0 mb-2 w-fit cursor-pointer appearance-none border-0 bg-transparent p-0 text-left font-sans text-[0.8125rem] font-semibold leading-normal text-muted; }
 .checkbox-field-control { @apply flex min-w-0 cursor-pointer items-start gap-2.5; }
 .checkbox-field-control:hover { @apply border-accent; }
 .checkbox-field-control:focus-within { @apply border-accent; box-shadow: 0 0 0 3px var(--c-accent-soft); }

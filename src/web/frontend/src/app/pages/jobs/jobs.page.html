@@ -1,0 +1,44 @@
+<section class="view is-active" aria-labelledby="jobs-page-title">
+  <div class="page-heading jobs-page-heading">
+    <div>
+      <div class="eyebrow">SUIVI DES TRAITEMENTS</div>
+      <h1 id="jobs-page-title">Traitements en cours</h1>
+      <p class="subheading">Consultez les tâches actives et en attente. Vous pouvez annuler un traitement qui semble bloqué.</p>
+    </div>
+    <button class="btn btn--secondary btn--icon jobs-page-refresh" type="button" aria-label="Actualiser les traitements" title="Actualiser" (click)="refresh()"><glimio-icon name="arrow-path" /></button>
+  </div>
+
+  <section class="card jobs-page-panel" aria-label="File de traitement">
+    @if (response(); as data) {
+      <div class="queue-overview">
+        <strong>File de traitement</strong>
+        <span>{{ jobs().length }} tâche(s) active(s) · {{ data.queue?.waiting ?? 0 }} en attente</span>
+        <span>Les modèles sont exécutés séquentiellement.</span>
+      </div>
+    }
+    @if (loadingError()) { <p class="jobs-page-error" role="alert">{{ loadingError() }}</p> }
+    <div class="jobs-list">
+      @for (job of jobs(); track job.id) {
+        <article class="jobs-page-row">
+          <span class="job-icon"><glimio-icon [name]="job.state === 'running' ? 'sparkles' : 'clock'" /></span>
+          <span class="job-main">
+            <strong>{{ jobLabel(job) }}</strong>
+            @if (job.session_id) { <small>Séance · {{ job.session_id }}</small> }
+            <span class="job-progress-text">{{ job.message || job.phase }}</span>
+          </span>
+          <div class="jobs-page-actions">
+            <span class="job-state" [class.is-running]="job.state === 'running'" [class.is-stopping]="job.state === 'stopping'" [class.is-queued]="job.state === 'queued'">{{ stateLabel(job) }}</span>
+            @if (canCancel(job)) {
+              <button class="btn btn--danger btn--small jobs-page-cancel" type="button" [disabled]="cancelingIds().has(job.id)" (click)="cancel(job)">
+                <glimio-icon name="x-mark" /> {{ cancelingIds().has(job.id) ? 'Annulation…' : 'Annuler' }}
+              </button>
+            }
+          </div>
+        </article>
+      } @empty {
+        <div class="inline-empty">Aucun traitement en cours ou en attente.</div>
+      }
+    </div>
+    <p class="jobs-page-note">Une annulation active arrête le processus de transcription ou de génération en cours. Les fichiers déjà enregistrés restent disponibles.</p>
+  </section>
+</section>

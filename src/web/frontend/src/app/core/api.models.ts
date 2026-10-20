@@ -1,6 +1,6 @@
 export type ThemeName = 'dark' | 'light' | 'midnight' | 'forest' | 'dracula' | 'monokai';
-export type ViewName = 'recording' | 'library' | 'search' | 'settings';
-export type JobState = 'queued' | 'running' | 'stopping' | 'completed' | 'error';
+export type ViewName = 'recording' | 'jobs' | 'library' | 'search' | 'settings';
+export type JobState = 'queued' | 'running' | 'stopping' | 'completed' | 'cancelled' | 'error';
 export type JobAction = 'transcribe' | 'summarize' | 'process';
 
 export interface GlimioSettings {
@@ -29,6 +29,8 @@ export interface GlimioSettings {
 
 export interface UiPreferences {
   theme: ThemeName;
+  language: 'fr' | 'en';
+  session_root: string;
   microphone: string;
   output: string;
   capture_microphone: boolean;
@@ -114,6 +116,16 @@ export interface SessionPage {
 export interface SessionDetail extends SessionSummary {
   metadata?: Record<string, unknown>;
   files?: { summary: boolean; transcript: boolean; audio_tracks: string[]; analysis: boolean };
+}
+
+export interface SessionArtifact {
+  session_id: string;
+  kind: 'summary' | 'transcript';
+  filename: string;
+  revision: string;
+  unchanged?: boolean;
+  pending?: boolean;
+  content?: string;
 }
 
 export interface Job {

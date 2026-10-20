@@ -1,5 +1,5 @@
     <a class="skip-link" href="#main-content">Aller au contenu principal</a>
-    <div class="app-shell">
+    <div class="app-shell" [class.is-sidebar-collapsed]="sidebarCollapsed()">
       <aside class="sidebar" [class.is-nav-open]="mobileMenuOpen()" aria-label="Navigation de l'application">
         <div class="brand">
           <!-- Le logo est injecté en ligne : ses deux calques suivent currentColor ; la vague applique seulement une opacité. -->
@@ -13,26 +13,44 @@
         </div>
         <div class="side-label">ESPACE DE TRAVAIL</div>
         <nav class="nav-list" id="main-navigation" aria-label="Navigation principale">
-          <a class="nav-link" routerLink="/recording" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }" (click)="closeMobileMenu()">
-            <span class="nav-icon"><glimio-icon name="microphone" /></span><span>Enregistrement</span>
+          <a class="nav-link" aria-label="Enregistrement" title="Enregistrement" routerLink="/recording" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }" (click)="closeMobileMenu()">
+            <span class="nav-icon"><glimio-icon name="microphone" /></span><span class="nav-label">Enregistrement</span>
           </a>
-          <a class="nav-link" routerLink="/library" routerLinkActive="is-active" (click)="closeMobileMenu()">
-            <span class="nav-icon"><glimio-icon name="book-open" /></span><span>Bibliothèque</span><span class="nav-count">{{ libraryCount() }}</span>
+          <a class="nav-link" aria-label="Traitements" title="Traitements" routerLink="/jobs" routerLinkActive="is-active" (click)="closeMobileMenu()">
+            <span class="nav-icon"><glimio-icon name="clipboard-document" /></span><span class="nav-label">Traitements</span>
+            @if (activeJobsCount() > 0) { <span class="nav-count" [attr.aria-label]="activeJobsCount() + ' tâches en attente ou en cours'">{{ activeJobsCount() }}</span> }
           </a>
-          <a class="nav-link" routerLink="/search" routerLinkActive="is-active" (click)="closeMobileMenu()">
-            <span class="nav-icon"><glimio-icon name="magnifying-glass" /></span><span>Recherche intelligente</span>
+          <a class="nav-link" aria-label="Bibliothèque" title="Bibliothèque" routerLink="/library" routerLinkActive="is-active" (click)="closeMobileMenu()">
+            <span class="nav-icon"><glimio-icon name="book-open" /></span><span class="nav-label">Bibliothèque</span><span class="nav-count">{{ libraryCount() }}</span>
           </a>
-          <a class="nav-link" routerLink="/settings" routerLinkActive="is-active" (click)="closeMobileMenu()">
-            <span class="nav-icon"><glimio-icon name="cog-6-tooth" /></span><span>Paramètres</span>
+          <a class="nav-link" aria-label="Recherche intelligente" title="Recherche intelligente" routerLink="/search" routerLinkActive="is-active" (click)="closeMobileMenu()">
+            <span class="nav-icon"><glimio-icon name="magnifying-glass" /></span><span class="nav-label">Recherche intelligente</span>
           </a>
+          <a class="nav-link" aria-label="Paramètres" title="Paramètres" routerLink="/settings" routerLinkActive="is-active" (click)="closeMobileMenu()">
+            <span class="nav-icon"><glimio-icon name="cog-6-tooth" /></span><span class="nav-label">Paramètres</span>
+          </a>
+          <button class="nav-link nav-collapse-toggle" type="button" (click)="toggleSidebar()"
+            [attr.aria-label]="sidebarCollapsed() ? 'Développer le menu principal' : 'Réduire le menu principal'"
+            [attr.title]="sidebarCollapsed() ? 'Développer le menu principal' : 'Réduire le menu principal'">
+            <span class="nav-icon"><glimio-icon [name]="sidebarCollapsed() ? 'chevron-right' : 'chevron-left'" /></span>
+            <span class="nav-label">{{ sidebarCollapsed() ? 'Développer le menu' : 'Réduire le menu' }}</span>
+          </button>
         </nav>
         <div class="sidebar-bottom">
-          <div class="offline-indicator runtime-indicator" data-mode="local">
+          <div class="offline-indicator runtime-indicator" data-mode="local" aria-label="Traitement local" title="Traitement local — les modèles sont exécutés sur cet appareil.">
             <span class="pulse-dot" aria-hidden="true"></span>
             <div><strong>Traitement local</strong><small>Les modèles sont exécutés sur cet appareil.</small></div>
           </div>
           <div class="sidebar-path">
-            <div class="sidebar-path-heading"><small>DOSSIER DES SÉANCES</small><button class="path-copy-button" type="button" (click)="copySessionRoot()">Copier</button></div>
+            <div class="sidebar-path-heading">
+              <small>DOSSIER DES SÉANCES</small>
+              @if (sidebarCollapsed()) {
+                <span class="sidebar-path-compact-label">Séances</span>
+                <button class="path-copy-button path-copy-button--compact" type="button" (click)="copySessionRoot()" aria-label="Copier le chemin du dossier des séances" title="Copier le chemin du dossier des séances"><glimio-icon name="folder-open" size="fill" /></button>
+              } @else {
+                <button class="path-copy-button" type="button" (click)="copySessionRoot()" aria-label="Copier le chemin du dossier des séances" title="Copier le chemin du dossier des séances"><glimio-icon name="square-2-stack" size="fill" /></button>
+              }
+            </div>
             <code [title]="preferences.sessionRoot()">{{ preferences.sessionRoot() }}</code>
           </div>
         </div>

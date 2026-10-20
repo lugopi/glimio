@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, throwError } from 'rxjs';
 import {
   AppConfig, AudioDevices, AudioSourceSelection, GlimioSettings, JobsResponse, JobAction, Job,
-  PreferencesPayload, SearchResult, SessionDetail, SessionPage,
+  PreferencesPayload, SearchResult, SessionArtifact, SessionDetail, SessionPage,
 } from './api.models';
 
 @Injectable({ providedIn: 'root' })
@@ -39,8 +39,9 @@ export class ApiService {
     return this.get<SessionDetail>(`/api/sessions/${encodeURIComponent(id)}`);
   }
 
-  sessionArtifact(id: string, kind: 'summary' | 'transcript'): Observable<{ content: string }> {
-    return this.get<{ content: string }>(`/api/sessions/${encodeURIComponent(id)}/${kind}`);
+  sessionArtifact(id: string, kind: 'summary' | 'transcript', revision?: string | null): Observable<SessionArtifact> {
+    const params = revision ? new HttpParams().set('revision', revision) : undefined;
+    return this.get<SessionArtifact>(`/api/sessions/${encodeURIComponent(id)}/${kind}`, params);
   }
 
   renameSession(id: string, title: string): Observable<SessionDetail> {
@@ -69,6 +70,10 @@ export class ApiService {
 
   jobs(): Observable<JobsResponse> {
     return this.get<JobsResponse>('/api/jobs');
+  }
+
+  cancelJob(id: string): Observable<Job> {
+    return this.http.post<Job>(`/api/jobs/${encodeURIComponent(id)}/cancel`, {}).pipe(catchError(this.normalizeError));
   }
 
   deleteJob(id: string): Observable<{ deleted: string }> {

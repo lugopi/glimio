@@ -30,7 +30,7 @@ from seance.llm import (
 
 from .project_paths import discover_project_root, resolve_session_root
 from .services.library import (
-    describe_session, list_sessions, list_sessions_page, read_artifact,
+    describe_session, list_sessions, list_sessions_page,
     resolve_session_folder, retrieve_passages, summary_path, transcript_path,
 )
 from .services.sqlite_db import SQLiteDatabase, database_path
@@ -326,6 +326,8 @@ class SearchRequest(BaseModel):
 
 class UIPreferences(BaseModel):
     theme: Literal["dark", "light", "midnight", "forest", "dracula", "monokai"] = "dark"
+    language: Literal["fr", "en"] = "fr"
+    session_root: str = Field(default="", max_length=2000)
     microphone: str = Field(default="", max_length=500)
     output: str = Field(default="", max_length=500)
     capture_microphone: bool = True
@@ -345,6 +347,7 @@ class PreferencesRequest(BaseModel):
 STATE_LOCK = threading.RLock()
 JOBS: dict[str, dict[str, Any]] = {}
 STOP_EVENTS: dict[str, threading.Event] = {}
+CANCEL_EVENTS: dict[str, threading.Event] = {}
 # Only the audio capture is exclusive. Model work is handled by one serial queue,
 # so Whisper/llama.cpp never overlap each other but can run while a new capture is live.
 ACTIVE_JOB_ID: str | None = None  # currently recording job (kept for API compatibility)
@@ -459,6 +462,7 @@ def _restore_persisted_jobs() -> None:
                         "message": "Reprise après redémarrage · en attente de traitement",
                         "started_at": None, "finished_at": None, "error": None,
                     })
+                    CANCEL_EVENTS[job_id] = threading.Event()
                     PROCESSING_QUEUE_IDS.append(job_id)
                 except Exception as exc:
                     job.update({
@@ -530,6 +534,7 @@ def _initialize_persistence() -> None:
         db.initialize()
         JOB_STORE = JobStore(db)
         PREFERENCES_STORE = PreferencesStore(db)
+        _get_preferences()  # Apply a saved session output directory before job recovery.
         _restore_persisted_jobs()
 
 
@@ -538,6 +543,7 @@ def _default_preferences() -> dict[str, Any]:
 
 
 def _get_preferences() -> dict[str, Any]:
+    global SESSION_ROOT
     _initialize_persistence()
     saved = PREFERENCES_STORE.get() if PREFERENCES_STORE else None
     if not saved:
@@ -560,6 +566,8 @@ def _get_preferences() -> dict[str, Any]:
                 saved_settings[key] = new_path
         settings = Settings(**saved_settings)
         ui = UIPreferences(**(saved.get("ui") or {}))
+        SESSION_ROOT = resolve_session_root(PROJECT_ROOT, ui.session_root or None)
+        ui.session_root = str(SESSION_ROOT)
     except Exception as exc:
         print(f"[preferences] Ignoring invalid saved preferences: {exc}", flush=True)
         return defaults
@@ -578,6 +586,8 @@ def _active_job() -> dict[str, Any] | None:
 def _set_job(job_id: str, **updates: Any) -> None:
     with STATE_LOCK:
         if job_id in JOBS:
+            if JOBS[job_id].get("state") == "stopping" and updates.get("state") == "running":
+                updates.pop("state", None)
             JOBS[job_id].update(updates)
             JOBS[job_id]["updated_at"] = _now()
             _persist_job_locked(JOBS[job_id])
@@ -594,6 +604,7 @@ def _prune_job_history_locked() -> None:
             continue
         JOBS.pop(old_id, None)
         STOP_EVENTS.pop(old_id, None)
+        CANCEL_EVENTS.pop(old_id, None)
         if JOB_STORE is not None:
             try:
                 JOB_STORE.delete(old_id)
@@ -645,8 +656,11 @@ def _processing_queue_loop() -> None:
                 current = JOBS.get(job_id)
                 if current and current.get("state") in {"running", "stopping"}:
                     last_message = current.get("message") or "Traitement terminé"
+                    cancelled = CANCEL_EVENTS.get(job_id) is not None and CANCEL_EVENTS[job_id].is_set()
                     current.update({
-                        "state": "completed", "phase": "completed", "message": last_message,
+                        "state": "cancelled" if cancelled else "completed",
+                        "phase": "cancelled" if cancelled else "completed",
+                        "message": "Traitement annulé" if cancelled else last_message,
                         "finished_at": _now(), "updated_at": _now(), "queue_position": None,
                     })
                     _persist_job_locked(current)
@@ -655,13 +669,18 @@ def _processing_queue_loop() -> None:
             with STATE_LOCK:
                 current = JOBS.get(job_id)
                 if current:
+                    cancelled = CANCEL_EVENTS.get(job_id) is not None and CANCEL_EVENTS[job_id].is_set()
                     current.update({
-                        "state": "error", "phase": "error", "message": "Échec", "error": detail,
+                        "state": "cancelled" if cancelled else "error",
+                        "phase": "cancelled" if cancelled else "error",
+                        "message": "Traitement annulé" if cancelled else "Échec",
+                        "error": None if cancelled else detail,
                         "finished_at": _now(), "updated_at": _now(), "queue_position": None,
                     })
                     _persist_job_locked(current)
         finally:
             with STATE_LOCK:
+                CANCEL_EVENTS.pop(job_id, None)
                 if PROCESSING_JOB_ID == job_id:
                     PROCESSING_JOB_ID = None
                 _prune_job_history_locked()
@@ -697,11 +716,13 @@ def _enqueue_job(
     }
     with STATE_LOCK:
         JOBS[job_id] = job
+        CANCEL_EVENTS[job_id] = threading.Event()
         PROCESSING_QUEUE_IDS.append(job_id)
         try:
             _persist_job_locked(job, strict=True)
         except Exception as exc:
             JOBS.pop(job_id, None)
+            CANCEL_EVENTS.pop(job_id, None)
             PROCESSING_QUEUE_IDS.remove(job_id)
             raise HTTPException(status_code=503, detail=f"Impossible de sauvegarder la tâche dans SQLite : {exc}") from exc
         _refresh_queue_positions_locked()
@@ -818,7 +839,9 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
 
     def publish(message: str) -> None:
         folded = message.casefold()
-        if "whisper" in folded or "transcription" in folded:
+        if "réutilisation du texte" in folded:
+            phase = "processing"
+        elif "whisper" in folded or "transcription" in folded:
             phase = "transcribing"
         elif "llm" in folded or "résumé" in folded or "synthèse" in folded:
             phase = "summarizing"
@@ -827,6 +850,8 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
         _set_job(job_id, session_id=folder.name, state="running", phase=phase, message=message)
 
     args = settings.namespace(folder=str(folder))
+    cancel_event = CANCEL_EVENTS.get(job_id)
+    args._cancel_event = cancel_event
 
     def mark_outputs_current(*, transcript: bool = False, summary: bool = False) -> None:
         metadata = _read_session_metadata(folder)
@@ -915,6 +940,7 @@ def _run_import_job(job_id: str) -> None:
             ffmpeg=_program_path(settings.ffmpeg),
             normalize=normalize_audio,
             max_gain_db=normalize_max_gain_db,
+            cancel_event=CANCEL_EVENTS.get(job_id),
         )
         _save_session_processing_settings(folder, settings)
         # Persist the destination session before deleting the temporary upload. If the
@@ -965,6 +991,7 @@ def health() -> dict[str, Any]:
 
 @app.get("/api/config")
 def config() -> dict[str, Any]:
+    preferences = _get_preferences()
     defaults = Settings()
     return {
         "session_root": str(SESSION_ROOT),
@@ -973,7 +1000,7 @@ def config() -> dict[str, Any]:
         "processing_mode": "local",
         "offline_local_mode": True,
         "defaults": _serialize_model(defaults),
-        "preferences": _get_preferences(),
+        "preferences": preferences,
         "formats": ["auto", "summary", "daily", "technical", "formal", "brainstorm"],
     }
 
@@ -985,13 +1012,17 @@ def get_preferences() -> dict[str, Any]:
 
 @app.put("/api/preferences")
 def save_preferences(request: PreferencesRequest) -> dict[str, Any]:
+    global SESSION_ROOT
     _initialize_persistence()
+    requested_session_root = resolve_session_root(PROJECT_ROOT, request.ui.session_root or None)
+    request.ui.session_root = str(requested_session_root)
     result = {"settings": _serialize_model(request.settings), "ui": _serialize_model(request.ui)}
     assert PREFERENCES_STORE is not None
     try:
         PREFERENCES_STORE.save(result)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Impossible d'enregistrer les préférences dans SQLite : {exc}") from exc
+    SESSION_ROOT = requested_session_root
     return result
 
 
@@ -1051,6 +1082,32 @@ def _decorate_session_processing(item: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
+def _active_session_artifact_job(session_id: str, kind: str) -> dict[str, Any] | None:
+    """Return the active job that is currently replacing a session artifact."""
+    expected_phase = {"transcript": "transcribing", "summary": "summarizing"}.get(kind)
+    if expected_phase is None:
+        return None
+    with STATE_LOCK:
+        active = [
+            job.copy()
+            for job in JOBS.values()
+            if job.get("session_id") == session_id
+            and job.get("state") in {"running", "stopping"}
+            and job.get("phase") == expected_phase
+        ]
+    if not active:
+        return None
+    return max(active, key=lambda job: job.get("updated_at") or "")
+
+
+def _live_session_artifact(folder: Path, session_id: str, kind: str) -> Path | None:
+    """Return an in-progress document only while its matching job stage is active."""
+    if not _active_session_artifact_job(session_id, kind):
+        return None
+    preview = folder / ("transcript/transcription_en_cours.md" if kind == "transcript" else "summary/resume_audio_en_cours.md")
+    return preview if preview.is_file() else None
+
+
 @app.get("/api/sessions")
 def sessions(q: str = "", filter_by: str = "all", limit: str = "25", offset: int = 0) -> dict[str, Any]:
     if filter_by not in {"all", "summary", "transcript", "audio"}:
@@ -1102,6 +1159,12 @@ def session_detail(session_id: str) -> dict[str, Any]:
         pass
     item["metadata"] = metadata
     _decorate_session_processing(item)
+    processing = item.get("processing") or {}
+    if processing.get("active"):
+        if processing.get("phase") == "transcribing" and _live_session_artifact(folder, session_id, "transcript"):
+            item["transcript"] = True
+        if processing.get("phase") == "summarizing" and _live_session_artifact(folder, session_id, "summary"):
+            item["summary"] = True
     item["files"] = {
         "summary": item["summary"],
         "transcript": item["transcript"],
@@ -1412,11 +1475,43 @@ def session_audio(session_id: str, filename: str, request: Request):
 
 
 @app.get("/api/sessions/{session_id}/{kind}")
-def session_artifact(session_id: str, kind: str) -> dict[str, str]:
+def session_artifact(session_id: str, kind: str, response: Response, revision: str | None = None) -> dict[str, Any]:
     if kind not in {"summary", "transcript"}:
         raise HTTPException(status_code=404, detail="Document inconnu.")
     try:
-        return read_artifact(SESSION_ROOT, session_id, kind)
+        folder = resolve_session_folder(SESSION_ROOT, session_id)
+        response.headers["Cache-Control"] = "no-store"
+        active_job = _active_session_artifact_job(session_id, kind)
+        live_path = _live_session_artifact(folder, session_id, kind)
+        if active_job and live_path is None:
+            # Never fall back to the previous completed file while its replacement
+            # is being prepared. Otherwise the detail pane can show stale content
+            # until the first live chunk is written.
+            return {
+                "session_id": session_id,
+                "kind": kind,
+                "filename": "",
+                "revision": f"pending:{active_job.get('id', '')}",
+                "pending": True,
+                "content": "",
+            }
+        path = live_path or (summary_path(folder) if kind == "summary" else transcript_path(folder))
+        if path is None:
+            raise FileNotFoundError(f"Aucun document {kind} trouvé pour cette séance.")
+        stat = path.stat()
+        current_revision = f"{stat.st_mtime_ns}:{stat.st_size}"
+        result: dict[str, Any] = {
+            "session_id": session_id,
+            "kind": kind,
+            "filename": path.name,
+            "revision": current_revision,
+        }
+        if revision == current_revision:
+            result["unchanged"] = True
+            return result
+        result["content"] = path.read_text(encoding="utf-8-sig", errors="replace")
+        result["unchanged"] = False
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
@@ -1428,9 +1523,11 @@ def jobs() -> dict[str, Any]:
     _initialize_persistence()
     with STATE_LOCK:
         records = sorted(JOBS.values(), key=lambda item: item["created_at"], reverse=True)
+        active_records = [item for item in records if item.get("state") in {"queued", "running", "stopping"}]
+        terminal_records = [item for item in records if item.get("state") not in {"queued", "running", "stopping"}]
         running = JOBS.get(PROCESSING_JOB_ID) if PROCESSING_JOB_ID else None
         return {
-            "items": [_job_public(item) for item in records[:100]],
+            "items": [_job_public(item) for item in [*active_records, *terminal_records[:100]]],
             "active": _job_public(JOBS[ACTIVE_JOB_ID]) if ACTIVE_JOB_ID and ACTIVE_JOB_ID in JOBS else None,
             "queue": {
                 "waiting": len(PROCESSING_QUEUE_IDS),
@@ -1457,10 +1554,47 @@ def clear_job_history() -> dict[str, int]:
                 continue
             JOBS.pop(job_id, None)
             STOP_EVENTS.pop(job_id, None)
+            CANCEL_EVENTS.pop(job_id, None)
             if JOB_STORE is not None:
                 JOB_STORE.delete(job_id)
             deleted += 1
     return {"deleted": deleted}
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: str) -> dict[str, Any]:
+    """Cancel queued model work or request a cooperative stop for a running job."""
+    _initialize_persistence()
+    with STATE_LOCK:
+        record = JOBS.get(job_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Tâche introuvable.")
+        if record.get("state") not in {"queued", "running", "stopping"}:
+            raise HTTPException(status_code=409, detail="Cette tâche est déjà terminée.")
+        if record.get("kind") == "recording":
+            stop_event = STOP_EVENTS.get(job_id)
+            if record.get("phase") != "recording" or stop_event is None:
+                raise HTTPException(status_code=409, detail="L’enregistrement est déjà en finalisation et ne peut plus être annulé.")
+            stop_event.set()
+            record.update({"state": "stopping", "phase": "finalizing", "message": "Arrêt demandé : finalisation des pistes WAV…", "updated_at": _now()})
+            _persist_job_locked(record)
+            return _job_public(record)
+
+        cancel_event = CANCEL_EVENTS.get(job_id)
+        if cancel_event is None:
+            cancel_event = threading.Event()
+            CANCEL_EVENTS[job_id] = cancel_event
+        cancel_event.set()
+        if record.get("state") == "queued":
+            if job_id in PROCESSING_QUEUE_IDS:
+                PROCESSING_QUEUE_IDS.remove(job_id)
+            record.update({"state": "cancelled", "phase": "cancelled", "message": "Traitement annulé avant le démarrage.", "finished_at": _now(), "updated_at": _now(), "queue_position": None})
+            _refresh_queue_positions_locked()
+            CANCEL_EVENTS.pop(job_id, None)
+        else:
+            record.update({"state": "stopping", "message": "Annulation demandée · arrêt du traitement en cours…", "updated_at": _now()})
+        _persist_job_locked(record)
+        return _job_public(record)
 
 
 @app.delete("/api/jobs/{job_id}")
@@ -1476,6 +1610,7 @@ def delete_job_history_item(job_id: str) -> dict[str, str]:
             raise HTTPException(status_code=409, detail="Impossible d’effacer une activité en cours ou en attente.")
         JOBS.pop(job_id, None)
         STOP_EVENTS.pop(job_id, None)
+        CANCEL_EVENTS.pop(job_id, None)
         if JOB_STORE is not None:
             JOB_STORE.delete(job_id)
     return {"deleted": job_id}

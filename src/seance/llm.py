@@ -12,11 +12,22 @@ import re
 import subprocess
 import threading
 import time
+from contextvars import ContextVar, Token
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable
 
 from .runtime import AI_ENGINE_LOCK, acquire_ai_engine
+
+_JOB_CANCEL_EVENT: ContextVar[threading.Event | None] = ContextVar("glimio_job_cancel_event", default=None)
+
+
+def set_job_cancel_event(event: threading.Event | None) -> Token[threading.Event | None]:
+    return _JOB_CANCEL_EVENT.set(event)
+
+
+def reset_job_cancel_event(token: Token[threading.Event | None]) -> None:
+    _JOB_CANCEL_EVENT.reset(token)
 
 
 class LLMError(RuntimeError):
@@ -302,6 +313,8 @@ def run_completion_once(
     By default there is no wall-clock timeout, preserving the CLI's former behaviour on
     slow CPU-only machines. Interactive Web searches pass an explicit bounded timeout.
     """
+    if cancel_event is None:
+        cancel_event = _JOB_CANCEL_EVENT.get()
     if cancel_event is not None and cancel_event.is_set():
         raise LLMCancelled("Génération annulée.")
     executable = Path(executable).expanduser().resolve()

@@ -1,8 +1,8 @@
-import { ChangeDetectionStrategy, Component, HostListener, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd } from '@angular/router';
-import { filter } from 'rxjs';
+import { Subscription, catchError, exhaustMap, filter, interval, of, startWith } from 'rxjs';
 import { PreferencesService } from './core/preferences.service';
 import { LibraryStateService } from './core/library-state.service';
 import { ToastService } from './core/toast.service';
@@ -18,17 +18,22 @@ import { ApiService } from './core/api.service';
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
 })
-export class AppComponent implements OnInit {
+export class AppComponent implements OnInit, OnDestroy {
   readonly preferences = inject(PreferencesService);
   readonly toasts = inject(ToastService);
   private readonly router = inject(Router);
   private readonly libraryState = inject(LibraryStateService);
   private readonly api = inject(ApiService);
   readonly mobileMenuOpen = signal(false);
+  private readonly compactViewportQuery = window.matchMedia('(width >= 48rem) and (width < 64rem)');
+  readonly sidebarCollapsed = signal(this.compactViewportQuery.matches);
+  private compactViewport = this.compactViewportQuery.matches;
   readonly currentPath = signal('/recording');
   readonly libraryCount = this.libraryState.total.asReadonly();
+  readonly activeJobsCount = signal(0);
   readonly theme = signal<ThemeName>('dark');
   readonly currentPage = signal('Enregistrement');
+  private jobsPolling?: Subscription;
 
   /**
    * Logo Glimio injecté en ligne : le calque principal et la vague utilisent
@@ -82,6 +87,13 @@ export class AppComponent implements OnInit {
       next: result => this.libraryState.total.set(result.count),
       error: () => { /* The library page retries when it opens. */ },
     });
+    this.jobsPolling = interval(2500).pipe(
+      startWith(0),
+      exhaustMap(() => this.api.jobs().pipe(catchError(() => of(null)))),
+    ).subscribe(response => {
+      if (!response) return;
+      this.activeJobsCount.set(response.items.filter(job => ['queued', 'running', 'stopping'].includes(job.state)).length);
+    });
     this.http.get('brand/glimio.svg', { responseType: 'text' })
       .subscribe({
         next: svg => this.rawBrandLogo.set(svg),
@@ -91,13 +103,23 @@ export class AppComponent implements OnInit {
     this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(event => {
       const url = (event as NavigationEnd).urlAfterRedirects.split('?')[0];
       this.currentPath.set(url);
-      this.currentPage.set(({ '/recording': 'Enregistrement', '/library': 'Bibliothèque', '/search': 'Recherche intelligente', '/settings': 'Paramètres' } as Record<string, string>)[url] ?? 'Enregistrement');
+      this.currentPage.set(({ '/recording': 'Enregistrement', '/jobs': 'Traitements', '/library': 'Bibliothèque', '/search': 'Recherche intelligente', '/settings': 'Paramètres' } as Record<string, string>)[url] ?? 'Enregistrement');
       this.closeMobileMenu();
     });
   }
 
+  ngOnDestroy(): void { this.jobsPolling?.unsubscribe(); }
+
   toggleMobileMenu(): void { this.mobileMenuOpen.update(open => !open); }
   closeMobileMenu(): void { this.mobileMenuOpen.set(false); }
+
+  toggleSidebar(): void { this.sidebarCollapsed.update(collapsed => !collapsed); }
+
+  @HostListener('window:resize') onWindowResize(): void {
+    const compact = this.compactViewportQuery.matches;
+    if (compact !== this.compactViewport) this.sidebarCollapsed.set(compact);
+    this.compactViewport = compact;
+  }
 
   @HostListener('document:keydown.escape') onEscape(): void { this.closeMobileMenu(); }
   @HostListener('document:click', ['$event']) onOutsideClick(event: MouseEvent): void {

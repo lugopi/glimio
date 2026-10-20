@@ -8,6 +8,8 @@
 :host {
   .settings-section > .card-title { @apply mb-2; }
   .settings-section > .card-description { @apply mb-4 max-w-[78ch]; }
+  .settings-subsection-title { @apply mb-3 mt-5 text-xs font-semibold text-muted; }
+  .settings-section > .settings-subsection-title:first-of-type { @apply mt-2; }
   .settings-grid > div,
   .settings-grid > label { @apply min-w-0; }
   .settings-grid .field-label { @apply mb-2; }
