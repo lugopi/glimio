@@ -118,6 +118,15 @@ export interface SessionDetail extends SessionSummary {
   files?: { summary: boolean; transcript: boolean; audio_tracks: string[]; analysis: boolean };
 }
 
+export interface SessionArtifact {
+  session_id: string;
+  kind: 'summary' | 'transcript';
+  filename: string;
+  revision: string;
+  unchanged?: boolean;
+  content?: string;
+}
+
 export interface Job {
   id: string;
   kind: string;

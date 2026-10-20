@@ -30,7 +30,7 @@ from seance.llm import (
 
 from .project_paths import discover_project_root, resolve_session_root
 from .services.library import (
-    describe_session, list_sessions, list_sessions_page, read_artifact,
+    describe_session, list_sessions, list_sessions_page,
     resolve_session_folder, retrieve_passages, summary_path, transcript_path,
 )
 from .services.sqlite_db import SQLiteDatabase, database_path
@@ -1062,6 +1062,24 @@ def _decorate_session_processing(item: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
+def _live_session_artifact(folder: Path, session_id: str, kind: str) -> Path | None:
+    """Return an in-progress document only while its matching job stage is active."""
+    expected_phase = {"transcript": "transcribing", "summary": "summarizing"}.get(kind)
+    if expected_phase is None:
+        return None
+    with STATE_LOCK:
+        active = any(
+            job.get("session_id") == session_id
+            and job.get("state") in {"running", "stopping"}
+            and job.get("phase") == expected_phase
+            for job in JOBS.values()
+        )
+    if not active:
+        return None
+    preview = folder / ("transcript/transcription_en_cours.md" if kind == "transcript" else "summary/resume_audio_en_cours.md")
+    return preview if preview.is_file() else None
+
+
 @app.get("/api/sessions")
 def sessions(q: str = "", filter_by: str = "all", limit: str = "25", offset: int = 0) -> dict[str, Any]:
     if filter_by not in {"all", "summary", "transcript", "audio"}:
@@ -1113,6 +1131,12 @@ def session_detail(session_id: str) -> dict[str, Any]:
         pass
     item["metadata"] = metadata
     _decorate_session_processing(item)
+    processing = item.get("processing") or {}
+    if processing.get("active"):
+        if processing.get("phase") == "transcribing" and _live_session_artifact(folder, session_id, "transcript"):
+            item["transcript"] = True
+        if processing.get("phase") == "summarizing" and _live_session_artifact(folder, session_id, "summary"):
+            item["summary"] = True
     item["files"] = {
         "summary": item["summary"],
         "transcript": item["transcript"],
@@ -1423,11 +1447,30 @@ def session_audio(session_id: str, filename: str, request: Request):
 
 
 @app.get("/api/sessions/{session_id}/{kind}")
-def session_artifact(session_id: str, kind: str) -> dict[str, str]:
+def session_artifact(session_id: str, kind: str, response: Response, revision: str | None = None) -> dict[str, Any]:
     if kind not in {"summary", "transcript"}:
         raise HTTPException(status_code=404, detail="Document inconnu.")
     try:
-        return read_artifact(SESSION_ROOT, session_id, kind)
+        folder = resolve_session_folder(SESSION_ROOT, session_id)
+        live_path = _live_session_artifact(folder, session_id, kind)
+        path = live_path or (summary_path(folder) if kind == "summary" else transcript_path(folder))
+        if path is None:
+            raise FileNotFoundError(f"Aucun document {kind} trouvé pour cette séance.")
+        stat = path.stat()
+        current_revision = f"{stat.st_mtime_ns}:{stat.st_size}"
+        response.headers["Cache-Control"] = "no-store"
+        result: dict[str, Any] = {
+            "session_id": session_id,
+            "kind": kind,
+            "filename": path.name,
+            "revision": current_revision,
+        }
+        if revision == current_revision:
+            result["unchanged"] = True
+            return result
+        result["content"] = path.read_text(encoding="utf-8-sig", errors="replace")
+        result["unchanged"] = False
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:

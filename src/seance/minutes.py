@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from pathlib import Path
 from collections.abc import Callable
@@ -313,6 +314,17 @@ def _write_text(path: Path, text: str) -> None:
         path.write_text(text.rstrip() + "\n", encoding="utf-8")
     except OSError as exc:
         raise SystemExit(f"Could not write {path}: {exc}") from exc
+
+
+def _write_text_atomic(path: Path, text: str) -> None:
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(text.rstrip() + "\n", encoding="utf-8")
+        temporary.replace(path)
+    except OSError as exc:
+        raise SystemExit(f"Could not write {path}: {exc}") from exc
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _prepare_note_bundles(analysis_groups: list[str], max_chars: int) -> list[str]:
@@ -719,6 +731,8 @@ def summarize(args: argparse.Namespace) -> None:
     analysis_parts_dir = layout["analysis"] / "parts"
     summary_dir = layout["summary"]
     compatibility_dir = summary_dir / "compatibility"
+    live_summary_path = summary_dir / "resume_audio_en_cours.md"
+    live_summary_path.unlink(missing_ok=True)
     transcript_path = _ensure_transcript(folder, args)
     _ensure_diarization(folder, args)
     transcript_path = get_transcript_path(folder)
@@ -853,6 +867,24 @@ pas encore le résumé final. Ne reprends pas dans tes notes les mentions de dé
     drafting_system = _draft_system_prompt()
     draft_sections: list[str] = []
     recursive_report_split = False
+
+    def write_live_draft() -> None:
+        sections = []
+        for section in draft_sections:
+            lines = section.strip().splitlines()
+            if lines and re.match(r"\s*#\s+", lines[0]) and not re.match(r"\s*##\s+", lines[0]):
+                lines = lines[1:]
+            cleaned = "\n".join(lines).strip()
+            if cleaned:
+                sections.append(cleaned)
+        if sections:
+            preview = (
+                f"# {_format_title(report_format)}\n\n"
+                "> Résumé provisoire, enrichi au fil du traitement.\n\n"
+                + "\n\n".join(sections)
+            )
+            _write_text_atomic(live_summary_path, preview)
+
     for bundle_index, notes_bundle in enumerate(note_bundles, start=1):
         is_multi_bundle = len(note_bundles) > 1
         def report_prompt(source_notes: str, is_partial: bool, *, fmt: str = report_format) -> str:
@@ -865,6 +897,7 @@ pas encore le résumé final. Ne reprends pas dans tes notes les mentions de dé
             min_split_chars=700, initial_partial=is_multi_bundle,
         )
         draft_sections.extend(section_outputs)
+        write_live_draft()
         recursive_report_split = recursive_report_split or split_used
         if len(note_bundles) > 1:
             log(f"Drafted note bundle {bundle_index}/{len(note_bundles)} into {len(section_outputs)} section(s).")
@@ -949,6 +982,7 @@ BROUILLON À RELIRE :
 
     output_path = summary_dir / "resume_audio.md"
     _write_text(output_path, final_text)
+    live_summary_path.unlink(missing_ok=True)
     compatibility_report = summary_output_path(folder, "compte_rendu.md", compatibility=True)
     compatibility_pv = summary_output_path(folder, "pv_brouillon.md", compatibility=True)
     _write_text(compatibility_report, final_text)

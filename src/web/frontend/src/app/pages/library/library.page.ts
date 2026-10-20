@@ -42,6 +42,10 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly artifactLoading = signal(false);
   readonly artifactHtml = computed(() => renderMarkdownToHtml(this.artifactContent()));
   private artifactRequest = 0;
+  private artifactRevision: string | null = null;
+  private artifactRefreshPending = false;
+  private liveArtifactPhaseKey = '';
+  private liveArtifactPhaseFollowed = false;
   query = '';
   filter = 'all';
   private searchTimer?: number;
@@ -107,6 +111,8 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
             const kind = this.artifactKind()!;
             if ((kind === 'summary' && detail.summary) || (kind === 'transcript' && detail.transcript)) this.loadArtifact(kind);
           }
+          this.followProcessingArtifact(detail);
+          if (detail.processing?.active && this.artifactKind()) this.refreshArtifact(this.artifactKind()!);
         }
       },
     });
@@ -172,9 +178,15 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   changePageSize(value: number): void { this.pageSize.set(Number(value)); this.page.set(1); this.loadSessions(); }
 
   openSession(id: string, showOnMobile = false): void {
+    if (this.selectedId() !== id) {
+      this.liveArtifactPhaseKey = '';
+      this.liveArtifactPhaseFollowed = false;
+    }
     this.selectedId.set(id);
     if (showOnMobile) this.mobileDetailOpen.set(true);
     this.artifactRequest++;
+    this.artifactRevision = null;
+    this.artifactRefreshPending = false;
     this.artifactKind.set(null);
     this.artifactTitle.set('');
     this.artifactContent.set('');
@@ -189,6 +201,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
         this.sessionSettings.set(fallback ? { ...fallback, ...(saved ?? {}) } : saved as GlimioSettings | null);
         const firstArtifact = detail.summary ? 'summary' : detail.transcript ? 'transcript' : null;
         if (firstArtifact) this.loadArtifact(firstArtifact);
+        this.followProcessingArtifact(detail);
       },
       error: error => { if (this.selectedId() === id) this.toast.show(error.message, 'error'); },
     });
@@ -237,6 +250,8 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   runJob(action: 'transcribe' | 'summarize' | 'process', force = false): void {
     const session = this.selected(); const settings = this.sessionSettings() ?? this.preferences.preferences()?.settings;
     if (!session || !settings) { this.toast.show('Les paramètres ne sont pas encore disponibles.', 'error'); return; }
+    this.liveArtifactPhaseKey = '';
+    this.liveArtifactPhaseFollowed = false;
     this.working.set(true);
     this.api.saveSessionSettings(session.id, settings).subscribe({
       next: () => this.api.startSessionJob(action, session.id, this.settingsForJob(settings), force).subscribe({
@@ -361,6 +376,8 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     const session = this.selected();
     if (!session || (kind === 'summary' && !session.summary) || (kind === 'transcript' && !session.transcript)) return;
     const request = ++this.artifactRequest;
+    this.artifactRevision = null;
+    this.artifactRefreshPending = false;
     this.artifactKind.set(kind);
     this.artifactTitle.set(kind === 'summary' ? 'Résumé' : 'Transcription');
     this.artifactContent.set('');
@@ -368,6 +385,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     this.api.sessionArtifact(session.id, kind).subscribe({
       next: result => {
         if (request !== this.artifactRequest || this.selectedId() !== session.id) return;
+        this.artifactRevision = result.revision;
         this.artifactContent.set(result.content ?? 'Contenu indisponible.');
         this.artifactLoading.set(false);
       },
@@ -377,6 +395,48 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
         this.toast.show(error.message, 'error');
       },
     });
+  }
+
+  private refreshArtifact(kind: 'summary' | 'transcript'): void {
+    const session = this.selected();
+    if (!session || !session.processing?.active || this.artifactLoading() || this.artifactRefreshPending) return;
+    const sessionId = session.id;
+    const request = this.artifactRequest;
+    this.artifactRefreshPending = true;
+    this.api.sessionArtifact(sessionId, kind, this.artifactRevision).subscribe({
+      next: result => {
+        if (request === this.artifactRequest && this.selectedId() === sessionId && this.artifactKind() === kind) {
+          this.artifactRevision = result.revision;
+          if (!result.unchanged && result.content !== undefined && result.content !== this.artifactContent()) {
+            this.artifactContent.set(result.content);
+          }
+        }
+        this.artifactRefreshPending = false;
+      },
+      error: () => { this.artifactRefreshPending = false; },
+    });
+  }
+
+  private followProcessingArtifact(session: SessionDetail): void {
+    const processing = session.processing;
+    if (!processing?.active) {
+      this.liveArtifactPhaseKey = '';
+      this.liveArtifactPhaseFollowed = false;
+      return;
+    }
+    const phaseKey = `${processing.job_id}:${processing.phase}`;
+    if (phaseKey !== this.liveArtifactPhaseKey) {
+      this.liveArtifactPhaseKey = phaseKey;
+      this.liveArtifactPhaseFollowed = false;
+    }
+    const kind = processing.phase === 'transcribing'
+      ? 'transcript'
+      : processing.phase === 'summarizing'
+        ? 'summary'
+        : null;
+    if (!kind || this.liveArtifactPhaseFollowed || !session[kind]) return;
+    this.liveArtifactPhaseFollowed = true;
+    if (this.artifactKind() !== kind) this.loadArtifact(kind);
   }
 
   durationLabel(value?: number | null): string {
