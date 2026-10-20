@@ -62,9 +62,9 @@
 :host .documents-empty > glimio-icon { @apply mt-0.5 shrink-0 text-accent; width: 20px; height: 20px; }
 :host .documents-empty strong { display: block; color: var(--c-text); }
 :host .documents-empty p { margin: .25rem 0 0; line-height: 1.6; }
-:host .session-card-top { @apply min-w-0 flex-row items-center gap-1.5; }
+:host .session-card-top { @apply min-w-0 gap-1.5; }
 :host .session-date { @apply shrink-0 whitespace-nowrap; }
-:host .session-markers { @apply min-w-0 flex-nowrap items-center justify-end gap-1; }
+:host .session-markers { @apply min-w-0 flex-wrap items-center gap-1; }
 :host .session-markers .badge { @apply inline-flex min-h-6 shrink-0 items-center justify-center gap-1; padding: 3px 5px; font-size: .6875rem; }
 :host .session-markers .badge > glimio-icon { display: inline-flex; flex: 0 0 12px; align-items: center; justify-content: center; width: 12px; height: 12px; min-width: 12px; min-height: 12px; }
 :host .session-markers .badge > glimio-icon .icon, :host .session-markers .badge > glimio-icon svg { display: block; flex: 0 0 12px; width: 12px; height: 12px; min-width: 12px; min-height: 12px; }

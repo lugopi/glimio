@@ -8,7 +8,7 @@
     <a class="btn btn--primary" routerLink="/recording"><glimio-icon name="microphone" /> Nouvelle séance</a>
   </div>
 
-  <section class="library-layout">
+  <section class="library-layout" [class.is-mobile-detail-open]="mobileDetailOpen()">
     <div class="card library-list-panel">
       <div class="library-toolbar">
         <label class="sr-only" for="library-query">Rechercher une séance</label>
@@ -22,7 +22,7 @@
       <div class="session-list">
         @for (session of pageItems(); track session.id) {
           <article class="session-card" [class.is-selected]="selectedId() === session.id">
-            <button class="session-card-select" [attr.aria-pressed]="selectedId() === session.id" type="button" (click)="openSession(session.id)" [attr.aria-label]="'Ouvrir la séance ' + session.title">
+            <button class="session-card-select" [attr.aria-pressed]="selectedId() === session.id" type="button" (click)="openSession(session.id, true)" [attr.aria-label]="'Ouvrir la séance ' + session.title">
               <span class="session-card-top">
                 <span class="session-date">{{ dateLabel(session.started_at, session.id) }}</span>
                 <span class="session-markers">
@@ -55,6 +55,9 @@
     </div>
 
     <article class="card session-detail-panel" id="session-detail">
+      <button class="library-detail-back btn btn--ghost btn--small" type="button" (click)="backToSessionList()">
+        <glimio-icon name="chevron-left" /> Toutes les séances
+      </button>
       @if (selected(); as session) {
         <header class="detail-header">
           <div class="detail-header-top">

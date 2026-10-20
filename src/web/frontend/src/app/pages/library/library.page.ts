@@ -31,6 +31,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly pageSize = signal(25);
   readonly selectedId = signal<string | null>(null);
   readonly selected = signal<SessionDetail | null>(null);
+  readonly mobileDetailOpen = signal(false);
   readonly working = signal(false);
   readonly sessionSettings = signal<GlimioSettings | null>(null);
   readonly formats = ['auto', 'summary', 'daily', 'technical', 'formal', 'brainstorm'];
@@ -156,7 +157,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
         const requestedId = this.pendingSessionId;
         this.pendingSessionId = null;
         const currentId = requestedId ?? this.selectedId();
-        if (requestedId) this.openSession(requestedId);
+        if (requestedId) this.openSession(requestedId, true);
         else if (currentId && result.items.some(item => item.id === currentId)) {
           if (this.selectedId() !== currentId || !this.selected()) this.openSession(currentId);
         }
@@ -170,8 +171,9 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   changePage(next: number): void { this.page.set(next); this.loadSessions(); }
   changePageSize(value: number): void { this.pageSize.set(Number(value)); this.page.set(1); this.loadSessions(); }
 
-  openSession(id: string): void {
+  openSession(id: string, showOnMobile = false): void {
     this.selectedId.set(id);
+    if (showOnMobile) this.mobileDetailOpen.set(true);
     this.artifactRequest++;
     this.artifactKind.set(null);
     this.artifactTitle.set('');
@@ -189,6 +191,13 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
         if (firstArtifact) this.loadArtifact(firstArtifact);
       },
       error: error => { if (this.selectedId() === id) this.toast.show(error.message, 'error'); },
+    });
+  }
+
+  backToSessionList(): void {
+    this.mobileDetailOpen.set(false);
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>('.session-card.is-selected')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   }
 

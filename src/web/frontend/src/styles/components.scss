@@ -133,7 +133,7 @@
   .session-card-select:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 3px; border-radius: 6px; }
   .session-card-top { @apply mb-2 flex items-center justify-between gap-[9px]; }
   .session-date { @apply font-mono text-[0.75rem] text-subtle; }
-  .session-markers { @apply flex flex-wrap gap-1; }
+  .session-markers { @apply flex flex-wrap justify-end gap-1; }
   .badge { @apply inline-flex items-center gap-[5px] rounded-md border border-border px-1.5 py-1 text-[0.75rem] whitespace-nowrap text-muted; }
   .badge--success { @apply text-success; border-color: color-mix(in srgb, var(--c-success) 30%, var(--c-border)); background: color-mix(in srgb, var(--c-success) 8%, transparent); }
   .badge--accent { @apply bg-accent-soft text-accent; border-color: color-mix(in srgb, var(--c-accent) 28%, var(--c-border)); }
@@ -1104,13 +1104,27 @@
 
 @layer components {
   .library-list-panel, .session-detail-panel { @apply @container; }
+  @container (width < theme(--container-sm)) {
+    .library-list-panel .library-toolbar { @apply flex-col items-stretch gap-2.5; }
+    .library-list-panel .library-toolbar .input,
+    .library-list-panel .library-toolbar .select { @apply w-full min-w-0; }
+  }
   @container (width < theme(--container-xl)) {
     .session-detail-panel .detail-header .detail-header-top { @apply flex-col items-stretch gap-3; }
-    .session-detail-panel .detail-header .detail-actions { @apply w-full justify-start; }
+    .session-detail-panel .detail-header .detail-actions { @apply w-full items-center justify-between gap-2; }
+    .session-detail-panel .detail-header .detail-process-button { @apply min-w-0 flex-1 whitespace-nowrap; }
+    .session-detail-panel .detail-header .session-actions-menu { @apply shrink-0; }
   }
   @container (width < theme(--container-md)) {
     .library-list-panel .session-card-select .session-card-top { @apply items-start flex-wrap; }
     .library-list-panel .session-card-select .session-date { @apply basis-full grow shrink-0; }
     .library-list-panel .session-card-select .session-markers { @apply w-full flex-wrap justify-start; }
+  }
+  .library-detail-back { @apply hidden; }
+  @media (width < theme(--breakpoint-md)) {
+    .library-layout:not(.is-mobile-detail-open) .session-detail-panel { @apply hidden; }
+    .library-layout.is-mobile-detail-open .library-list-panel { @apply hidden; }
+    .library-layout.is-mobile-detail-open .session-detail-panel { @apply block; }
+    .library-layout.is-mobile-detail-open .library-detail-back { @apply mb-4 inline-flex items-center gap-2; }
   }
 }
