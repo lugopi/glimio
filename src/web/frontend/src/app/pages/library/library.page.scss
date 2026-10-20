@@ -2,7 +2,7 @@
 
 :host { @apply block min-w-0; }
 :host .library-layout > * { @apply min-w-0; }
-:host .library-list-panel { @apply p-5; container-type: inline-size; }
+:host .library-list-panel { @apply p-5; }
 :host .session-processing-options {
   /* Align with adjacent detail sections: the outer panel owns the common horizontal gutter. */
   @apply border-t border-border-soft px-0 pb-1 pt-5;
@@ -29,6 +29,7 @@
 
 :host .detail-heading-copy { flex: 1 1 auto; min-width: 0; }
 :host .detail-heading-copy .card-title { margin: 4px 0 5px; overflow-wrap: anywhere; }
+:host .detail-heading-copy > .eyebrow { @apply whitespace-nowrap; }
 :host .detail-meta { margin: 0; }
 :host .detail-actions { flex: 0 0 auto; align-items: center; }
 :host .detail-process-button { min-height: 44px; white-space: nowrap; }
@@ -68,8 +69,7 @@
 :host .session-markers .badge > glimio-icon { display: inline-flex; flex: 0 0 12px; align-items: center; justify-content: center; width: 12px; height: 12px; min-width: 12px; min-height: 12px; }
 :host .session-markers .badge > glimio-icon .icon, :host .session-markers .badge > glimio-icon svg { display: block; flex: 0 0 12px; width: 12px; height: 12px; min-width: 12px; min-height: 12px; }
 
-
-@media (max-width: 640px) {
+@media (width < theme(--breakpoint-sm)) {
   :host .library-pagination-footer { @apply grid-cols-1; }
   :host .library-pagination-footer glimio-pagination { width: 100%; }
   :host .page-size-control { @apply justify-between; }
@@ -91,7 +91,7 @@
 :host .audio-track-disabled-label { display: block; color: var(--c-warning); font-size: .75rem; margin-top: 3px; }
 :host .audio-track.is-audio-track-disabled { opacity: .8; }
 :host .audio-track-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-@media (max-width: 600px) {
+@media (width < theme(--breakpoint-sm)) {
   :host .audio-stale-notice { flex-wrap: wrap; }
   :host .audio-stale-notice > .btn { width: 100%; }
   :host .audio-track-actions > .btn { flex: 1 1 auto; }
@@ -107,7 +107,7 @@
 :host .audio-track-actions-menu .session-actions-toggle { @apply size-9; }
 :host .audio-track-actions-menu .session-actions-icon glimio-icon { font-size: 20px; }
 :host .audio-track-actions-menu .session-actions-panel { @apply min-w-[12rem]; }
-@media (max-width: 600px) {
+@media (width < theme(--breakpoint-sm)) {
   :host .audio-track { @apply grid-cols-1; }
   :host .audio-track-title, :host .audio-track audio { grid-column: 1; }
   :host .audio-track-actions { grid-column: 1; justify-self: end; }

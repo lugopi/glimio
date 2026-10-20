@@ -18,6 +18,6 @@
   touch-action: manipulation;
 }
 
-@media (min-width: 851px) {
+@media (width >= theme(--breakpoint-md)) {
   .mobile-nav-toggle { display: none; }
 }

@@ -66,11 +66,11 @@
 :host .jobs-footer > .btn--danger { color: var(--c-danger); border-color: color-mix(in srgb, var(--c-danger) 40%, var(--c-border)); }
 :host .jobs-footer > .btn--danger:hover:not(:disabled) { background: var(--c-danger-soft); border-color: var(--c-danger); }
 
-@media (max-width: 760px) {
+@media (width < theme(--breakpoint-md)) {
   :host .source-add-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   :host .source-add-button { grid-column: 1 / -1; width: 100%; }
 }
-@media (max-width: 600px) {
+@media (width < theme(--breakpoint-sm)) {
   :host .source-add-row { grid-template-columns: minmax(0, 1fr); }
   :host .source-add-button { grid-column: auto; }
   :host .recording-live-row { flex-direction: column; }

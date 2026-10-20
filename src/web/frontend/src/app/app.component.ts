@@ -25,8 +25,9 @@ export class AppComponent implements OnInit {
   private readonly libraryState = inject(LibraryStateService);
   private readonly api = inject(ApiService);
   readonly mobileMenuOpen = signal(false);
-  readonly sidebarCollapsed = signal(window.innerWidth <= 1100 && window.innerWidth > 850);
-  private compactViewport = window.innerWidth <= 1100 && window.innerWidth > 850;
+  private readonly compactViewportQuery = window.matchMedia('(width >= 48rem) and (width < 64rem)');
+  readonly sidebarCollapsed = signal(this.compactViewportQuery.matches);
+  private compactViewport = this.compactViewportQuery.matches;
   readonly currentPath = signal('/recording');
   readonly libraryCount = this.libraryState.total.asReadonly();
   readonly theme = signal<ThemeName>('dark');
@@ -104,7 +105,7 @@ export class AppComponent implements OnInit {
   toggleSidebar(): void { this.sidebarCollapsed.update(collapsed => !collapsed); }
 
   @HostListener('window:resize') onWindowResize(): void {
-    const compact = window.innerWidth <= 1100 && window.innerWidth > 850;
+    const compact = this.compactViewportQuery.matches;
     if (compact !== this.compactViewport) this.sidebarCollapsed.set(compact);
     this.compactViewport = compact;
   }

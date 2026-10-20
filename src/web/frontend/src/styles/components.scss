@@ -339,13 +339,13 @@
 @keyframes shimmer { to { background-position: -200% 0; } }
 @keyframes toast-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 
-@media (max-width: 1200px) {
+@media (width < theme(--breakpoint-xl)) {
   .app-shell { grid-template-columns: 224px minmax(0, 1fr); }
   .sidebar { width: 224px; }
   .main-area { padding: 0 23px; }
   .control-grid { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 850px) {
+@media (width < theme(--breakpoint-md)) {
   .app-shell { display: block; }
   .main-area { @apply col-auto gap-0 pb-6; }
   .sidebar { position: sticky; inset: 0 0 auto; z-index: 30; width: 100%; height: auto; max-height: none; overflow: visible; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--c-border); }
@@ -376,7 +376,7 @@
   .detail-header-top { flex-direction: column; }
   .detail-actions { justify-content: flex-start; }
 }
-@media (max-width: 600px) {
+@media (width < theme(--breakpoint-sm)) {
   .topbar-right { gap: 6px; }
   .theme-select { max-width: 95px; }
   .language-select { width: 82px; max-width: 82px; padding: 7px 6px; }
@@ -446,10 +446,10 @@
   .jobs-panel .card-header { align-items: center; margin-bottom: 15px; }
   .record-options, .source-options, .workflow-options, .device-grid { align-items: stretch; }
 }
-@media (max-width: 850px) {
+@media (width < theme(--breakpoint-md)) {
   #microphone-device-field, #windows-device-field { grid-column: 1 / -1; }
 }
-@media (max-width: 600px) {
+@media (width < theme(--breakpoint-sm)) {
   .record-buttons { flex-direction: row; gap: 8px; }
   .record-buttons #start-recording { min-height: 46px; padding-inline: 10px; white-space: normal; }
   .diarization-settings { padding: 15px 14px 16px; }
@@ -538,7 +538,7 @@
   .btn--secondary { border-color: color-mix(in srgb, var(--c-border-soft) 50%, transparent); box-shadow: inset 0 1px 0 rgb(255 255 255 / .025); }
   .btn--danger { border-color: transparent; box-shadow: 0 0 14px color-mix(in srgb, var(--c-danger) 4%, transparent); }
 }
-@media (max-width: 600px) {
+@media (width < theme(--breakpoint-sm)) {
   .record-status { gap: 7px; padding: 9px 8px; }
   .record-status #record-status-text { font-size: .75rem; }
   .record-status #stop-recording { padding-inline: 9px; }
@@ -635,10 +635,10 @@
   }
   .source-item + .source-item { border-top: 1px solid var(--c-border-soft); }
 }
-@media (max-width: 850px) {
+@media (width < theme(--breakpoint-md)) {
   .nav-list { overflow: visible; padding: 0; }
 }
-@media (max-width: 600px) {
+@media (width < theme(--breakpoint-sm)) {
   .jobs-panel { --list-inline-bleed: 0px; }
 }
 
@@ -653,7 +653,7 @@
   .license-notice p { max-width: 88ch; line-height: 1.65; }
   .license-notice a { color: var(--c-accent); text-decoration: underline; text-underline-offset: 2px; }
 }
-@media (max-width: 600px) {
+@media (width < theme(--breakpoint-sm)) {
   .settings-panel .settings-body { padding: 15px; }
   .settings-section + .settings-section { margin-top: 19px; padding-top: 18px; }
 }
@@ -671,7 +671,7 @@
   .diarization-threshold-settings > .field-note { max-width: 78ch; margin: 0 0 13px; line-height: 1.6; }
   .diarization-threshold-settings #diarization-threshold-field { max-width: 680px; }
 }
-@media (max-width: 850px) {
+@media (width < theme(--breakpoint-md)) {
   .sidebar { align-items: stretch; gap: 0; }
   .brand { width: 100%; min-height: 40px; align-items: center; padding: 0 10px; margin-bottom: 0; }
   .brand-caption { letter-spacing: 1px; }
@@ -715,7 +715,7 @@
   .runtime-indicator[data-mode="cloud"] .pulse-dot { background: var(--c-danger); }
   .runtime-indicator[data-mode="unknown"] .pulse-dot { background: var(--c-subtle); box-shadow: none; animation: none; }
 }
-@media (max-width: 850px) {
+@media (width < theme(--breakpoint-md)) {
   .recording-panel, .import-panel { min-height: 0; }
   .library-layout { grid-template-columns: minmax(0, 1fr); }
   .session-list-wrap { min-height: 0; }
@@ -726,14 +726,12 @@
   .sidebar.is-nav-open .runtime-indicator { padding: 10px; }
   .sidebar.is-nav-open .sidebar-path { padding: 0 10px 3px; }
 }
-@media (max-width: 600px) {
+@media (width < theme(--breakpoint-sm)) {
   .settings-autosave-note, .settings-footer > .field-note { flex-basis: 100%; }
   .settings-footer + .license-notice { margin-top: 8px; padding-top: 18px; }
   .sidebar-path code { font-size: .75rem; }
 }
-@media (max-width: 380px) {
-  .brand-caption { display: none; }
-}
+
 
 /* Desktop navigation can be compacted without changing the mobile menu. */
 @layer components {
@@ -757,16 +755,17 @@
   .app-shell.is-sidebar-collapsed .runtime-indicator strong { max-width: 100%; font-size: .625rem; line-height: 1.15; text-align: center; white-space: normal; }
   .app-shell.is-sidebar-collapsed .runtime-indicator small { @apply hidden; }
   .app-shell.is-sidebar-collapsed .sidebar-path { @apply flex justify-center overflow-visible px-0; }
-  .app-shell.is-sidebar-collapsed .sidebar-path-heading { @apply w-full justify-center; }
-  .app-shell.is-sidebar-collapsed .sidebar-path-heading small,
+  .app-shell.is-sidebar-collapsed .sidebar-path-heading { @apply w-full flex-col items-center justify-center gap-1.5; }
+  .app-shell.is-sidebar-collapsed .sidebar-path-heading > small,
   .app-shell.is-sidebar-collapsed .sidebar-path code { @apply hidden; }
-  .path-copy-button { @apply inline-flex items-center justify-center gap-1.5; }
-  .path-copy-button glimio-icon { @apply size-3.5 shrink-0; }
-  .app-shell.is-sidebar-collapsed .path-copy-button--compact { @apply h-12 w-full flex-col gap-1 rounded-lg border border-border bg-surface p-1 no-underline; }
+  .sidebar-path-compact-label { @apply hidden; }
+  .app-shell.is-sidebar-collapsed .sidebar-path-compact-label { @apply block text-[0.625rem] leading-none text-muted; }
+  .path-copy-button { @apply inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface p-0 text-accent no-underline; }
+  .path-copy-button glimio-icon { @apply size-4 shrink-0; }
+  .app-shell.is-sidebar-collapsed .path-copy-button--compact { @apply size-9 rounded-lg; }
   .app-shell.is-sidebar-collapsed .path-copy-button--compact glimio-icon { @apply size-[18px]; }
-  .app-shell.is-sidebar-collapsed .path-copy-button--compact span { @apply text-[0.625rem] leading-none; }
 }
-@media (max-width: 850px) {
+@media (width < theme(--breakpoint-md)) {
   .nav-collapse-toggle { @apply hidden; }
   .brand-copy { @apply min-w-0; flex: 1 1 auto; max-width: none; }
   .brand-caption { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -780,15 +779,18 @@
   .app-shell.is-sidebar-collapsed .nav-count { @apply inline; }
 }
 
-@media (min-width: 851px) and (max-width: 1200px) {
+@media (width >= theme(--breakpoint-md)) and (width < theme(--breakpoint-xl)) {
   .app-shell.is-sidebar-collapsed { grid-template-columns: 76px minmax(0, 1fr); }
   .app-shell.is-sidebar-collapsed .sidebar { width: 76px; padding-inline: 8px; }
 }
-@media (max-width: 850px) {
+@media (width < theme(--breakpoint-md)) {
   .app-shell, .sidebar { transition: none; }
   .sidebar { padding-inline: 16px; }
   .brand { padding-inline: 0; }
   .brand-caption { letter-spacing: .04em; }
+}
+@media (width < theme(--breakpoint-xs)) {
+  .brand-caption { @apply hidden; }
 }
 
 
@@ -802,7 +804,8 @@
   .participant-count-field:not([hidden]) { display: grid; gap: 8px; }
   .participant-count-field .field-label { margin-bottom: 0; }
 }
-@media (max-width: 600px) {
+
+@media (width < theme(--breakpoint-sm)) {
   .diarization-settings-section { gap: 8px; margin-top: 16px; }
   .diarization-settings { padding: 15px 14px 16px; }
 }
@@ -849,13 +852,13 @@
   .session-actions-icon glimio-icon { display: grid; width: 100%; height: 100%; place-items: center; }
   .session-actions-icon .icon, .session-actions-icon svg { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; }
 }
-@media (max-width: 850px) {
+@media (width < theme(--breakpoint-md)) {
   .brand > div:nth-child(2) { flex: 1 1 0%; width: 0; min-width: 0; }
   .settings-footer { align-items: flex-start; flex-direction: row; }
   .settings-autosave-note { flex: 0 1 auto; }
   .settings-footer > .field-note { flex: 1 1 240px; }
 }
-@media (max-width: 600px) {
+@media (width < theme(--breakpoint-sm)) {
   .diarization-settings { padding: 15px 14px 16px; }
   .settings-footer { flex-direction: column; align-items: flex-start; gap: 10px; }
   .settings-autosave-note, .settings-footer > .field-note { flex-basis: auto; }
@@ -887,7 +890,7 @@
   .diarization-settings-section .participant-count-field:not([hidden]) { display: grid; gap: 8px; padding: 12px 14px; }
   .diarization-settings-section .participant-count-field .field-label, .diarization-settings-section .participant-count-field .field-note { margin: 0; }
 }
-@media (max-width: 600px) {
+@media (width < theme(--breakpoint-sm)) {
   .diarization-settings-section { padding: 13px 12px 14px; }
   .job-row-wrap > .job-row { padding-right: 40px; }
   .job-row-delete { top: 6px; right: 6px; width: 26px; min-width: 26px; height: 26px; min-height: 26px; }
@@ -976,7 +979,7 @@
 
   // Rangée d'actions finale d'un panneau (démarrer/arrêter, importer).
   .card-actions { @apply mt-[18px] flex flex-wrap items-center gap-2.5 border-t border-border-soft pt-4; }
-  @media (max-width: 600px) { .common-processing-fields { grid-template-columns: minmax(0, 1fr); } .detail-section-heading { flex-direction: column; } .detail-section-heading .btn { width: 100%; } }
+  @media (width < theme(--breakpoint-sm)) { .common-processing-fields { grid-template-columns: minmax(0, 1fr); } .detail-section-heading { flex-direction: column; } .detail-section-heading .btn { width: 100%; } }
 }
 
 /* Glimio — espacement vertical standard des blocs empilés dans les vues (gap/padding/marge). */
@@ -1097,4 +1100,17 @@
     box-shadow: inset 0 0 0 1px var(--c-accent);
   }
   .session-actions-menu > summary { cursor: pointer; }
+}
+
+@layer components {
+  .library-list-panel, .session-detail-panel { @apply @container; }
+  @container (width < theme(--container-xl)) {
+    .session-detail-panel .detail-header .detail-header-top { @apply flex-col items-stretch gap-3; }
+    .session-detail-panel .detail-header .detail-actions { @apply w-full justify-start; }
+  }
+  @container (width < theme(--container-md)) {
+    .library-list-panel .session-card-select .session-card-top { @apply items-start flex-wrap; }
+    .library-list-panel .session-card-select .session-date { @apply basis-full grow shrink-0; }
+    .library-list-panel .session-card-select .session-markers { @apply w-full flex-wrap justify-start; }
+  }
 }
