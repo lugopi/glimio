@@ -65,15 +65,6 @@
               <div class="eyebrow">DÉTAIL DE LA SÉANCE</div>
               <h2 class="card-title">{{ session.title }}</h2>
               <p class="field-note detail-meta">{{ dateLabel(session.started_at, session.id) }}@if (session.duration_seconds != null) { <span aria-hidden="true"> · </span><span>Durée {{ durationLabel(session.duration_seconds) }}</span> }</p>
-              @if (session.processing; as processing) {
-                <div class="detail-processing-status" role="status" aria-live="polite" [class.is-running]="processing.active" [class.is-completed]="processing.state === 'completed'" [class.is-error]="processing.state === 'error'">
-                  @if (processing.active) { <span class="spinner" aria-hidden="true"></span> }
-                  @else if (processing.state === 'completed') { <glimio-icon name="check-circle" /> }
-                  @else if (processing.state === 'error') { <glimio-icon name="information-circle" /> }
-                  @else { <glimio-icon name="clock" /> }
-                  <span><strong>{{ processingStateLabel(processing.state) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processing.error) { <span> — {{ processing.error }}</span> }</span>
-                </div>
-              }
             </div>
             <div class="detail-actions">
               <button class="btn btn--primary btn--small detail-process-button" type="button" [disabled]="working()" (click)="runJob('process')"><glimio-icon name="play" /> Traiter complètement</button>
@@ -88,6 +79,15 @@
               </details>
             </div>
           </div>
+          @if (session.processing; as processing) {
+            <div class="detail-processing-status" role="status" aria-live="polite" [class.is-running]="processing.active" [class.is-completed]="processing.state === 'completed'" [class.is-error]="processing.state === 'error'">
+              @if (processing.active) { <span class="spinner" aria-hidden="true"></span> }
+              @else if (processing.state === 'completed') { <glimio-icon name="check-circle" /> }
+              @else if (processing.state === 'error') { <glimio-icon name="information-circle" /> }
+              @else { <glimio-icon name="clock" /> }
+              <span><strong>{{ processingStateLabel(processing.state) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processing.error) { <span> — {{ processing.error }}</span> }</span>
+            </div>
+          }
         </header>
 
         @if (audioArtifactsStale()) {

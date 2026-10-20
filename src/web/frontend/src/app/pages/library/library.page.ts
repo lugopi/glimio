@@ -197,7 +197,9 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   backToSessionList(): void {
     this.mobileDetailOpen.set(false);
     requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>('.session-card.is-selected')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>('.session-card.is-selected')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
     });
   }
 

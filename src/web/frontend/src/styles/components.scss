@@ -180,7 +180,7 @@
   .document-content ul { @apply list-disc pl-[21px]; }
   .document-content code { @apply rounded bg-surface-raised px-[5px] py-0.5 font-mono; }
   .session-live-progress { @apply mb-[13px] flex items-start gap-[11px] rounded-[11px] border border-border bg-surface-raised p-[13px]; }
-  .detail-processing-status { @apply w-fit max-w-full; overflow-wrap: anywhere; }
+  .detail-processing-status { @apply max-w-full; overflow-wrap: anywhere; }
   .detail-processing-status > span { @apply min-w-0; overflow-wrap: anywhere; }
   .session-live-progress.is-active { border-color: color-mix(in srgb, var(--c-accent) 42%, var(--c-border)); }
   .session-live-progress.is-error { border-color: color-mix(in srgb, var(--c-danger) 45%, var(--c-border)); }

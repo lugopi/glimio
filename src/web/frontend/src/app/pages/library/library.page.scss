@@ -31,6 +31,7 @@
 :host .detail-heading-copy .card-title { margin: 4px 0 5px; overflow-wrap: anywhere; }
 :host .detail-heading-copy > .eyebrow { @apply whitespace-nowrap; }
 :host .detail-meta { margin: 0; }
+:host .detail-header { @apply gap-2; }
 :host .detail-actions { flex: 0 0 auto; align-items: center; }
 :host .detail-process-button { min-height: 44px; white-space: nowrap; }
 :host .session-actions-toggle { display: flex; align-items: stretch; justify-content: stretch; box-sizing: border-box; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; }
@@ -38,8 +39,10 @@
 :host .session-actions-icon glimio-icon { display: flex; flex: 1 1 auto; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 36px; }
 :host .session-actions-icon .icon,
 :host .session-actions-icon svg { display: block; width: 100%; height: 100%; max-width: none; max-height: none; }
-:host .detail-processing-status { @apply mt-3 flex items-start gap-2 rounded-lg border border-border-soft bg-surface-raised px-3 py-2 text-xs leading-relaxed text-muted; }
-:host .detail-processing-status > glimio-icon { @apply mt-px shrink-0; width: 16px; height: 16px; }
+:host .detail-processing-status { @apply m-0 flex w-full min-w-0 items-start gap-2 rounded-lg border border-border-soft bg-surface-raised px-3 py-2 text-xs leading-relaxed text-muted; }
+:host .detail-processing-status > glimio-icon { @apply mt-px flex shrink-0; width: 16px; height: 16px; }
+:host .detail-processing-status > glimio-icon .icon,
+:host .detail-processing-status > glimio-icon svg { @apply block size-full; }
 :host .detail-processing-status > .spinner { @apply mt-0.5 shrink-0; width: 14px; height: 14px; }
 :host .detail-processing-status.is-running { color: var(--c-accent); }
 :host .detail-processing-status.is-completed { color: var(--c-success); }
@@ -74,10 +77,14 @@
   :host .library-pagination-footer glimio-pagination { width: 100%; }
   :host .page-size-control { @apply justify-between; }
   :host .detail-header-top { @apply flex-col; }
-  :host .detail-actions { @apply w-full justify-between; }
-  :host .detail-process-button { flex: 1 1 auto; }
   :host .session-actions-menu { flex: 0 0 44px; }
   :host .artifact-tab { @apply flex-1 px-3; }
+}
+
+@media (width < theme(--breakpoint-md)) {
+  :host .detail-actions { @apply w-full flex-nowrap justify-between gap-2; }
+  :host .detail-process-button { @apply min-w-0 flex-1; }
+  :host .session-actions-menu { @apply shrink-0; }
 }
 
 :host .audio-stale-notice { @apply my-4 flex min-w-0 items-start gap-3 rounded-xl border border-warning bg-surface-raised p-4 text-sm text-muted; }

@@ -197,7 +197,9 @@ def transcribe(args: argparse.Namespace) -> None:
         command = [
             str(executable), "-m", str(model_path), "-f", str(audio_path),
             "-l", args.language, "-osrt", "-of", str(output_base),
-            "-t", str(args.threads), "-bs", "1", "-bo", "1",
+            # Prefer more robust decoding over greedy speed, especially on long
+            # recordings where a bad phrase can otherwise reinforce later windows.
+            "-t", str(args.threads), "-bs", "5", "-mc", "512",
         ]
         if args.openvino_device:
             command.extend(["--ov-e-device", args.openvino_device])
