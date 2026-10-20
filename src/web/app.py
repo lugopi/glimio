@@ -839,7 +839,9 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
 
     def publish(message: str) -> None:
         folded = message.casefold()
-        if "whisper" in folded or "transcription" in folded:
+        if "réutilisation du texte" in folded:
+            phase = "processing"
+        elif "whisper" in folded or "transcription" in folded:
             phase = "transcribing"
         elif "llm" in folded or "résumé" in folded or "synthèse" in folded:
             phase = "summarizing"
@@ -1080,19 +1082,27 @@ def _decorate_session_processing(item: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
-def _live_session_artifact(folder: Path, session_id: str, kind: str) -> Path | None:
-    """Return an in-progress document only while its matching job stage is active."""
+def _active_session_artifact_job(session_id: str, kind: str) -> dict[str, Any] | None:
+    """Return the active job that is currently replacing a session artifact."""
     expected_phase = {"transcript": "transcribing", "summary": "summarizing"}.get(kind)
     if expected_phase is None:
         return None
     with STATE_LOCK:
-        active = any(
-            job.get("session_id") == session_id
+        active = [
+            job.copy()
+            for job in JOBS.values()
+            if job.get("session_id") == session_id
             and job.get("state") in {"running", "stopping"}
             and job.get("phase") == expected_phase
-            for job in JOBS.values()
-        )
+        ]
     if not active:
+        return None
+    return max(active, key=lambda job: job.get("updated_at") or "")
+
+
+def _live_session_artifact(folder: Path, session_id: str, kind: str) -> Path | None:
+    """Return an in-progress document only while its matching job stage is active."""
+    if not _active_session_artifact_job(session_id, kind):
         return None
     preview = folder / ("transcript/transcription_en_cours.md" if kind == "transcript" else "summary/resume_audio_en_cours.md")
     return preview if preview.is_file() else None
@@ -1470,13 +1480,26 @@ def session_artifact(session_id: str, kind: str, response: Response, revision: s
         raise HTTPException(status_code=404, detail="Document inconnu.")
     try:
         folder = resolve_session_folder(SESSION_ROOT, session_id)
+        response.headers["Cache-Control"] = "no-store"
+        active_job = _active_session_artifact_job(session_id, kind)
         live_path = _live_session_artifact(folder, session_id, kind)
+        if active_job and live_path is None:
+            # Never fall back to the previous completed file while its replacement
+            # is being prepared. Otherwise the detail pane can show stale content
+            # until the first live chunk is written.
+            return {
+                "session_id": session_id,
+                "kind": kind,
+                "filename": "",
+                "revision": f"pending:{active_job.get('id', '')}",
+                "pending": True,
+                "content": "",
+            }
         path = live_path or (summary_path(folder) if kind == "summary" else transcript_path(folder))
         if path is None:
             raise FileNotFoundError(f"Aucun document {kind} trouvé pour cette séance.")
         stat = path.stat()
         current_revision = f"{stat.st_mtime_ns}:{stat.st_size}"
-        response.headers["Cache-Control"] = "no-store"
         result: dict[str, Any] = {
             "session_id": session_id,
             "kind": kind,

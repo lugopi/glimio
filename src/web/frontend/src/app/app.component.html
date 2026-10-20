@@ -18,6 +18,7 @@
           </a>
           <a class="nav-link" aria-label="Traitements" title="Traitements" routerLink="/jobs" routerLinkActive="is-active" (click)="closeMobileMenu()">
             <span class="nav-icon"><glimio-icon name="clipboard-document" /></span><span class="nav-label">Traitements</span>
+            @if (activeJobsCount() > 0) { <span class="nav-count" [attr.aria-label]="activeJobsCount() + ' tâches en attente ou en cours'">{{ activeJobsCount() }}</span> }
           </a>
           <a class="nav-link" aria-label="Bibliothèque" title="Bibliothèque" routerLink="/library" routerLinkActive="is-active" (click)="closeMobileMenu()">
             <span class="nav-icon"><glimio-icon name="book-open" /></span><span class="nav-label">Bibliothèque</span><span class="nav-count">{{ libraryCount() }}</span>

@@ -40,6 +40,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly artifactContent = signal('');
   readonly artifactKind = signal<'summary' | 'transcript' | null>(null);
   readonly artifactLoading = signal(false);
+  readonly artifactPending = signal(false);
   readonly artifactHtml = computed(() => renderMarkdownToHtml(this.artifactContent()));
   private artifactRequest = 0;
   private artifactRevision: string | null = null;
@@ -105,11 +106,15 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
           const previous = this.selected();
           this.selected.set(detail);
           const defaultKind = detail.summary ? 'summary' : detail.transcript ? 'transcript' : null;
-          if (!this.artifactKind() && defaultKind) {
+          const processingFinished = Boolean(
+            detail.processing
+            && !detail.processing.active
+            && (previous?.processing?.active || previous?.processing?.job_id !== detail.processing.job_id),
+          );
+          if (processingFinished) {
+            this.settleArtifactsAfterProcessing(detail);
+          } else if (!this.artifactKind() && defaultKind) {
             this.loadArtifact(defaultKind);
-          } else if (previous?.processing?.active && !detail.processing?.active && this.artifactKind() && (detail.summary || detail.transcript)) {
-            const kind = this.artifactKind()!;
-            if ((kind === 'summary' && detail.summary) || (kind === 'transcript' && detail.transcript)) this.loadArtifact(kind);
           }
           this.followProcessingArtifact(detail);
           if (detail.processing?.active && this.artifactKind()) this.refreshArtifact(this.artifactKind()!);
@@ -191,6 +196,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     this.artifactTitle.set('');
     this.artifactContent.set('');
     this.artifactLoading.set(false);
+    this.artifactPending.set(false);
     this.api.session(id).subscribe({
       next: detail => {
         if (this.selectedId() !== id) return;
@@ -382,16 +388,19 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     this.artifactTitle.set(kind === 'summary' ? 'Résumé' : 'Transcription');
     this.artifactContent.set('');
     this.artifactLoading.set(true);
+    this.artifactPending.set(false);
     this.api.sessionArtifact(session.id, kind).subscribe({
       next: result => {
         if (request !== this.artifactRequest || this.selectedId() !== session.id) return;
         this.artifactRevision = result.revision;
+        this.artifactPending.set(Boolean(result.pending));
         this.artifactContent.set(result.content ?? 'Contenu indisponible.');
         this.artifactLoading.set(false);
       },
       error: error => {
         if (request !== this.artifactRequest || this.selectedId() !== session.id) return;
         this.artifactLoading.set(false);
+        this.artifactPending.set(false);
         this.toast.show(error.message, 'error');
       },
     });
@@ -407,6 +416,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
       next: result => {
         if (request === this.artifactRequest && this.selectedId() === sessionId && this.artifactKind() === kind) {
           this.artifactRevision = result.revision;
+          this.artifactPending.set(Boolean(result.pending));
           if (!result.unchanged && result.content !== undefined && result.content !== this.artifactContent()) {
             this.artifactContent.set(result.content);
           }
@@ -437,6 +447,31 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     if (!kind || this.liveArtifactPhaseFollowed || !session[kind]) return;
     this.liveArtifactPhaseFollowed = true;
     if (this.artifactKind() !== kind) this.loadArtifact(kind);
+  }
+
+  private settleArtifactsAfterProcessing(session: SessionDetail): void {
+    const selectedKind = this.artifactKind();
+    if (selectedKind && session[selectedKind]) {
+      this.loadArtifact(selectedKind);
+      return;
+    }
+
+    const fallbackKind = session.summary ? 'summary' : session.transcript ? 'transcript' : null;
+    if (fallbackKind) {
+      this.loadArtifact(fallbackKind);
+      return;
+    }
+
+    // Invalidate an in-flight preview request and clear content that belonged
+    // to the now-finished live artifact (for example after cancellation).
+    this.artifactRequest++;
+    this.artifactRevision = null;
+    this.artifactRefreshPending = false;
+    this.artifactKind.set(null);
+    this.artifactTitle.set('');
+    this.artifactContent.set('');
+    this.artifactLoading.set(false);
+    this.artifactPending.set(false);
   }
 
   durationLabel(value?: number | null): string {

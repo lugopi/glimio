@@ -124,6 +124,7 @@ export interface SessionArtifact {
   filename: string;
   revision: string;
   unchanged?: boolean;
+  pending?: boolean;
   content?: string;
 }
 

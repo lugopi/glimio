@@ -109,7 +109,7 @@
               @if (session.transcript) { <button id="artifact-tab-transcript" class="artifact-tab" role="tab" type="button" aria-controls="artifact-content-pane" [attr.tabindex]="artifactKind() === 'transcript' ? 0 : -1" [attr.aria-selected]="artifactKind() === 'transcript'" [class.is-active]="artifactKind() === 'transcript'" (keydown)="onArtifactTabKeydown($event, 'transcript')" (click)="loadArtifact('transcript')"><glimio-icon name="document-text" /> Transcription</button> }
             </div>
             <div class="artifact-content-pane" id="artifact-content-pane" role="tabpanel" tabindex="0" [attr.aria-labelledby]="artifactKind() === 'transcript' ? 'artifact-tab-transcript' : 'artifact-tab-summary'">
-              @if (artifactLoading()) { <div class="artifact-loading" role="status"><span class="spinner" aria-hidden="true"></span> Chargement du contenu…</div> }
+              @if (artifactLoading() || artifactPending()) { <div class="artifact-loading" role="status"><span class="spinner" aria-hidden="true"></span> {{ artifactPending() ? 'Préparation du document…' : 'Chargement du contenu…' }}</div> }
               @else if (artifactContent()) { <article class="artifact-rendered" [innerHTML]="artifactHtml()"></article> }
             </div>
           } @else {

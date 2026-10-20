@@ -1,8 +1,8 @@
-import { ChangeDetectionStrategy, Component, HostListener, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd } from '@angular/router';
-import { filter } from 'rxjs';
+import { Subscription, catchError, exhaustMap, filter, interval, of, startWith } from 'rxjs';
 import { PreferencesService } from './core/preferences.service';
 import { LibraryStateService } from './core/library-state.service';
 import { ToastService } from './core/toast.service';
@@ -18,7 +18,7 @@ import { ApiService } from './core/api.service';
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
 })
-export class AppComponent implements OnInit {
+export class AppComponent implements OnInit, OnDestroy {
   readonly preferences = inject(PreferencesService);
   readonly toasts = inject(ToastService);
   private readonly router = inject(Router);
@@ -30,8 +30,10 @@ export class AppComponent implements OnInit {
   private compactViewport = this.compactViewportQuery.matches;
   readonly currentPath = signal('/recording');
   readonly libraryCount = this.libraryState.total.asReadonly();
+  readonly activeJobsCount = signal(0);
   readonly theme = signal<ThemeName>('dark');
   readonly currentPage = signal('Enregistrement');
+  private jobsPolling?: Subscription;
 
   /**
    * Logo Glimio injecté en ligne : le calque principal et la vague utilisent
@@ -85,6 +87,13 @@ export class AppComponent implements OnInit {
       next: result => this.libraryState.total.set(result.count),
       error: () => { /* The library page retries when it opens. */ },
     });
+    this.jobsPolling = interval(2500).pipe(
+      startWith(0),
+      exhaustMap(() => this.api.jobs().pipe(catchError(() => of(null)))),
+    ).subscribe(response => {
+      if (!response) return;
+      this.activeJobsCount.set(response.items.filter(job => ['queued', 'running', 'stopping'].includes(job.state)).length);
+    });
     this.http.get('brand/glimio.svg', { responseType: 'text' })
       .subscribe({
         next: svg => this.rawBrandLogo.set(svg),
@@ -98,6 +107,8 @@ export class AppComponent implements OnInit {
       this.closeMobileMenu();
     });
   }
+
+  ngOnDestroy(): void { this.jobsPolling?.unsubscribe(); }
 
   toggleMobileMenu(): void { this.mobileMenuOpen.update(open => !open); }
   closeMobileMenu(): void { this.mobileMenuOpen.set(false); }
