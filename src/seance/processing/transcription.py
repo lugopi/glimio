@@ -165,7 +165,6 @@ def transcribe(args: argparse.Namespace) -> None:
         getattr(args, "transcription_provider", DEFAULT_TRANSCRIPTION_PROVIDER),
         executable,
         cancel_event=getattr(args, "_cancel_event", None),
-        openvino_device=getattr(args, "openvino_device", None),
         options=(getattr(args, "provider_options", {}) or {}).get(
             getattr(args, "transcription_provider", DEFAULT_TRANSCRIPTION_PROVIDER), {},
         ),

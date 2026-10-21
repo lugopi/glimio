@@ -19,7 +19,7 @@ from typing import Any, Literal
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from seance.media.audio import _soundcard, audio_com_apartment, record
 from seance.layout import get_audio_path, get_transcript_path, has_audio, list_audio_paths
@@ -229,7 +229,6 @@ class Settings(BaseModel):
     whisper_cli: str = DEFAULT_WHISPER_CLI
     language: str = "auto"
     threads: int = Field(default=DEFAULT_THREADS, ge=1, le=256)
-    openvino_device: str | None = None
     ffmpeg: str = "ffmpeg"
     diarize: bool = False
     diarization_segmentation_model: str = "models/diarization/segmentation/segmentation.onnx"
@@ -248,6 +247,24 @@ class Settings(BaseModel):
     format: str = "auto"
     no_review: bool = False
 
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_acceleration_setting(cls, value: Any) -> Any:
+        """Move the former global Whisper device setting into its provider options."""
+        if not isinstance(value, dict) or not value.get("openvino_device"):
+            return value
+        value = dict(value)
+        raw_provider_options = value.get("provider_options")
+        provider_options = dict(raw_provider_options) if isinstance(raw_provider_options, dict) else {}
+        raw_whisper_options = provider_options.get("whisper.cpp")
+        whisper_options = dict(raw_whisper_options) if isinstance(raw_whisper_options, dict) else {}
+        whisper_options.setdefault("openvino_enabled", True)
+        whisper_options.setdefault("openvino_device", value["openvino_device"])
+        provider_options["whisper.cpp"] = whisper_options
+        value["provider_options"] = provider_options
+        value.pop("openvino_device", None)
+        return value
+
     def namespace(self, *, folder: str | None = None) -> argparse.Namespace:
         values = self.model_dump() if hasattr(self, "model_dump") else self.dict()
         if values.get("text_provider") not in TEXT_PROVIDER_IDS:
@@ -265,10 +282,6 @@ class Settings(BaseModel):
         for key in ("model", "whisper_cli"):
             if key in transcription_options:
                 values[key] = transcription_options[key]
-        values["openvino_device"] = (
-            transcription_options.get("openvino_device")
-            if transcription_options.get("openvino_enabled") else None
-        )
         sherpa_options = values["provider_options"].get("sherpa-onnx", {})
         for key in ("diarization_segmentation_model", "diarization_embedding_model"):
             if key in sherpa_options:
@@ -296,10 +309,6 @@ class Settings(BaseModel):
             raise HTTPException(status_code=422, detail="Format de résumé invalide.")
         if values.get("diarization_num_speakers") == 0:
             raise HTTPException(status_code=422, detail="Le nombre de participants doit être -1 (automatique) ou au moins 1.")
-        if values["openvino_device"] not in (None, "", "CPU", "GPU", "NPU"):
-            raise HTTPException(status_code=422, detail="Périphérique OpenVINO invalide.")
-        if not values["openvino_device"]:
-            values["openvino_device"] = None
         values = apply_processing_profile(values)
         return argparse.Namespace(**values)
 

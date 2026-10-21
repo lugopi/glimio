@@ -11,7 +11,6 @@ export interface GlimioSettings {
   whisper_cli: string;
   language: string;
   threads: number;
-  openvino_device: string | null;
   ffmpeg: string;
   diarize: boolean;
   diarization_segmentation_model: string;

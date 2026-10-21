@@ -193,6 +193,8 @@ const ENGLISH: Record<string, string> = {
   'Résumé général': 'General summary', 'Daily — compte rendu de réunion': 'Daily — meeting notes',
   'Technique': 'Technical', 'Formel': 'Formal', 'Brainstorming': 'Brainstorming', 'Dans la file': 'Queued',
   'Diarisation vocale': 'Speaker diarization', 'Associer les segments aux voix détectées.': 'Assign transcript segments to detected speakers.',
+  'Audio et reconnaissance des voix': 'Audio and speaker recognition',
+  'Transcription et résumés': 'Transcription and summaries',
   'Modèle d’embedding de diarisation (ONNX)': 'Diarization embedding model (ONNX)',
   'Modèle de segmentation de diarisation (ONNX)': 'Diarization segmentation model (ONNX)',
   'Vérifiez les conditions applicables au poids.': 'Check the terms that apply to this model.',

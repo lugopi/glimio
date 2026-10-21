@@ -64,21 +64,36 @@
         <div class="card-header"><div><div class="eyebrow">OPTIONS COMMUNES</div><h2 class="card-title" id="processing-options-title">Options communes de traitement</h2><p class="card-description">Ces choix s’appliquent aux nouveaux enregistrements, aux imports et servent de valeurs initiales dans la bibliothèque.</p></div></div>
         @if (settings(); as value) {
           <div class="shared-processing-content common-processing-fields">
-            <div><label class="field-label" for="processing-profile">Qualité du traitement</label><select class="select" id="processing-profile" [ngModel]="value.processing_profile" (ngModelChange)="patchSetting('processing_profile', $event)"><option value="turbo">Turbo · rapide, détails réduits</option><option value="balanced">Équilibré · recommandé</option><option value="quality">Haute qualité · plus détaillé</option><option value="pixel-perfect">Pixel perfect · très détaillé, très lent</option><option value="custom">Personnalisé · réglages avancés</option></select><small class="field-note">{{ profileDescription(value.processing_profile) }}</small></div>
-            @if (supportsTranscriptionLanguage()) { <div><label class="field-label" for="recording-language">Langue de transcription</label><select class="select" id="recording-language" [ngModel]="value.language === 'detect' ? 'auto' : value.language" (ngModelChange)="patchSetting('language', $event)"><option value="auto">Détection automatique (Whisper)</option>@for (language of transcriptionLanguages(); track language.code) { <option [value]="language.code">{{ language.label }}</option> }</select><small class="field-note">Whisper détecte la langue parlée. Choisissez une langue pour forcer la transcription ; cela ne traduit pas l’audio.</small></div> }
-            <div><label class="field-label" for="recording-summary-format">Format du résumé par défaut</label><select class="select" id="recording-summary-format" [ngModel]="value.format" (ngModelChange)="patchSetting('format', $event)">@for (format of formats; track format) { <option [value]="format">{{ formatLabel(format) }}</option> }</select></div>
-            <div class="normalization-option">
-              <glimio-checkbox-field fieldId="normalize-windows" title="Rehausser automatiquement les pistes audio" description="Applique une normalisation de crête à −6 dBFS aux sorties Windows et aux fichiers importés." [checked]="normalizeWindows" (checkedChange)="normalizeWindows = $event; persistUiPreferences()" />
-              @if (normalizeWindows) {
-                <div class="normalization-gain-control"><label class="field-label" for="normalize-gain">Gain maximal <output>+{{ normalizeGain }} dB</output></label><input class="range-input" id="normalize-gain" type="range" min="0" max="30" step="1" [ngModel]="normalizeGain" (ngModelChange)="normalizeGain = numberValue($event); persistUiPreferences()"></div>
-              }
+            <div class="processing-basics">
+              <div class="processing-quality">
+                <div><label class="field-label" for="processing-profile">Qualité du traitement</label><select class="select" id="processing-profile" [ngModel]="value.processing_profile" (ngModelChange)="patchSetting('processing_profile', $event)"><option value="turbo">Turbo · rapide, détails réduits</option><option value="balanced">Équilibré · recommandé</option><option value="quality">Haute qualité · plus détaillé</option><option value="pixel-perfect">Pixel perfect · très détaillé, très lent</option><option value="custom">Personnalisé · réglages avancés</option></select></div>
+                <small class="field-note">{{ profileDescription(value.processing_profile) }}</small>
+              </div>
+              <div class="processing-content-group">
+                <h3 class="card-title">Transcription et résumés</h3>
+                <div class="processing-content-fields">
+                  @if (supportsTranscriptionLanguage()) { <div><label class="field-label" for="recording-language">Langue de transcription</label><select class="select" id="recording-language" [ngModel]="value.language === 'detect' ? 'auto' : value.language" (ngModelChange)="patchSetting('language', $event)"><option value="auto">Détection automatique (Whisper)</option>@for (language of transcriptionLanguages(); track language.code) { <option [value]="language.code">{{ language.label }}</option> }</select><small class="field-note">Whisper détecte la langue parlée. Choisissez une langue pour forcer la transcription ; cela ne traduit pas l’audio.</small></div> }
+                  <div><label class="field-label" for="recording-summary-format">Format du résumé par défaut</label><select class="select" id="recording-summary-format" [ngModel]="value.format" (ngModelChange)="patchSetting('format', $event)">@for (format of formats; track format) { <option [value]="format">{{ formatLabel(format) }}</option> }</select></div>
+                </div>
+              </div>
             </div>
-            <div class="diarization-option">
-              <glimio-checkbox-field fieldId="recording-diarization" title="Diarisation vocale" description="Détecter les différentes voix et associer les segments de transcription aux interlocuteurs." [checked]="value.diarize" (checkedChange)="patchSetting('diarize', $event)" />
-              @if (value.diarize) {
-                <div class="speaker-count-field"><label class="field-label" for="recording-speakers">Nombre d’interlocuteurs</label><select class="select" id="recording-speakers" [ngModel]="value.diarization_num_speakers" (ngModelChange)="patchSetting('diarization_num_speakers', numberValue($event))"><option [ngValue]="-1">Automatique</option>@for (count of speakerCounts; track count) { <option [ngValue]="count">{{ count }}</option> }</select><small class="field-note">Choisissez un nombre connu (1–20, puis des valeurs courantes jusqu’à 100) ; sinon laissez Automatique.</small></div>
-                <div><label class="field-label" for="recording-diarization-threshold">Séparation des voix <output>{{ value.diarization_threshold | number:'1.2-2' }}</output></label><input class="range-input" id="recording-diarization-threshold" type="range" min="0" max="1" step="0.01" [ngModel]="value.diarization_threshold" (ngModelChange)="patchSetting('diarization_threshold', numberValue($event))"><small class="field-note">Une valeur plus élevée regroupe les voix de façon plus stricte.</small></div>
-              }
+            <div class="processing-extras">
+              <h3 class="card-title">Audio et reconnaissance des voix</h3>
+              <div class="processing-extras-grid">
+                <div class="normalization-option">
+                  <glimio-checkbox-field fieldId="normalize-windows" title="Rehausser automatiquement les pistes audio" description="Applique une normalisation de crête à −6 dBFS aux sorties Windows et aux fichiers importés." [checked]="normalizeWindows" (checkedChange)="normalizeWindows = $event; persistUiPreferences()" />
+                  @if (normalizeWindows) {
+                    <div class="normalization-gain-control"><label class="field-label" for="normalize-gain">Gain maximal <output>+{{ normalizeGain }} dB</output></label><input class="range-input" id="normalize-gain" type="range" min="0" max="30" step="1" [ngModel]="normalizeGain" (ngModelChange)="normalizeGain = numberValue($event); persistUiPreferences()"></div>
+                  }
+                </div>
+                <div class="diarization-option">
+                  <glimio-checkbox-field fieldId="recording-diarization" title="Diarisation vocale" description="Détecter les différentes voix et associer les segments de transcription aux interlocuteurs." [checked]="value.diarize" (checkedChange)="patchSetting('diarize', $event)" />
+                  @if (value.diarize) {
+                    <div class="speaker-count-field"><label class="field-label" for="recording-speakers">Nombre d’interlocuteurs</label><select class="select" id="recording-speakers" [ngModel]="value.diarization_num_speakers" (ngModelChange)="patchSetting('diarization_num_speakers', numberValue($event))"><option [ngValue]="-1">Automatique</option>@for (count of speakerCounts; track count) { <option [ngValue]="count">{{ count }}</option> }</select><small class="field-note">Choisissez un nombre connu (1–20, puis des valeurs courantes jusqu’à 100) ; sinon laissez Automatique.</small></div>
+                    <div><label class="field-label" for="recording-diarization-threshold">Séparation des voix <output>{{ value.diarization_threshold | number:'1.2-2' }}</output></label><input class="range-input" id="recording-diarization-threshold" type="range" min="0" max="1" step="0.01" [ngModel]="value.diarization_threshold" (ngModelChange)="patchSetting('diarization_threshold', numberValue($event))"><small class="field-note">Une valeur plus élevée regroupe les voix de façon plus stricte.</small></div>
+                  }
+                </div>
+              </div>
             </div>
             @if (activeTranscriptionProvider(); as provider) {
               @if (hasPerJobOptions(provider)) { <div class="col-span-full mt-1 border-t border-border-soft pt-4"><h3 class="card-title">{{ provider.name }}</h3><p class="field-note mb-3">Options pour ce traitement. Ces réglages s’appliquent à ce nouvel enregistrement ou import uniquement.</p><glimio-provider-options [provider]="provider" [values]="perJobValues(provider)" [showAllOptions]="true" [perJobOnly]="true" (optionChange)="patchPerJobProviderOption(provider, $event.option.key, $event.value)" /></div> }

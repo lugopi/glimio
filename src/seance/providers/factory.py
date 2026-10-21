@@ -60,7 +60,6 @@ def create_transcription_provider(
     executable: str | Path,
     *,
     cancel_event: Event | None = None,
-    openvino_device: str | None = None,
     options: Mapping[str, Any] | None = None,
 ) -> TranscriptionProvider:
     """Construct a speech adapter; add new engines here, not in orchestration."""
@@ -69,7 +68,6 @@ def create_transcription_provider(
     except KeyError as exc:
         raise ValueError(f"Provider de transcription inconnu : {provider_id}") from exc
     return provider_factory(
-        executable, cancel_event=cancel_event, openvino_device=openvino_device,
-        openvino_enabled=bool((options or {}).get("openvino_enabled", False)),
+        executable, cancel_event=cancel_event,
         options=dict(options or {}),
     )

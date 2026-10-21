@@ -43,7 +43,6 @@ def transcribe_folder(
         transcription_provider=getattr(source_args, "transcription_provider", "whisper.cpp"),
         provider_options=getattr(source_args, "provider_options", {}),
         language=getattr(source_args, "language", "auto"),
-        openvino_device=getattr(source_args, "openvino_device", None),
         threads=getattr(source_args, "threads", 1),
         ffmpeg=getattr(source_args, "ffmpeg", "ffmpeg"),
         diarize=getattr(source_args, "diarize", False),

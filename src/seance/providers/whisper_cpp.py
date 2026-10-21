@@ -64,15 +64,13 @@ class WhisperCppTranscriptionProvider:
         executable: str | Path,
         *,
         cancel_event: threading.Event | None = None,
-        openvino_device: str | None = None,
-        openvino_enabled: bool = False,
         options: dict | None = None,
     ) -> None:
         self.options = options or {}
         self.executable = Path(self.options.get("whisper_cli", executable)).expanduser().resolve()
         self.cancel_event = cancel_event
-        self.openvino_enabled = bool(self.options.get("openvino_enabled", openvino_enabled)) or bool(openvino_device)
-        self.openvino_device = self.options.get("openvino_device", openvino_device) or "CPU"
+        self.openvino_enabled = bool(self.options.get("openvino_enabled", False))
+        self.openvino_device = self.options.get("openvino_device", "CPU")
         self.beam_size = int(self.options.get("beam_size", 5))
 
     def transcribe(
