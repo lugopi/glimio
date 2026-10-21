@@ -784,6 +784,16 @@ def _enqueue_job(
         "error": None, "queue_position": None, "_payload": dict(payload or {}),
     }
     with STATE_LOCK:
+        if session_id and any(
+            existing.get("session_id") == session_id
+            and existing.get("state") in {"queued", "running", "stopping"}
+            and not (
+                existing.get("kind") == "recording"
+                and existing.get("phase") == "finalizing"
+            )
+            for existing in JOBS.values()
+        ):
+            raise HTTPException(status_code=409, detail="Un traitement est déjà en cours pour cette séance.")
         JOBS[job_id] = job
         CANCEL_EVENTS[job_id] = threading.Event()
         PROCESSING_QUEUE_IDS.append(job_id)
@@ -900,20 +910,28 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
                      force: bool = False) -> None:
     """Run a session pipeline with durable checkpoints between model stages.
 
-    ``force`` clears the checkpoint so a stage (e.g. the summary) can be redone
-    even when it was already completed for this session.
+    ``force`` clears the checkpoint so requested stages can be redone even when
+    they were already completed. A forced full process reruns transcription and summary.
     """
     payload = _job_payload(job_id)
     checkpoint = None if force else payload.get("checkpoint")
 
     def publish(message: str) -> None:
         folded = message.casefold()
-        if "réutilisation du texte" in folded:
+        if "traitement terminé" in folded:
+            phase = "completed"
+        elif "réutilisation du texte" in folded:
             phase = "processing"
+        elif any(term in folded for term in (
+            "llm", "analyse", "résumé", "synthèse", "génération", "rédaction", "relecture",
+        )):
+            phase = "summarizing"
         elif "whisper" in folded or "transcription" in folded:
             phase = "transcribing"
-        elif "llm" in folded or "résumé" in folded or "synthèse" in folded:
-            phase = "summarizing"
+        elif "import" in folded:
+            phase = "importing"
+        elif "préparation" in folded:
+            phase = "preparing"
         else:
             phase = "processing"
         _set_job(job_id, session_id=folder.name, state="running", phase=phase, message=message)
@@ -973,12 +991,12 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
             resume_phase = payload.get("resume_phase")
             transcript_path = get_transcript_path(folder)
             session_metadata = _read_session_metadata(folder)
-            should_transcribe = (resume_phase == "transcribing" or not transcript_path.is_file()
+            should_transcribe = (force or resume_phase == "transcribing" or not transcript_path.is_file()
                                  or bool(session_metadata.get("audio_transcript_stale")))
             if should_transcribe:
                 if not has_audio(folder):
                     raise SystemExit(f"Aucune transcription et aucune piste audio exploitable dans {folder}.")
-                publish("Transcription absente ou interrompue · lancement de Whisper…")
+                publish("Transcription en cours · lancement de Whisper…")
                 transcribe_folder(folder, args, on_status=publish)
                 mark_outputs_current(transcript=True)
             else:
@@ -1163,11 +1181,15 @@ def _decorate_session_processing(item: dict[str, Any]) -> dict[str, Any]:
     elif not active and not finished_at:
         item["processing"] = None
         return item
+    phase = latest.get("phase") or {
+        "transcribe": "transcribing", "summarize": "summarizing",
+        "process": "processing", "recording": "recording", "import": "importing",
+    }.get(latest.get("kind"), "preparing")
     item["processing"] = {
         "job_id": latest.get("id"),
         "kind": latest.get("kind"),
         "state": latest.get("state"),
-        "phase": latest.get("phase"),
+        "phase": phase,
         "active": active,
         "message": latest.get("message") or "Traitement en cours…",
         "error": latest.get("error"),
@@ -1189,7 +1211,11 @@ def _active_session_artifact_job(session_id: str, kind: str) -> dict[str, Any] |
             for job in JOBS.values()
             if job.get("session_id") == session_id
             and job.get("state") in {"running", "stopping"}
-            and job.get("phase") == expected_phase
+            and (
+                job.get("phase") == expected_phase
+                or (kind == "summary" and job.get("kind") == "process"
+                    and job.get("phase") == "transcribing")
+            )
         ]
     if not active:
         return None
@@ -1257,8 +1283,14 @@ def session_detail(session_id: str) -> dict[str, Any]:
     _decorate_session_processing(item)
     processing = item.get("processing") or {}
     if processing.get("active"):
-        if processing.get("phase") == "transcribing" and _live_session_artifact(folder, session_id, "transcript"):
+        if processing.get("phase") == "transcribing" and _active_session_artifact_job(session_id, "transcript"):
+            # Keep the document tab available, but do not expose an ever-growing
+            # transcript preview to the browser while transcription is running.
             item["transcript"] = True
+        if processing.get("kind") == "process" and processing.get("phase") == "transcribing":
+            # A complete run will replace the summary using its new transcript.
+            # Hide the old summary until generation starts to avoid presenting stale results.
+            item["summary"] = False
         if processing.get("phase") == "summarizing" and _live_session_artifact(folder, session_id, "summary"):
             item["summary"] = True
     item["files"] = {
@@ -1392,6 +1424,14 @@ def save_session_settings(session_id: str, request: SessionSettingsRequest) -> d
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
+    with STATE_LOCK:
+        active = any(
+            job.get("session_id") == folder.name
+            and job.get("state") in {"queued", "running", "stopping"}
+            for job in JOBS.values()
+        )
+    if active:
+        raise HTTPException(status_code=409, detail="Impossible de modifier les options pendant le traitement de cette séance.")
     request.settings.namespace(folder=str(folder))  # validate the complete settings contract before persisting it
     metadata = _save_session_processing_settings(folder, request.settings)
     return {"id": session_id, "settings": _serialize_model(request.settings), "metadata": metadata}
@@ -1579,6 +1619,19 @@ def session_artifact(session_id: str, kind: str, response: Response, revision: s
         response.headers["Cache-Control"] = "no-store"
         active_job = _active_session_artifact_job(session_id, kind)
         live_path = _live_session_artifact(folder, session_id, kind)
+        if active_job and kind == "transcript":
+            # Transcription previews can grow to hundreds of thousands of
+            # characters. Sending and re-rendering the whole Markdown document
+            # every poll can freeze the browser; publish the final transcript
+            # once the transcription phase has completed instead.
+            return {
+                "session_id": session_id,
+                "kind": kind,
+                "filename": "",
+                "revision": f"pending:{active_job.get('id', '')}",
+                "pending": True,
+                "content": "",
+            }
         if active_job and live_path is None:
             # Never fall back to the previous completed file while its replacement
             # is being prepared. Otherwise the detail pane can show stale content
@@ -1726,6 +1779,15 @@ def start_session_job(request: JobRequest) -> dict[str, Any]:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
 
+    with STATE_LOCK:
+        active = any(
+            job.get("session_id") == folder.name
+            and job.get("state") in {"queued", "running", "stopping"}
+            for job in JOBS.values()
+        )
+    if active:
+        raise HTTPException(status_code=409, detail="Un traitement est déjà en cours pour cette séance.")
+
     metadata_path = _session_metadata_path(folder)
     try:
         existing_metadata = json.loads(metadata_path.read_text(encoding="utf-8-sig")) if metadata_path.is_file() else {}
@@ -1777,12 +1839,19 @@ def start_recording(request: RecordRequest) -> dict[str, Any]:
         folded = message.casefold()
         if "enregistrement en cours" in folded or "capture de " in folded:
             phase = "recording"
-        elif "finalisation des pistes wav" in folded or "écriture de micro.wav" in folded or "écriture de windows.wav" in folded:
+        elif (
+            "finalisation des pistes wav" in folded
+            or "pistes wav finalisées" in folded
+            or "écriture de micro.wav" in folded
+            or "écriture de windows.wav" in folded
+        ):
             phase = "finalizing"
-        elif "whisper" in folded or "transcription absente" in folded:
-            phase = "transcribing"
-        elif "llm" in folded or "résumé" in folded or "transcription prête" in folded:
+        elif any(term in folded for term in (
+            "llm", "analyse", "génération du résumé", "résumé", "synthèse", "rédaction", "relecture",
+        )):
             phase = "summarizing"
+        elif "whisper" in folded or "transcription" in folded:
+            phase = "transcribing"
         else:
             phase = "processing"
         state = "stopping" if phase == "finalizing" else "running"
