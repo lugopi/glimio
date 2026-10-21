@@ -17,7 +17,7 @@ describe('ApiService', () => {
   afterEach(() => http.verify());
 
   it('uses the existing FastAPI contract for configuration', () => {
-    const expected = { session_root: 'seances/', session_root_exists: true, project_root: '.', processing_mode: 'local', offline_local_mode: true, defaults: {}, preferences: {}, formats: [] };
+  const expected = { session_root: 'seances/', session_root_exists: true, project_root: '.', processing_mode: 'local', offline_local_mode: true, defaults: {}, preferences: {}, formats: [], processing_profiles: {} };
     api.config().subscribe(value => expect(value.session_root).toBe('seances/'));
     const request = http.expectOne('/api/config');
     expect(request.request.method).toBe('GET');

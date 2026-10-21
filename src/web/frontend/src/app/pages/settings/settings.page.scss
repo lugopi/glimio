@@ -8,6 +8,19 @@
   @apply grid gap-4;
 }
 
+.settings-panel {
+  @apply overflow-hidden rounded-[11px] border border-border-soft p-0;
+}
+
+.settings-panel > .settings-body {
+  @apply p-5;
+}
+
+.settings-panel .settings-grid + .settings-grid,
+.settings-panel .settings-grid + .settings-grid--compact {
+  @apply border-t border-border-soft pt-5;
+}
+
 .settings-section > .card-title {
   @apply mb-2;
 }
@@ -34,13 +47,8 @@
   @apply mb-2;
 }
 
-.provider-summary {
-  @apply grid content-start gap-3 rounded-lg border border-border-soft bg-surface-raised p-4;
-}
-
-.provider-summary__heading {
-  @apply flex flex-wrap items-center justify-between gap-2;
-}
+.provider-settings { @apply grid min-w-0 content-start gap-3 border-t border-border-soft pt-4; }
+.provider-settings__heading { @apply flex flex-wrap items-center justify-between gap-2; }
 
 .provider-status {
   @apply rounded-full border border-border-soft px-2 py-1 text-xs;
@@ -73,7 +81,7 @@
 }
 
 .provider-advanced {
-  @apply mt-1 p-3;
+  @apply mt-1 rounded-lg border border-border-soft p-3;
 }
 
 .provider-advanced > summary,

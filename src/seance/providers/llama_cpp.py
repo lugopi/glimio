@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..llm import run_completion_once, run_completion_resilient
-from .contracts import GenerationRequest, GenerationResult, ProviderEvent, ProviderInfo, ProviderOption
+from .contracts import GenerationRequest, GenerationResult, ProviderEvent, ProviderInfo, ProviderOption, ProviderOptionChoice
 from .events import emit_provider_event
 
 
@@ -29,6 +29,18 @@ LLAMA_CPP_INFO = ProviderInfo(
             default="bin/llm/llama-completion.exe",
             description="Exécutable llama.cpp fourni avec l’installation.",
             required=True, advanced=True,
+        ),
+        ProviderOption(
+            key="openvino_enabled", label="Utiliser OpenVINO", type="boolean",
+            default=False,
+            description="Facultatif. Demande un llama.cpp compilé avec le backend OpenVINO.",
+            advanced=True,
+        ),
+        ProviderOption(
+            key="openvino_device", label="Périphérique OpenVINO", type="select",
+            default="CPU", description="Choisissez le périphérique Intel pris en charge par votre installation.",
+            choices=(ProviderOptionChoice("CPU", "CPU"), ProviderOptionChoice("GPU", "GPU"), ProviderOptionChoice("NPU", "NPU")),
+            advanced=True, depends_on="openvino_enabled",
         ),
     ),
 )
@@ -69,6 +81,7 @@ class LlamaCppTextProvider:
         self.on_process = on_process
         self.timeout_seconds = timeout_seconds
         self.completion_runner = completion_runner
+        self.openvino_device = options.get("openvino_device", "CPU") if options.get("openvino_enabled") else None
 
     def generate(self, request: GenerationRequest, *, on_event=None) -> GenerationResult:
         emit_provider_event(ProviderEvent(
@@ -89,6 +102,7 @@ class LlamaCppTextProvider:
             cancel_event=self.cancel_event,
             on_process=self.on_process,
             timeout_seconds=self.timeout_seconds,
+            openvino_device=self.openvino_device,
         )
         emit_provider_event(ProviderEvent(
             provider_id=self.info.id, task="generation", stage="completed",
@@ -111,5 +125,6 @@ class LlamaCppTextProvider:
             cancel_event=self.cancel_event,
             on_process=self.on_process,
             timeout_seconds=self.timeout_seconds,
+            openvino_device=self.openvino_device,
         )
         return GenerationResult(text=text, hit_token_limit=hit_limit)

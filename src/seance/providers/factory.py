@@ -70,5 +70,6 @@ def create_transcription_provider(
         raise ValueError(f"Provider de transcription inconnu : {provider_id}") from exc
     return provider_factory(
         executable, cancel_event=cancel_event, openvino_device=openvino_device,
+        openvino_enabled=bool((options or {}).get("openvino_enabled", False)),
         options=dict(options or {}),
     )

@@ -1,7 +1,7 @@
 @reference '../../styles/tailwind-ref.scss';
 
 :host { @apply block min-w-0; }
-.provider-settings { @apply grid min-w-0 content-start gap-3 rounded-lg border border-border-soft bg-surface-raised p-4; }
+.provider-settings { @apply grid min-w-0 content-start gap-3; }
 .provider-settings__heading { @apply flex flex-wrap items-center justify-between gap-2; }
 .provider-status { @apply rounded-full border border-border-soft px-2 py-1 text-xs; }
 .provider-status[data-ready='true'] { @apply border-emerald-700/40 text-emerald-700; }

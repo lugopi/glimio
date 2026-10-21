@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from seance.media.audio import _soundcard, audio_com_apartment, record
 from seance.layout import get_audio_path, get_transcript_path, has_audio, list_audio_paths
 from seance.processing.pipeline import minutes_folder, process_folder, transcribe_folder
+from seance.processing.quality_profiles import apply_processing_profile, PROFILE_GENERATION_SETTINGS
 from seance.llm import (
     LLMCancelled, LLMError, run_completion_resilient,
 )
@@ -221,6 +222,7 @@ def _angular_file(relative: str) -> Path | None:
 
 
 class Settings(BaseModel):
+    processing_profile: Literal["turbo", "balanced", "quality", "pixel-perfect", "custom"] = "balanced"
     model: str = DEFAULT_WHISPER_MODEL
     transcription_provider: str = "whisper.cpp"
     provider_options: dict[str, dict[str, Any]] = Field(default_factory=dict)
@@ -260,9 +262,13 @@ class Settings(BaseModel):
         for key in ("gguf", "llama_completion"):
             if key in text_options:
                 values[key] = text_options[key]
-        for key in ("model", "whisper_cli", "openvino_device"):
+        for key in ("model", "whisper_cli"):
             if key in transcription_options:
                 values[key] = transcription_options[key]
+        values["openvino_device"] = (
+            transcription_options.get("openvino_device")
+            if transcription_options.get("openvino_enabled") else None
+        )
         sherpa_options = values["provider_options"].get("sherpa-onnx", {})
         for key in ("diarization_segmentation_model", "diarization_embedding_model"):
             if key in sherpa_options:
@@ -294,6 +300,7 @@ class Settings(BaseModel):
             raise HTTPException(status_code=422, detail="Périphérique OpenVINO invalide.")
         if not values["openvino_device"]:
             values["openvino_device"] = None
+        values = apply_processing_profile(values)
         return argparse.Namespace(**values)
 
 
@@ -1064,6 +1071,7 @@ def config() -> dict[str, Any]:
         "defaults": _default_preferences()["settings"],
         "preferences": preferences,
         "formats": ["auto", "summary", "daily", "technical", "formal", "brainstorm"],
+        "processing_profiles": PROFILE_GENERATION_SETTINGS,
     }
 
 
@@ -1928,10 +1936,13 @@ def _generate_search_synthesis(
     on_progress: Any = None,
 ) -> tuple[str, bool]:
     """Compatibility entry point; search logic lives in services/search_synthesis.py."""
+    profiled_settings = Settings(**apply_processing_profile(
+        settings.model_dump() if hasattr(settings, "model_dump") else settings.dict()
+    ))
     return _generate_search_synthesis_impl(
-        query, passages, settings, binary, model,
+        query, passages, profiled_settings, binary, model,
         cancel_event=cancel_event, on_process=on_process, on_progress=on_progress,
-        working_directory=PROJECT_ROOT, provider_id=settings.text_provider,
+        working_directory=PROJECT_ROOT, provider_id=profiled_settings.text_provider,
         completion_runner=run_completion_resilient,
     )
 

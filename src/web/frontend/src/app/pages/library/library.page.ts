@@ -1,20 +1,23 @@
 import { ChangeDetectionStrategy, Component, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { Subscription, catchError, exhaustMap, interval, map, of, startWith, switchMap } from 'rxjs';
 import { FormsModule } from '@angular/forms';
+import { DecimalPipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import { GlimioSettings, SessionDetail, SessionPage, SessionSummary } from '../../core/api.models';
+import { GlimioSettings, ProviderStatus, SessionDetail, SessionPage, SessionSummary } from '../../core/api.models';
 import { LibraryStateService } from '../../core/library-state.service';
 import { PreferencesService } from '../../core/preferences.service';
 import { ToastService } from '../../core/toast.service';
 import { CheckboxFieldComponent } from '../../shared/checkbox-field.component';
 import { IconComponent } from '../../shared/icon.component';
 import { PaginationComponent } from '../../shared/pagination.component';
+import { ProviderOptionsComponent } from '../../shared/provider-options.component';
 import { renderMarkdownToHtml } from '../../shared/markdown';
+import { providerSupportsTranscriptionLanguage, transcriptionLanguageOptions } from '../../shared/transcription-languages';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, CheckboxFieldComponent, IconComponent, PaginationComponent],
+    imports: [FormsModule, DecimalPipe, RouterLink, CheckboxFieldComponent, IconComponent, PaginationComponent, ProviderOptionsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './library.page.html',
   styleUrl: './library.page.scss',
@@ -34,6 +37,8 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly mobileDetailOpen = signal(false);
   readonly working = signal(false);
   readonly sessionSettings = signal<GlimioSettings | null>(null);
+  readonly providers = signal<ProviderStatus[] | null>(null);
+  readonly transcriptionLanguages = computed(() => transcriptionLanguageOptions(this.preferences.preferences()?.ui.language ?? 'fr'));
   readonly formats = ['auto', 'summary', 'daily', 'technical', 'formal', 'brainstorm'];
   readonly speakerCounts = [...Array.from({ length: 20 }, (_, index) => index + 1), 25, 30, 40, 50, 100];
   readonly artifactTitle = signal('');
@@ -57,6 +62,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly sessionsWithSummary = computed(() => this.sessions().filter(session => session.summary).length);
 
   ngOnInit(): void {
+    this.api.providers().subscribe({ next: response => this.providers.set(response.providers), error: () => this.providers.set([]) });
     this.route.queryParamMap.subscribe(params => {
       const requestedId = params.get('session');
       if (requestedId) {
@@ -227,13 +233,34 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     if (current) this.sessionSettings.set({ ...current, [key]: value });
   }
 
+  sessionTranscriptionProvider(): ProviderStatus | undefined {
+    const providerId = this.sessionSettings()?.transcription_provider ?? this.preferences.preferences()?.settings.transcription_provider;
+    return this.providers()?.find(provider => provider.id === providerId);
+  }
+
+  hasPerJobOptions(provider: ProviderStatus): boolean { return provider.options.some(option => option.per_job); }
+
+  patchSessionProviderOption(provider: ProviderStatus, key: string, value: unknown): void {
+    const current = this.sessionSettings();
+    if (!current) return;
+    const providerOptions = current.provider_options ?? {};
+    this.sessionSettings.set({
+      ...current,
+      provider_options: { ...providerOptions, [provider.id]: { ...(providerOptions[provider.id] ?? {}), [key]: value } },
+    });
+  }
+
   private settingsForJob(settings: GlimioSettings): GlimioSettings {
-    const language = settings.language === 'detect'
-      ? 'auto'
-      : settings.language === 'auto'
-        ? (document.documentElement.lang.toLowerCase().startsWith('en') ? 'en' : 'fr')
-        : settings.language;
+    const support = providerSupportsTranscriptionLanguage(this.providers(), settings.transcription_provider);
+    const language = support === false || settings.language === 'detect' ? 'auto' : settings.language;
     return { ...settings, language };
+  }
+
+  supportsTranscriptionLanguage(): boolean {
+    const providerId = this.sessionSettings()?.transcription_provider
+      ?? this.preferences.preferences()?.settings.transcription_provider
+      ?? '';
+    return providerSupportsTranscriptionLanguage(this.providers(), providerId) === true;
   }
 
   numberValue(value: string | number): number { return Number(value); }
