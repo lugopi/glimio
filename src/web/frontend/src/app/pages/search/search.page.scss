@@ -1,10 +1,35 @@
 @reference '../../../styles/tailwind-ref.scss';
 
 :host { @apply block min-w-0; }
-:host .search-hero { @apply mb-4; }
-:host .search-hint { @apply mt-4 mb-0; }
+:host .search-hero { @apply mb-4 p-5; border-color: color-mix(in srgb, var(--c-border) 68%, var(--c-surface)); }
+:host .search-hero > label { @apply mb-3 block text-[0.8125rem] font-bold; }
+:host .ai-composer { @apply overflow-hidden rounded-[10px] border border-border-soft; background: var(--c-surface-raised); box-shadow: inset 0 1px 0 rgb(255 255 255 / .025); transition: border-color .16s ease, box-shadow .16s ease; }
+:host .ai-composer:focus-within { border-color: var(--c-accent); box-shadow: 0 0 0 2px var(--c-accent-soft); }
+:host .ai-query-input.textarea { @apply block w-full border-0 rounded-none p-4; min-height: 88px; max-height: 260px; height: auto; outline: 0; background: transparent; box-shadow: none; resize: none; overflow-y: hidden; line-height: 1.7; font-size: .8125rem; }
+:host .ai-query-input.textarea:focus { border: 0; outline: 0; box-shadow: none; }
+:host .ai-query-input.textarea.is-overflowing { overflow-y: auto; }
+:host .ai-query-input::placeholder { color: var(--c-subtle); }
+:host .ai-composer-footer { @apply flex flex-wrap items-center justify-between gap-3 border-t border-border-soft px-3 py-2.5; background: color-mix(in srgb, var(--c-surface-raised) 76%, var(--c-surface)); }
+:host .ai-query-shortcut { @apply font-mono text-[0.75rem] text-subtle; }
+:host .ai-search-actions { @apply ml-auto flex items-center justify-end gap-2; }
+:host .ai-run-button { min-width: 132px; }
+:host .search-hint { @apply mt-4 flex items-start gap-2 px-0 text-[0.8125rem] leading-[1.65] text-subtle; margin-bottom: 0; }
+:host .search-hint glimio-icon { @apply size-[14px] shrink-0; }
 :host .search-results { @apply grid min-w-0 gap-[13px]; }
+:host .answer-card { @apply rounded-[var(--radius-panel)] border-0 bg-surface p-[19px] shadow-none; }
+:host .result-card-head { @apply mb-[11px] flex flex-wrap items-center justify-between gap-2.5; }
+:host .result-card-head h2 { @apply m-0 text-[0.8125rem] font-bold; }
+:host .result-chip { @apply rounded-[5px] border-0 bg-surface-raised px-[7px] py-1 font-mono text-[0.75rem] text-muted; }
+:host .answer-text { @apply text-xs leading-[1.8] text-muted; overflow-wrap: anywhere; }
+:host .answer-text h1, :host .answer-text h2, :host .answer-text h3 { color: var(--c-text); }
 :host .source-list { @apply grid min-w-0 gap-0; }
+:host .source-item { @apply grid min-w-0 items-start gap-[11px] border-0 bg-surface p-[15px] text-sm; border-radius: var(--radius-panel); grid-template-columns: 32px minmax(0, 1fr) auto; box-sizing: border-box; width: 100%; margin-inline: 0; transition: background .15s ease; }
+:host .source-item + .source-item { @apply border-t border-border-soft; }
+:host .source-item:hover { background: var(--c-surface-hover); }
+:host .source-number { @apply font-mono text-[0.8125rem] text-accent; }
+:host .source-item strong { @apply text-[0.8125rem]; }
+:host .source-meta { @apply mt-1 text-[0.75rem] text-subtle; overflow-wrap: anywhere; }
+:host .source-excerpt { @apply mt-[9px] text-[0.8125rem] leading-[1.65] text-muted; white-space: pre-wrap; }
 :host .search-source-results { @apply min-w-0; }
 :host .search-source-list { @apply mt-3 gap-2 p-0; }
 :host .search-source-card { @apply rounded-[11px] border border-border-soft bg-surface-raised px-4 py-[13px]; }
@@ -20,7 +45,16 @@
 :host .search-source-pagination-footer glimio-pagination { @apply min-w-0 flex-1; }
 :host .search-answer-markdown { @apply mt-0 rounded-none border-0 bg-transparent p-0; }
 :host .search-answer-markdown > :first-child { @apply mt-0; }
+@media (width < theme(--breakpoint-md)) {
+  :host .ai-composer-footer { @apply items-center; }
+}
 @media (width < theme(--breakpoint-sm)) {
+  :host .search-hero { @apply p-[15px]; }
+  :host .ai-composer-footer { @apply gap-2 p-[9px]; }
+  :host .ai-query-shortcut { @apply text-[0.75rem]; }
+  :host .ai-run-button { min-width: 118px; }
+  :host .source-item { grid-template-columns: 24px minmax(0, 1fr); }
+  :host .source-item .source-open { grid-column: 2; justify-self: start; }
   :host .search-source-card { @apply px-3 py-3; }
   :host .search-source-footer { @apply items-start; }
   :host .source-open { @apply ml-auto; }

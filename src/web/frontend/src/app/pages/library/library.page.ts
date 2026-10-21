@@ -117,6 +117,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
       const activePhaseLabels: Record<string, string> = {
         starting: 'Préparation', preparing: 'Préparation', importing: 'Importation',
         transcribing: 'Transcription en cours', summarizing: 'Génération du résumé',
+        diarizing: 'Diarisation en cours',
         processing: 'Traitement', recording: 'Enregistrement', finalizing: 'Finalisation',
         completed: 'Terminé', cancelled: 'Annulé', error: 'Échec',
       };
@@ -585,7 +586,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
       this.liveArtifactPhaseKey = phaseKey;
       this.liveArtifactPhaseFollowed = false;
     }
-    const kind = processing.phase === 'transcribing'
+    const kind = processing.phase === 'transcribing' || processing.phase === 'diarizing'
       ? 'transcript'
       : processing.phase === 'summarizing'
         ? 'summary'

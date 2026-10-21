@@ -41,25 +41,30 @@
             [attr.aria-expanded]="sidebarInfoExpanded()" aria-controls="sidebar-info-content"
             [attr.aria-label]="sidebarInfoExpanded() ? 'Masquer les informations locales' : 'Afficher les informations locales'"
             [attr.title]="sidebarInfoExpanded() ? 'Masquer les informations locales' : 'Afficher les informations locales'">
-            <span class="nav-icon"><glimio-icon [name]="sidebarInfoExpanded() ? 'chevron-up' : 'chevron-down'" /></span>
+            <span class="nav-icon"><glimio-icon [name]="sidebarInfoExpanded() ? 'chevron-down' : 'chevron-up'" /></span>
             <span class="nav-label">Infos locales</span>
           </button>
-          <div class="sidebar-info-content" id="sidebar-info-content" [hidden]="!sidebarInfoExpanded()">
-            <div class="offline-indicator runtime-indicator" data-mode="local" aria-label="Traitement local" title="Traitement local — les modèles sont exécutés sur cet appareil.">
-              <span class="pulse-dot" aria-hidden="true"></span>
-              <div><strong>Traitement local</strong><small>Les modèles sont exécutés sur cet appareil.</small></div>
-            </div>
-            <div class="sidebar-path">
-              <div class="sidebar-path-heading">
-                <small>DOSSIER DES SÉANCES</small>
-                @if (sidebarCollapsed()) {
-                  <span class="sidebar-path-compact-label">Séances</span>
-                  <button class="path-copy-button path-copy-button--compact" type="button" (click)="copySessionRoot()" aria-label="Copier le chemin du dossier des séances" title="Copier le chemin du dossier des séances"><glimio-icon name="folder-open" size="fill" /></button>
-                } @else {
-                  <button class="path-copy-button" type="button" (click)="copySessionRoot()" aria-label="Copier le chemin du dossier des séances" title="Copier le chemin du dossier des séances"><glimio-icon name="square-2-stack" size="fill" /></button>
-                }
+          <div class="sidebar-info-content" id="sidebar-info-content"
+            [class.is-expanded]="sidebarInfoExpanded()"
+            [attr.aria-hidden]="!sidebarInfoExpanded()"
+            [attr.inert]="sidebarInfoExpanded() ? null : ''">
+            <div class="sidebar-info-inner">
+              <div class="offline-indicator runtime-indicator" data-mode="local" aria-label="Traitement local" title="Traitement local — les modèles sont exécutés sur cet appareil.">
+                <span class="runtime-indicator-icon" aria-hidden="true"><glimio-icon name="cpu-chip" size="fill" /></span>
+                <div><strong>Traitement local</strong><small>Les modèles sont exécutés sur cet appareil.</small></div>
               </div>
-              <code [title]="preferences.sessionRoot()">{{ preferences.sessionRoot() }}</code>
+              <div class="sidebar-path">
+                <div class="sidebar-path-heading">
+                  <small>DOSSIER DES SÉANCES</small>
+                  @if (sidebarCollapsed()) {
+                    <span class="sidebar-path-compact-label">Séances</span>
+                    <button class="path-copy-button path-copy-button--compact" type="button" (click)="copySessionRoot()" aria-label="Copier le chemin du dossier des séances" title="Copier le chemin du dossier des séances"><glimio-icon name="folder-open" size="fill" /></button>
+                  } @else {
+                    <button class="path-copy-button" type="button" (click)="copySessionRoot()" aria-label="Copier le chemin du dossier des séances" title="Copier le chemin du dossier des séances"><glimio-icon name="square-2-stack" size="fill" /></button>
+                  }
+                </div>
+                <code [title]="preferences.sessionRoot()">{{ preferences.sessionRoot() }}</code>
+              </div>
             </div>
           </div>
         </div>
