@@ -1,0 +1,15 @@
+@reference '../../styles/tailwind-ref.scss';
+
+:host { @apply block min-w-0; }
+.provider-settings { @apply grid min-w-0 content-start gap-3 rounded-lg border border-border-soft bg-surface-raised p-4; }
+.provider-settings__heading { @apply flex flex-wrap items-center justify-between gap-2; }
+.provider-status { @apply rounded-full border border-border-soft px-2 py-1 text-xs; }
+.provider-status[data-ready='true'] { @apply border-emerald-700/40 text-emerald-700; }
+.provider-status[data-ready='false'] { @apply border-amber-700/40 text-amber-700; }
+.provider-missing { @apply break-all text-sm text-amber-700; }
+.provider-option { @apply grid min-w-0 gap-2; }
+.provider-option .field-note { @apply m-0; }
+.provider-advanced { @apply mt-1 rounded-lg border border-border-soft p-3; }
+.provider-advanced > summary { @apply flex min-h-10 cursor-pointer list-none items-center justify-between font-medium; }
+.provider-advanced > summary::-webkit-details-marker { @apply hidden; }
+.provider-option-list { @apply mt-4 grid gap-4; }

@@ -1,15 +1,16 @@
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
-import { GlimioSettings, PreferencesPayload, ProviderStatus } from '../../core/api.models';
+import { GlimioSettings, PreferencesPayload, ProviderOption, ProviderStatus } from '../../core/api.models';
 import { PreferencesService } from '../../core/preferences.service';
 import { ApiService } from '../../core/api.service';
 import { CheckboxFieldComponent } from '../../shared/checkbox-field.component';
 import { IconComponent } from '../../shared/icon.component';
+import { ProviderOptionsComponent } from '../../shared/provider-options.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, DecimalPipe, CheckboxFieldComponent, IconComponent],
+  imports: [FormsModule, DecimalPipe, CheckboxFieldComponent, IconComponent, ProviderOptionsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './settings.page.html',
   styleUrl: './settings.page.scss',
@@ -26,13 +27,26 @@ export class SettingsPageComponent implements OnInit {
     return this.providers().filter(provider => provider.task === task);
   }
 
-  executionLabel(execution: ProviderStatus['execution']): string {
-    return ({
-      embedded: 'Intégré à l’application',
-      bundled_executable: 'Fourni avec l’application',
-      system_executable: 'Exécutable configuré séparément',
-      remote: 'Service distant',
-    } as const)[execution];
+  activeProvider(task: ProviderStatus['task'], id: string): ProviderStatus | undefined {
+    return this.providers().find(provider => provider.task === task && provider.id === id);
+  }
+
+  patchProviderOption(provider: ProviderStatus, option: ProviderOption, value: unknown): void {
+    const current = this.preferences.preferences();
+    if (!current) return;
+    const allProviderOptions = current.settings.provider_options ?? {};
+    const providerValues = allProviderOptions[provider.id] ?? {};
+    const typedValue = option.type === 'number' ? Number(value) : value;
+    this.preferences.updatePreferences({
+      ...current,
+      settings: {
+        ...current.settings,
+        provider_options: {
+          ...allProviderOptions,
+          [provider.id]: { ...providerValues, [option.key]: typedValue },
+        },
+      },
+    });
   }
 
   ngOnInit(): void {

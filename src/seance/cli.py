@@ -117,7 +117,10 @@ def main() -> None:
     event_token = set_provider_event_callback(
         lambda event: print(f"[{event.provider_id}] {event.message}", flush=True)
     )
-    provider_token = set_text_provider(getattr(namespace, "text_provider", None))
+    provider_token = set_text_provider(
+        getattr(namespace, "text_provider", None),
+        (getattr(namespace, "provider_options", {}) or {}).get(getattr(namespace, "text_provider", ""), {}),
+    )
     try:
         if args.command == "record":
             namespace.capture_windows = namespace.windows_audio

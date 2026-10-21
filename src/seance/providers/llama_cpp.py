@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..llm import run_completion_once, run_completion_resilient
-from .contracts import GenerationRequest, GenerationResult, ProviderEvent, ProviderInfo
+from .contracts import GenerationRequest, GenerationResult, ProviderEvent, ProviderInfo, ProviderOption
 from .events import emit_provider_event
 
 
@@ -17,6 +17,20 @@ LLAMA_CPP_INFO = ProviderInfo(
     description="Génération locale de résumés et réponses à partir de modèles GGUF.",
     execution="system_executable",
     capabilities=("local", "gguf", "cancellation", "retry"),
+    options=(
+        ProviderOption(
+            key="gguf", label="Modèle de résumé", type="path",
+            default="models/llm/model.gguf",
+            description="Fichier GGUF utilisé pour les résumés et les réponses de recherche.",
+            required=True,
+        ),
+        ProviderOption(
+            key="llama_completion", label="Moteur de résumé", type="path",
+            default="bin/llm/llama-completion.exe",
+            description="Exécutable llama.cpp fourni avec l’installation.",
+            required=True, advanced=True,
+        ),
+    ),
 )
 
 
@@ -35,10 +49,22 @@ class LlamaCppTextProvider:
         on_process: Any = None,
         timeout_seconds: float | None = None,
         completion_runner=run_completion_resilient,
+        options: dict[str, Any] | None = None,
     ) -> None:
-        self.executable = Path(executable)
-        self.model = Path(model)
-        self.working_directory = Path(working_directory)
+        options = options or {}
+        self.working_directory = Path(working_directory).expanduser().resolve()
+        configured_executable = Path(options.get("llama_completion", executable)).expanduser()
+        configured_model = Path(options.get("gguf", model)).expanduser()
+        self.executable = (
+            configured_executable.resolve()
+            if configured_executable.is_absolute()
+            else (self.working_directory / configured_executable).resolve()
+        )
+        self.model = (
+            configured_model.resolve()
+            if configured_model.is_absolute()
+            else (self.working_directory / configured_model).resolve()
+        )
         self.cancel_event = cancel_event
         self.on_process = on_process
         self.timeout_seconds = timeout_seconds

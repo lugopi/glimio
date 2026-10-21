@@ -5,7 +5,7 @@ FastAPI, web services, or frontend code; presentation layers consume the neutral
 metadata and events defined here.
 """
 
-from .contracts import ProviderEvent, ProviderInfo, ProviderStatus
+from .contracts import ProviderEvent, ProviderInfo, ProviderOption, ProviderOptionChoice, ProviderStatus
 from .factory import (
     DEFAULT_TEXT_PROVIDER,
     DEFAULT_TRANSCRIPTION_PROVIDER,
@@ -13,13 +13,15 @@ from .factory import (
     TRANSCRIPTION_PROVIDER_IDS,
     create_text_provider,
     create_transcription_provider,
+    registered_provider_infos,
 )
-from .registry import get_provider_statuses
+from .registry import default_provider_options, get_provider_info, get_provider_statuses, normalize_provider_options
 
 __all__ = [
     "DEFAULT_TEXT_PROVIDER", "DEFAULT_TRANSCRIPTION_PROVIDER", "TEXT_PROVIDER_IDS",
     "TRANSCRIPTION_PROVIDER_IDS", "ProviderEvent",
-    "ProviderInfo", "ProviderStatus", "create_text_provider",
+    "ProviderInfo", "ProviderOption", "ProviderOptionChoice", "ProviderStatus", "create_text_provider",
     "create_transcription_provider",
-    "get_provider_statuses",
+    "default_provider_options", "get_provider_info", "get_provider_statuses", "normalize_provider_options",
+    "registered_provider_infos",
 ]

@@ -1,65 +1,162 @@
-    <section class="view is-active" aria-labelledby="settings-title">
-      <div class="page-heading"><div><div class="eyebrow">CONFIGURATION GÉNÉRALE</div><h1 id="settings-title">Paramètres</h1><p class="subheading">Configurez les modèles, les exécutables, le traitement et la qualité d’enregistrement.</p></div></div>
-      @if (settings(); as value) {
-        <section class="card settings-panel" aria-labelledby="providers-title">
-          <div class="settings-body">
-            <section class="settings-section" aria-labelledby="providers-title">
-              <h2 class="card-title" id="providers-title">Moteurs et disponibilité</h2>
-              <p class="field-note">État détecté par l’application Python. Cette information ne charge ni les modèles ni les exécutables.</p>
-              @if (providersError(); as error) { <p class="field-note" role="status">{{ error }}</p> }
-              <div class="settings-grid">
-                @for (provider of providers(); track provider.id) {
-                  <div class="settings-model-field">
-                    <strong>{{ provider.name }}</strong>
-                    <small class="field-note">{{ provider.description }}</small>
-                    <small class="field-note">{{ executionLabel(provider.execution) }} · Capacités : {{ provider.capabilities.join(', ') }}</small>
-                    <small class="field-note" [attr.data-ready]="provider.ready">{{ provider.ready ? 'Disponible' : provider.message }}</small>
-                    @if (provider.missing.length) {
-                      <small class="field-note">Manquant : {{ provider.missing.join(', ') }}</small>
-                    }
-                  </div>
-                }
+<section class="view is-active settings-page" aria-labelledby="settings-title">
+  <header class="page-heading">
+    <div>
+      <div class="eyebrow">VOTRE ESPACE</div>
+      <h1 id="settings-title">Paramètres</h1>
+      <p class="subheading">Choisissez comment Glimio transcrit et prépare vos résumés.</p>
+    </div>
+  </header>
+
+  @if (settings(); as value) {
+    <div class="settings-layout">
+      <section class="card settings-panel" aria-labelledby="workspace-title">
+        <div class="settings-body">
+          <h2 class="card-title" id="workspace-title">Votre espace</h2>
+          <p class="field-note">Choisissez la langue de l’application et l’endroit où vos séances sont enregistrées.</p>
+          <div class="settings-grid">
+            <div>
+              <label class="field-label" for="interface-language">Langue de l’application</label>
+              <select class="select" id="interface-language" [ngModel]="ui()?.language ?? 'fr'" (ngModelChange)="patchLanguage($event)">
+                <option value="fr">Français</option><option value="en">English</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="session-root">Dossier des séances</label>
+              <input class="input" id="session-root" [ngModel]="ui()?.session_root ?? preferences.config()?.session_root ?? ''" (ngModelChange)="patchSessionRoot($event)">
+              <small class="field-note">Laissez vide pour utiliser le dossier par défaut.</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card settings-panel" aria-labelledby="transcription-title">
+        <div class="settings-body">
+          <h2 class="card-title" id="transcription-title">Transcription</h2>
+          <p class="field-note">Le moteur transforme vos fichiers audio en texte.</p>
+          @if (providersError(); as error) { <p class="settings-error" role="status">{{ error }}</p> }
+          <div class="settings-grid">
+            <div>
+              <label class="field-label" for="transcription-provider">Moteur de transcription</label>
+              <select class="select" id="transcription-provider" [ngModel]="value.transcription_provider" (ngModelChange)="patch('transcription_provider', $event)">
+                @for (provider of providersFor('transcription'); track provider.id) { <option [value]="provider.id">{{ provider.name }}</option> }
+              </select>
+            </div>
+            @if (activeProvider('transcription', value.transcription_provider); as provider) {
+              <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" />
+            } @else {
+              <p class="field-note">Aucun moteur de transcription n’est disponible.</p>
+            }
+          </div>
+          <div class="settings-grid settings-grid--compact">
+            <div>
+              <label class="field-label" for="transcription-language">Langue parlée</label>
+              <input class="input" id="transcription-language" [ngModel]="value.language" (ngModelChange)="patch('language', $event)" placeholder="auto, fr, en…">
+              <small class="field-note">« auto » détecte automatiquement la langue.</small>
+            </div>
+            <div>
+              <label class="field-label" for="threads">Utilisation du processeur</label>
+              <input class="input" id="threads" type="number" min="1" max="256" [ngModel]="value.threads" (ngModelChange)="patch('threads', numberValue($event))">
+              <small class="field-note">Nombre de cœurs utilisés lors des traitements.</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card settings-panel" aria-labelledby="summary-title">
+        <div class="settings-body">
+          <h2 class="card-title" id="summary-title">Résumés et recherche</h2>
+          <p class="field-note">Ce moteur rédige les comptes rendus et répond aux recherches dans vos séances.</p>
+          <div class="settings-grid">
+            <div>
+              <label class="field-label" for="text-provider">Moteur de rédaction</label>
+              <select class="select" id="text-provider" [ngModel]="value.text_provider" (ngModelChange)="patch('text_provider', $event)">
+                @for (provider of providersFor('generation'); track provider.id) { <option [value]="provider.id">{{ provider.name }}</option> }
+              </select>
+            </div>
+            @if (activeProvider('generation', value.text_provider); as provider) {
+              <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" />
+            } @else {
+              <p class="field-note">Aucun moteur de rédaction n’est disponible.</p>
+            }
+          </div>
+          <div class="settings-grid settings-grid--compact">
+            <div>
+              <label class="field-label" for="format">Style du compte rendu</label>
+              <select class="select" id="format" [ngModel]="value.format" (ngModelChange)="patch('format', $event)">
+                @for (format of preferences.config()?.formats ?? []; track format) { <option [value]="format">{{ formatLabel(format) }}</option> }
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="bitrate">Qualité audio</label>
+              <select class="select" id="bitrate" [ngModel]="value.audio_bitrate_kbps" (ngModelChange)="patch('audio_bitrate_kbps', audioBitrateValue($event))">
+                <option [ngValue]="128">Économique · 128 kbps</option><option [ngValue]="256">Équilibrée · 256 kbps</option><option [ngValue]="384">Élevée · 384 kbps</option><option [ngValue]="512">Très élevée · 512 kbps</option><option [ngValue]="768">Maximum · 768 kbps</option>
+              </select>
+              <small class="field-note">Une qualité supérieure prend plus d’espace disque.</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <details class="card settings-panel settings-advanced">
+        <summary>Plus de paramètres</summary>
+        <div class="settings-body">
+          <section class="settings-section" aria-labelledby="diarization-title">
+            <h2 class="card-title" id="diarization-title">Reconnaissance des voix</h2>
+            <label class="settings-toggle">
+              <input type="checkbox" [ngModel]="value.diarize" (ngModelChange)="patch('diarize', $event)">
+              <span><strong>Identifier les différentes voix</strong><small class="field-note">Nécessite les modèles ONNX de diarisation.</small></span>
+            </label>
+            <div class="settings-grid">
+              @for (provider of providersFor('diarization'); track provider.id) {
+                <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" [showAllOptions]="true" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" />
+              }
+              <div>
+                <label class="field-label" for="diarization-threshold">Séparation des voix <output>{{ value.diarization_threshold | number:'1.2-2' }}</output></label>
+                <input class="range-input" id="diarization-threshold" type="range" min="0" max="1" step="0.01" [ngModel]="value.diarization_threshold" (ngModelChange)="patch('diarization_threshold', numberValue($event))">
+                <small class="field-note">Une valeur plus élevée regroupe les voix de façon plus stricte.</small>
               </div>
-            </section>
-          </div>
-        </section>
-        <section class="card settings-panel" aria-labelledby="settings-models-title">
-          <div class="settings-body">
-            <section class="settings-section" aria-labelledby="settings-preferences-title"><h2 class="card-title" id="settings-preferences-title">Préférences générales</h2><div class="settings-grid">
-              <div><label class="field-label" for="interface-language">Langue de l’interface</label><select class="select" id="interface-language" [ngModel]="ui()?.language ?? 'fr'" (ngModelChange)="patchLanguage($event)"><option value="fr">Français</option><option value="en">English</option></select></div>
-              <div><label class="field-label" for="session-root">Dossier de sortie des séances</label><input class="input" id="session-root" [ngModel]="ui()?.session_root ?? preferences.config()?.session_root ?? ''" (ngModelChange)="patchSessionRoot($event)"><small class="field-note">Chemin absolu ou relatif à la racine du projet. Videz le champ pour revenir au dossier par défaut.</small></div>
-            </div></section>
-            <section class="settings-section" aria-labelledby="settings-models-title"><h2 class="card-title" id="settings-models-title">Modèles et exécutables</h2><h3 class="settings-subsection-title">Modèles IA</h3><div class="settings-grid">
-              <div><label class="field-label" for="transcription-provider">Provider de transcription</label><select class="select" id="transcription-provider" [ngModel]="value.transcription_provider" (ngModelChange)="patch('transcription_provider', $event)">@for (provider of providersFor('transcription'); track provider.id) { <option [value]="provider.id">{{ provider.name }}</option> }</select></div>
-              <div class="settings-model-field"><label class="field-label" for="whisper-model">Modèle ASR</label><input class="input" id="whisper-model" [ngModel]="value.model" (ngModelChange)="patch('model', $event)"><small class="field-note">Fichier attendu : <code>models/asr/model.bin</code> (large-v3 Q5_0, 1,08 Go).</small><a class="btn btn--secondary btn--small settings-path-action" href="https://huggingface.co/ggerganov/whisper.cpp" target="_blank" rel="noopener noreferrer">Ouvrir le projet Whisper <glimio-icon name="arrow-top-right-on-square" /></a></div>
-              <div class="settings-model-field"><label class="field-label" for="whisper-cli">Exécutable whisper-cli</label><input class="input" id="whisper-cli" [ngModel]="value.whisper_cli" (ngModelChange)="patch('whisper_cli', $event)"><small class="field-note">Chemin relatif à la racine du projet ou chemin absolu.</small><a class="btn btn--secondary btn--small settings-path-action" href="https://github.com/ggml-org/whisper.cpp/releases" target="_blank" rel="noopener noreferrer">Ouvrir les releases whisper.cpp <glimio-icon name="arrow-top-right-on-square" /></a></div>
-              <div><label class="field-label" for="text-provider">Provider de génération</label><select class="select" id="text-provider" [ngModel]="value.text_provider" (ngModelChange)="patch('text_provider', $event)">@for (provider of providersFor('generation'); track provider.id) { <option [value]="provider.id">{{ provider.name }}</option> }</select></div>
-              <div class="settings-model-field"><label class="field-label" for="llama-model">Modèle de génération (GGUF)</label><input class="input" id="llama-model" [ngModel]="value.gguf" (ngModelChange)="patch('gguf', $event)"><small class="field-note">Fichier attendu : <code>models/llm/model.gguf</code> (LFM2.5-8B-A1B Q4_K_M, 5,32 Go). Respectez la LFM Open License v1.0.</small><div class="settings-model-links"><a class="text-link-button" href="https://huggingface.co/LiquidAI/LFM2.5-8B-A1B-GGUF/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Lire la licence</a><a class="btn btn--secondary btn--small settings-path-action" href="https://huggingface.co/LiquidAI/LFM2.5-8B-A1B-GGUF" target="_blank" rel="noopener noreferrer">Ouvrir le projet GGUF <glimio-icon name="arrow-top-right-on-square" /></a></div></div>
-              <div class="settings-model-field"><label class="field-label" for="llama-cli">Exécutable llama.cpp</label><input class="input" id="llama-cli" [ngModel]="value.llama_completion" (ngModelChange)="patch('llama_completion', $event)"><small class="field-note">Exécutable llama-completion. Chemin relatif à la racine du projet ou chemin absolu.</small><a class="btn btn--secondary btn--small settings-path-action" href="https://github.com/ggml-org/llama.cpp/releases" target="_blank" rel="noopener noreferrer">Ouvrir les releases llama.cpp <glimio-icon name="arrow-top-right-on-square" /></a></div>
-              <div class="settings-model-field"><label class="field-label" for="diarization-embedding-model">Modèle d’embedding de diarisation (ONNX)</label><input class="input" id="diarization-embedding-model" [ngModel]="value.diarization_embedding_model" (ngModelChange)="patch('diarization_embedding_model', $event)"><small class="field-note">Fichier attendu : <code>models/diarization/embedding/embedding.onnx</code>. Vérifiez les conditions applicables au poids.</small><div class="settings-model-links"><a class="text-link-button" href="https://github.com/modelscope/3D-Speaker/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Lire la licence 3D-Speaker</a><a class="btn btn--secondary btn--small settings-path-action" href="https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models" target="_blank" rel="noopener noreferrer">Ouvrir les fichiers du modèle <glimio-icon name="arrow-top-right-on-square" /></a></div></div>
-              <div class="settings-model-field"><label class="field-label" for="diarization-segmentation-model">Modèle de segmentation de diarisation (ONNX)</label><input class="input" id="diarization-segmentation-model" [ngModel]="value.diarization_segmentation_model" (ngModelChange)="patch('diarization_segmentation_model', $event)"><small class="field-note">Fichier attendu : <code>models/diarization/segmentation/segmentation.onnx</code>. Le modèle pyannote impose une acceptation de ses conditions sur Hugging Face.</small><div class="settings-model-links"><a class="text-link-button" href="https://huggingface.co/pyannote/segmentation-3.0" target="_blank" rel="noopener noreferrer">Lire les conditions pyannote</a><a class="btn btn--secondary btn--small settings-path-action" href="https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-segmentation-models" target="_blank" rel="noopener noreferrer">Ouvrir les fichiers ONNX <glimio-icon name="arrow-top-right-on-square" /></a></div></div>
-            </div><h3 class="settings-subsection-title">Outils système</h3><div class="settings-grid">
-              <div><label class="field-label" for="ffmpeg">Exécutable FFmpeg</label><input class="input" id="ffmpeg" [ngModel]="value.ffmpeg" (ngModelChange)="patch('ffmpeg', $event)"><small class="field-note">Commande ou chemin vers l’exécutable.</small></div>
-              <div><label class="field-label" for="threads">Threads CPU</label><input class="input" id="threads" type="number" min="1" max="256" [ngModel]="value.threads" (ngModelChange)="patch('threads', numberValue($event))"></div>
-              <div><label class="field-label" for="openvino-device">Périphérique OpenVINO (facultatif)</label><select class="select" id="openvino-device" [ngModel]="value.openvino_device ?? ''" (ngModelChange)="patch('openvino_device', $event || null)"><option value="">Automatique / désactivé</option><option value="CPU">CPU</option><option value="GPU">GPU</option><option value="NPU">NPU</option></select></div>
-            </div></section>
-            <section class="settings-section" aria-labelledby="settings-transcription-title"><h2 class="card-title" id="settings-transcription-title">Transcription et diarisation</h2><div class="settings-grid">
-              <div><label class="field-label" for="diarization-threshold">Seuil de regroupement des voix <output>{{ value.diarization_threshold | number:'1.2-2' }}</output></label><input class="range-input" id="diarization-threshold" type="range" min="0" max="1" step="0.01" [ngModel]="value.diarization_threshold" (ngModelChange)="patch('diarization_threshold', numberValue($event))"><small class="field-note">Un seuil plus élevé regroupe les voix de façon plus stricte. Ajustez-le selon la qualité audio et le nombre d’interlocuteurs.</small></div>
-              <div><label class="field-label" for="bitrate">Qualité audio</label><select class="select" id="bitrate" [ngModel]="value.audio_bitrate_kbps" (ngModelChange)="patch('audio_bitrate_kbps', audioBitrateValue($event))"><option [ngValue]="128">128 kbps</option><option [ngValue]="256">256 kbps</option><option [ngValue]="384">384 kbps</option><option [ngValue]="512">512 kbps</option><option [ngValue]="768">768 kbps</option></select></div>
-            </div></section>
-            <section class="settings-section" aria-labelledby="settings-llm-title"><h2 class="card-title" id="settings-llm-title">Génération du résumé</h2><div class="settings-grid">
-              <div><label class="field-label" for="context">Fenêtre de contexte</label><input class="input" id="context" type="number" min="2048" max="131072" step="1024" [ngModel]="value.context" (ngModelChange)="patch('context', numberValue($event))"></div>
-              <div><label class="field-label" for="max-tokens">Tokens maximum</label><input class="input" id="max-tokens" type="number" min="500" max="32768" [ngModel]="value.max_tokens" (ngModelChange)="patch('max_tokens', numberValue($event))"></div>
-              <div><label class="field-label" for="analysis-tokens">Tokens d’analyse</label><input class="input" id="analysis-tokens" type="number" min="100" max="32768" [ngModel]="value.analysis_tokens" (ngModelChange)="patch('analysis_tokens', numberValue($event))"></div>
+              <div>
+                <label class="field-label" for="diarization-speakers">Nombre de personnes (0 pour automatique)</label>
+                <input class="input" id="diarization-speakers" type="number" min="0" max="256" [ngModel]="value.diarization_num_speakers === -1 ? 0 : value.diarization_num_speakers" (ngModelChange)="patch('diarization_num_speakers', numberValue($event) || -1)">
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section" aria-labelledby="generation-advanced-title">
+            <h2 class="card-title" id="generation-advanced-title">Réglages de génération</h2>
+            <div class="settings-grid settings-grid--compact">
+              <div><label class="field-label" for="context">Taille du contexte</label><input class="input" id="context" type="number" min="2048" max="131072" step="1024" [ngModel]="value.context" (ngModelChange)="patch('context', numberValue($event))"></div>
+              <div><label class="field-label" for="max-tokens">Longueur maximale du résumé</label><input class="input" id="max-tokens" type="number" min="500" max="32768" [ngModel]="value.max_tokens" (ngModelChange)="patch('max_tokens', numberValue($event))"></div>
+              <div><label class="field-label" for="analysis-tokens">Budget d’analyse</label><input class="input" id="analysis-tokens" type="number" min="100" max="32768" [ngModel]="value.analysis_tokens" (ngModelChange)="patch('analysis_tokens', numberValue($event))"></div>
+              <div><label class="field-label" for="analysis-retries">Reprises après erreur</label><input class="input" id="analysis-retries" type="number" min="0" max="10" [ngModel]="value.analysis_retries" (ngModelChange)="patch('analysis_retries', numberValue($event))"></div>
+              <div><label class="field-label" for="analysis-splits">Découpages supplémentaires</label><input class="input" id="analysis-splits" type="number" min="0" max="12" [ngModel]="value.analysis_max_splits" (ngModelChange)="patch('analysis_max_splits', numberValue($event))"></div>
               <glimio-checkbox-field fieldId="disable-final-review" title="Désactiver la relecture finale" description="Réduit les étapes de vérification du résumé." [checked]="value.no_review" (checkedChange)="patch('no_review', $event)" />
-            </div></section>
-            <div class="settings-footer"><span class="settings-autosave-note"><span class="settings-autosave-icon"><glimio-icon name="check-circle" /></span><span class="settings-autosave-copy"><strong>Sauvegarde automatique</strong><small>{{ preferences.isSaving() ? 'Enregistrement des modifications…' : 'Les modifications sont enregistrées automatiquement.' }}</small></span></span><span class="field-note">Les chemins relatifs sont résolus depuis la racine du projet. Les changements s’appliquent aux prochains traitements.</span></div>
-      <footer class="license-notice" aria-label="Licence du logiciel">
-        <p><strong>Glimio est un logiciel libre.</strong> Le code du projet est distribué sous licence <strong>GNU AGPL v3 ou ultérieure (AGPL-3.0-or-later)</strong>. <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener noreferrer">Consulter le texte officiel de la licence</a>.</p>
-        <p class="field-note">Le fichier <code>LICENSE</code> fourni avec les sources contient la licence applicable au projet. Les modèles, binaires et autres composants tiers peuvent avoir leurs propres conditions.</p>
+            </div>
+          </section>
+
+          @for (provider of providersFor('media'); track provider.id) {
+            <section class="settings-section" aria-labelledby="media-provider-title">
+              <h2 class="card-title" id="media-provider-title">Importation des fichiers</h2>
+              <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" [showAllOptions]="true" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" />
+            </section>
+          }
+
+          <section class="settings-section">
+            <h2 class="card-title">Licences et composants</h2>
+            <p class="field-note">Glimio est distribué sous licence <strong>GNU AGPL v3 ou ultérieure</strong>. Les modèles et outils tiers peuvent avoir leurs propres conditions.</p>
+            <a class="text-link-button" href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener noreferrer">Consulter la licence AGPL</a>
+          </section>
+        </div>
+      </details>
+
+      <footer class="settings-footer">
+        <span class="settings-autosave-note">
+          <span class="settings-autosave-icon"><glimio-icon name="check-circle" /></span>
+          <span class="settings-autosave-copy"><strong>Sauvegarde automatique</strong><small>{{ preferences.isSaving() ? 'Enregistrement en cours…' : 'Les changements s’appliquent aux prochaines séances.' }}</small></span>
+        </span>
       </footer>
-          </div>
-        </section>
-      } @else { <div class="panel-placeholder"><span class="spinner"></span><h2>Chargement des paramètres…</h2></div> }
-    </section>
-  
+    </div>
+  } @else {
+    <div class="panel-placeholder"><span class="spinner"></span><h2>Chargement des paramètres…</h2></div>
+  }
+</section>

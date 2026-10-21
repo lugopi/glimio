@@ -7,7 +7,49 @@ from typing import Any, Literal, Protocol
 
 
 ProviderTask = Literal["transcription", "generation", "diarization", "media"]
+ProviderOptionType = Literal["text", "path", "secret", "number", "boolean", "select"]
 ProviderEventCallback = Callable[["ProviderEvent"], None]
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderOptionChoice:
+    value: str
+    label: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {"value": self.value, "label": self.label}
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderOption:
+    """UI-neutral configuration field declared by a provider adapter."""
+
+    key: str
+    label: str
+    type: ProviderOptionType
+    default: Any = None
+    description: str = ""
+    required: bool = False
+    minimum: float | None = None
+    maximum: float | None = None
+    step: float | None = None
+    choices: tuple[ProviderOptionChoice, ...] = ()
+    advanced: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "key": self.key,
+            "label": self.label,
+            "type": self.type,
+            "default": self.default,
+            "description": self.description,
+            "required": self.required,
+            "minimum": self.minimum,
+            "maximum": self.maximum,
+            "step": self.step,
+            "choices": [choice.to_dict() for choice in self.choices],
+            "advanced": self.advanced,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +127,7 @@ class ProviderInfo:
     description: str
     execution: Literal["embedded", "bundled_executable", "system_executable", "remote"]
     capabilities: tuple[str, ...] = ()
+    options: tuple[ProviderOption, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +149,7 @@ class ProviderStatus:
             "description": self.provider.description,
             "execution": self.provider.execution,
             "capabilities": list(self.provider.capabilities),
+            "options": [option.to_dict() for option in self.provider.options],
             "ready": self.ready,
             "message": self.message,
             "version": self.version,

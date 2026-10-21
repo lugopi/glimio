@@ -193,6 +193,7 @@ def generate_search_synthesis(
             binary, model, working_directory or Path.cwd(),
             cancel_event=cancel_event, on_process=on_process, timeout_seconds=600,
             completion_runner=runner,
+            options=(getattr(settings, "provider_options", {}) or {}).get(provider_id, {}),
         ).generate(request, on_event=lambda event: progress(event.message))
         return result.text, result.hit_token_limit
 
