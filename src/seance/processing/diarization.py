@@ -10,8 +10,8 @@ from typing import Any
 
 import numpy as np
 
-from .common import log
-from .layout import get_audio_path, get_transcript_path, transcript_output_path
+from ..common import log
+from ..layout import get_audio_path, get_transcript_path, transcript_output_path
 
 
 def _read_wav(path: Path) -> tuple[np.ndarray, int]:
@@ -58,7 +58,7 @@ def _resample(audio: np.ndarray, source_rate: int, target_rate: int) -> np.ndarr
 
 def _combined_audio(folder: Path, target_rate: int) -> np.ndarray:
     tracks: list[np.ndarray] = []
-    from .layout import list_enabled_audio_paths
+    from ..layout import list_enabled_audio_paths
     for path in list_enabled_audio_paths(folder):
         if not path.is_file():
             continue

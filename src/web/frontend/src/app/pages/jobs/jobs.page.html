@@ -25,6 +25,9 @@
             <strong>{{ jobLabel(job) }}</strong>
             @if (job.session_id) { <small>Séance · {{ job.session_id }}</small> }
             <span class="job-progress-text">{{ job.message || job.phase }}</span>
+            @if (job.provider_event; as event) {
+              <small class="field-note">{{ event.provider_id }} · {{ event.stage }}</small>
+            }
           </span>
           <div class="jobs-page-actions">
             <span class="job-state" [class.is-running]="job.state === 'running'" [class.is-stopping]="job.state === 'stopping'" [class.is-queued]="job.state === 'queued'">{{ stateLabel(job) }}</span>

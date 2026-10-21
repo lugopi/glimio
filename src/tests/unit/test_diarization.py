@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from seance.diarization import diarize_transcription
+from seance.processing.diarization import diarize_transcription
 
 
 def _write_wav(path: Path, samples: list[int], sample_rate: int = 16000) -> None:

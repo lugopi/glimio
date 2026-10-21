@@ -7,27 +7,27 @@ import re
 from pathlib import Path
 from collections.abc import Callable
 
-from .audio_import import import_audio_file
-from .common import log
-from .layout import (
+from ..common import log
+from ..layout import (
     analysis_output_path, ensure_session_layout, get_transcript_path,
     has_audio, summary_output_path,
 )
-from .sessions import resolve_session
+from ..media.audio_import import import_audio_file
+from ..sessions import resolve_session
 from .transcription import transcribe as transcribe_audio
-# Compatibility exports: these historical private helpers now delegate to llm.py but stay
-# importable from seance.minutes for existing tests and any local automation using them.
-from .llm import (
+# Shared LLM helpers used by this workflow.
+from ..llm import (
     LLMError,
     clean_model_output as _clean_pv_output,
     decode_process_output as _decode_process_output,
     estimate_tokens as _estimate_tokens,
     estimated_output_room as _estimated_output_room,
     generation_hit_limit as _generation_hit_limit,
-    run_completion_once,
-    run_completion_resilient,
     stderr_without_logs as _stderr_without_logs,
 )
+from ..providers import DEFAULT_TEXT_PROVIDER, create_text_provider
+from ..providers.contracts import GenerationRequest
+from ..providers.selection import selected_text_provider
 
 
 def _run_llama(
@@ -42,16 +42,18 @@ def _run_llama(
     temperature: float = 0.2,
     stage: str,
 ) -> tuple[str, bool]:
-    """Compatibility adapter for the shared local LLM engine.
+    """Compatibility adapter for the configured text-generation provider.
 
-    Keeps the historical private helper signature for tests and internal call sites,
-    while all process creation, prompt budgeting, decoding, and cleanup live in llm.py.
+    Keeps the historical private helper signature while provider-specific execution
+    stays behind the selected adapter.
     """
     try:
-        return run_completion_once(
-            executable, model_path, folder, system_prompt, user_prompt,
-            context=context, max_tokens=max_tokens, temperature=temperature, stage=stage,
+        result = create_text_provider(
+            selected_text_provider(DEFAULT_TEXT_PROVIDER), executable, model_path, folder,
+        ).generate_once(
+            GenerationRequest(system_prompt, user_prompt, context, max_tokens, temperature, stage)
         )
+        return result.text, result.hit_token_limit
     except LLMError as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -69,13 +71,16 @@ def _run_llama_resilient(
     stage: str,
     retries: int = 3,
 ) -> tuple[str, bool]:
-    """Compatibility adapter; resilient generation is implemented only in llm.py."""
+    """Compatibility wrapper over the selected text-generation provider."""
     try:
-        return run_completion_resilient(
-            executable, model_path, folder, system_prompt, user_prompt,
-            context=context, max_tokens=max_tokens, temperature=temperature,
-            stage=stage, retries=retries,
+        result = create_text_provider(
+            selected_text_provider(DEFAULT_TEXT_PROVIDER), executable, model_path, folder,
+        ).generate(
+            GenerationRequest(
+                system_prompt, user_prompt, context, max_tokens, temperature, stage, retries,
+            )
         )
+        return result.text, result.hit_token_limit
     except LLMError as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -701,10 +706,6 @@ Réponds uniquement par le titre, sans guillemets, préfixe ni explication. Igno
 def summarize(args: argparse.Namespace) -> None:
     model_path = Path(args.gguf).expanduser().resolve()
     executable = Path(args.llama_completion).expanduser().resolve()
-    if not model_path.is_file():
-        raise SystemExit(f"GGUF model not found: {model_path}")
-    if not executable.is_file():
-        raise SystemExit(f"llama-completion executable not found: {executable}")
     if args.context < 2048:
         raise SystemExit("--context must be at least 2048 tokens.")
     if args.max_tokens < 500:

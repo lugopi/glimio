@@ -14,8 +14,8 @@ from typing import Any, Callable, Iterator
 
 import numpy as np
 
-from .common import log
-from .layout import ensure_session_layout, metadata_output_path
+from ..common import log
+from ..layout import ensure_session_layout, metadata_output_path
 
 SAMPLE_RATE = 16_000
 CHUNK_SECONDS = 2
@@ -634,11 +634,11 @@ def _record_impl(
 
     # Automation intentionally runs only after the WAV files have been finalized.
     if getattr(args, "auto_pv", False):
-        from .pipeline import process_folder
+        from ..processing.pipeline import process_folder
 
         process_folder(folder, args, on_status=update_status if on_status is not None else None)
     elif getattr(args, "auto_transcribe", False):
-        from .pipeline import transcribe_folder
+        from ..processing.pipeline import transcribe_folder
 
         transcribe_folder(folder, args, on_status=update_status if on_status is not None else None)
     else:

@@ -15,8 +15,9 @@ from typing import Any, Callable, Literal
 
 from seance.llm import (
     LLMCancelled, LLMError, clean_model_output, estimated_output_room,
-    run_completion_resilient,
 )
+from seance.providers import DEFAULT_TEXT_PROVIDER, create_text_provider
+from seance.providers.contracts import GenerationRequest
 
 
 SEARCH_SYSTEM_PROMPT = """Tu es un assistant de synthèse documentaire en français.
@@ -152,13 +153,14 @@ def generate_search_synthesis(
     on_progress: Any = None,
     working_directory: Path | None = None,
     completion_runner: Callable[..., tuple[str, bool]] | None = None,
+    provider_id: str = DEFAULT_TEXT_PROVIDER,
 ) -> tuple[str, bool]:
     """Synthesize across sources with a map/reduce fallback for token-limit failures.
 
     Small searches keep a one-call fast path. Larger searches are analysed in bounded
     groups, similar to minutes.py's chunked pipeline; the final answer merges those notes.
     """
-    runner = completion_runner or run_completion_resilient
+    runner = completion_runner
 
     def cancelled() -> None:
         if cancel_event is not None and cancel_event.is_set():
@@ -177,12 +179,22 @@ def generate_search_synthesis(
         retries: int = 2,
     ) -> tuple[str, bool]:
         cancelled()
-        return runner(
-            binary, model, working_directory or Path.cwd(), system_prompt, user_prompt,
-            context=settings.context, max_tokens=max_tokens, temperature=0.15,
-            stage=stage, retries=retries, cancel_event=cancel_event,
-            on_process=on_process, timeout_seconds=600,
+        request = GenerationRequest(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            context_tokens=settings.context,
+            max_output_tokens=max_tokens,
+            temperature=0.15,
+            stage=stage,
+            retries=retries,
         )
+        result = create_text_provider(
+            provider_id,
+            binary, model, working_directory or Path.cwd(),
+            cancel_event=cancel_event, on_process=on_process, timeout_seconds=600,
+            completion_runner=runner,
+        ).generate(request, on_event=lambda event: progress(event.message))
+        return result.text, result.hit_token_limit
 
     # Fast path: a few sources usually fit in one well-budgeted answer.
     if len(passages) <= 3:

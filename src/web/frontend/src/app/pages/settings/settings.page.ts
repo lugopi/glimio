@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
-import { GlimioSettings, PreferencesPayload } from '../../core/api.models';
+import { GlimioSettings, PreferencesPayload, ProviderStatus } from '../../core/api.models';
 import { PreferencesService } from '../../core/preferences.service';
+import { ApiService } from '../../core/api.service';
 import { CheckboxFieldComponent } from '../../shared/checkbox-field.component';
 import { IconComponent } from '../../shared/icon.component';
 
@@ -13,10 +14,33 @@ import { IconComponent } from '../../shared/icon.component';
   templateUrl: './settings.page.html',
   styleUrl: './settings.page.scss',
 })
-export class SettingsPageComponent {
+export class SettingsPageComponent implements OnInit {
   readonly preferences = inject(PreferencesService);
+  private readonly api = inject(ApiService);
+  readonly providers = signal<ProviderStatus[]>([]);
+  readonly providersError = signal<string | null>(null);
   readonly settings = computed(() => this.preferences.preferences()?.settings ?? null);
   readonly ui = computed(() => this.preferences.preferences()?.ui ?? null);
+
+  providersFor(task: ProviderStatus['task']): ProviderStatus[] {
+    return this.providers().filter(provider => provider.task === task);
+  }
+
+  executionLabel(execution: ProviderStatus['execution']): string {
+    return ({
+      embedded: 'Intégré à l’application',
+      bundled_executable: 'Fourni avec l’application',
+      system_executable: 'Exécutable configuré séparément',
+      remote: 'Service distant',
+    } as const)[execution];
+  }
+
+  ngOnInit(): void {
+    this.api.providers().subscribe({
+      next: result => this.providers.set(result.providers),
+      error: () => this.providersError.set('État des providers indisponible.'),
+    });
+  }
   patch<K extends keyof GlimioSettings>(key: K, value: GlimioSettings[K]): void {
     const current = this.preferences.preferences();
     if (!current) return;

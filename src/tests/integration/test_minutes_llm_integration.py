@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from seance import minutes
+from seance.processing import minutes
 
 
 class MinutesSharedEngineIntegrationTests(unittest.TestCase):
@@ -48,7 +48,7 @@ class MinutesSharedEngineIntegrationTests(unittest.TestCase):
                     )
                 raise AssertionError(f"Unexpected LLM stage: {stage}")
 
-            with patch("seance.minutes._run_llama_resilient", side_effect=fake_shared_generation):
+            with patch("seance.processing.minutes._run_llama_resilient", side_effect=fake_shared_generation):
                 minutes.summarize(args)
 
             result = (session / "summary" / "resume_audio.md").read_text(encoding="utf-8")
