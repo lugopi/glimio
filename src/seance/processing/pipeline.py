@@ -41,6 +41,7 @@ def transcribe_folder(
         model=getattr(source_args, "model", "models/asr/model.bin"),
         whisper_cli=getattr(source_args, "whisper_cli", "bin/asr/whisper-cli.exe"),
         transcription_provider=getattr(source_args, "transcription_provider", "whisper.cpp"),
+        provider_options=getattr(source_args, "provider_options", {}),
         language=getattr(source_args, "language", "auto"),
         openvino_device=getattr(source_args, "openvino_device", None),
         threads=getattr(source_args, "threads", 1),
@@ -153,6 +154,7 @@ def minutes_folder(
         gguf=getattr(source_args, "gguf", "models/llm/model.gguf"),
         llama_completion=getattr(source_args, "llama_completion", "bin/llm/llama-completion.exe"),
         text_provider=getattr(source_args, "text_provider", "llama.cpp"),
+        provider_options=getattr(source_args, "provider_options", {}),
         context=getattr(source_args, "context", 16384),
         max_tokens=getattr(source_args, "max_tokens", 6000),
         analysis_tokens=getattr(source_args, "analysis_tokens", 3500),
@@ -183,7 +185,9 @@ def minutes_folder(
         from ..providers.events import reset_provider_event_callback, set_provider_event_callback
         from ..providers.selection import reset_text_provider, set_text_provider
         cancel_token = set_job_cancel_event(getattr(args, "_cancel_event", None))
-        provider_token = set_text_provider(getattr(args, "text_provider", None))
+        provider_options = getattr(args, "provider_options", {}) or {}
+        provider_id = getattr(args, "text_provider", None)
+        provider_token = set_text_provider(provider_id, provider_options.get(provider_id or "", {}))
         event_callback = getattr(source_args, "provider_event_callback", None)
         if event_callback is None and callback is not None:
             event_callback = lambda event: _notify(callback, event.message)

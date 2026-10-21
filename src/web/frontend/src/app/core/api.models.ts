@@ -6,6 +6,7 @@ export type JobAction = 'transcribe' | 'summarize' | 'process';
 export interface GlimioSettings {
   model: string;
   transcription_provider: string;
+  provider_options: Record<string, Record<string, unknown>>;
   whisper_cli: string;
   language: string;
   threads: number;
@@ -67,11 +68,26 @@ export interface ProviderStatus {
   description: string;
   execution: 'embedded' | 'bundled_executable' | 'system_executable' | 'remote';
   capabilities: string[];
+  options: ProviderOption[];
   ready: boolean;
   message: string;
   version: string | null;
   missing: string[];
   details: Record<string, unknown>;
+}
+
+export interface ProviderOption {
+  key: string;
+  label: string;
+  type: 'text' | 'path' | 'secret' | 'number' | 'boolean' | 'select';
+  default: unknown;
+  description: string;
+  required: boolean;
+  minimum: number | null;
+  maximum: number | null;
+  step: number | null;
+  choices: { value: string; label: string }[];
+  advanced: boolean;
 }
 
 export interface ProvidersResponse {

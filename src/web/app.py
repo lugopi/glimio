@@ -28,7 +28,9 @@ from seance.llm import (
     LLMCancelled, LLMError, run_completion_resilient,
 )
 from seance.providers import (
-    TEXT_PROVIDER_IDS, TRANSCRIPTION_PROVIDER_IDS, get_provider_statuses,
+    DEFAULT_TEXT_PROVIDER, DEFAULT_TRANSCRIPTION_PROVIDER,
+    TEXT_PROVIDER_IDS, TRANSCRIPTION_PROVIDER_IDS, default_provider_options,
+    get_provider_info, get_provider_statuses, normalize_provider_options,
 )
 
 from .project_paths import discover_project_root, resolve_session_root
@@ -221,6 +223,7 @@ def _angular_file(relative: str) -> Path | None:
 class Settings(BaseModel):
     model: str = DEFAULT_WHISPER_MODEL
     transcription_provider: str = "whisper.cpp"
+    provider_options: dict[str, dict[str, Any]] = Field(default_factory=dict)
     whisper_cli: str = DEFAULT_WHISPER_CLI
     language: str = "auto"
     threads: int = Field(default=DEFAULT_THREADS, ge=1, le=256)
@@ -249,6 +252,24 @@ class Settings(BaseModel):
             raise HTTPException(status_code=422, detail="Provider de génération inconnu.")
         if values.get("transcription_provider") not in TRANSCRIPTION_PROVIDER_IDS:
             raise HTTPException(status_code=422, detail="Provider de transcription inconnu.")
+        values["provider_options"] = normalize_provider_options(
+            values.get("provider_options", {}), legacy_values=values,
+        )
+        text_options = values["provider_options"].get(values["text_provider"], {})
+        transcription_options = values["provider_options"].get(values["transcription_provider"], {})
+        for key in ("gguf", "llama_completion"):
+            if key in text_options:
+                values[key] = text_options[key]
+        for key in ("model", "whisper_cli", "openvino_device"):
+            if key in transcription_options:
+                values[key] = transcription_options[key]
+        sherpa_options = values["provider_options"].get("sherpa-onnx", {})
+        for key in ("diarization_segmentation_model", "diarization_embedding_model"):
+            if key in sherpa_options:
+                values[key] = sherpa_options[key]
+        media_options = values["provider_options"].get("ffmpeg", {})
+        if "ffmpeg" in media_options:
+            values["ffmpeg"] = media_options["ffmpeg"]
         values["folder"] = folder
         values["directory"] = str(SESSION_ROOT)
         for key in (
@@ -257,6 +278,13 @@ class Settings(BaseModel):
         ):
             if values.get(key):
                 values[key] = _project_path(values[key])
+        for provider_id, options in values["provider_options"].items():
+            info = get_provider_info(provider_id)
+            if info is None:
+                continue
+            for option in info.options:
+                if option.type == "path" and options.get(option.key):
+                    options[option.key] = _project_path(str(options[option.key]))
         values["ffmpeg"] = _program_path(values.get("ffmpeg", "ffmpeg"))
         if values["format"] not in VALID_FORMATS:
             raise HTTPException(status_code=422, detail="Format de résumé invalide.")
@@ -552,7 +580,11 @@ def _initialize_persistence() -> None:
 
 
 def _default_preferences() -> dict[str, Any]:
-    return {"settings": _serialize_model(Settings()), "ui": _serialize_model(UIPreferences())}
+    settings = _serialize_model(Settings())
+    settings["provider_options"] = normalize_provider_options(
+        default_provider_options(), legacy_values=settings,
+    )
+    return {"settings": settings, "ui": _serialize_model(UIPreferences())}
 
 
 def _get_preferences() -> dict[str, Any]:
@@ -577,14 +609,22 @@ def _get_preferences() -> dict[str, Any]:
             old_path = saved_settings.get(key)
             if old_path in old_paths and not (PROJECT_ROOT / old_path).exists():
                 saved_settings[key] = new_path
+        if saved_settings.get("text_provider") not in TEXT_PROVIDER_IDS:
+            saved_settings["text_provider"] = next(iter(TEXT_PROVIDER_IDS), DEFAULT_TEXT_PROVIDER)
+        if saved_settings.get("transcription_provider") not in TRANSCRIPTION_PROVIDER_IDS:
+            saved_settings["transcription_provider"] = next(iter(TRANSCRIPTION_PROVIDER_IDS), DEFAULT_TRANSCRIPTION_PROVIDER)
         settings = Settings(**saved_settings)
+        settings_value = _serialize_model(settings)
+        settings_value["provider_options"] = normalize_provider_options(
+            saved_settings.get("provider_options", {}), legacy_values=saved_settings,
+        )
         ui = UIPreferences(**(saved.get("ui") or {}))
         SESSION_ROOT = resolve_session_root(PROJECT_ROOT, ui.session_root or None)
         ui.session_root = str(SESSION_ROOT)
     except Exception as exc:
         print(f"[preferences] Ignoring invalid saved preferences: {exc}", flush=True)
         return defaults
-    return {"settings": _serialize_model(settings), "ui": _serialize_model(ui)}
+    return {"settings": settings_value, "ui": _serialize_model(ui)}
 
 
 def _active_job() -> dict[str, Any] | None:
@@ -1015,14 +1055,13 @@ def health() -> dict[str, Any]:
 @app.get("/api/config")
 def config() -> dict[str, Any]:
     preferences = _get_preferences()
-    defaults = Settings()
     return {
         "session_root": str(SESSION_ROOT),
         "session_root_exists": SESSION_ROOT.is_dir(),
         "project_root": str(PROJECT_ROOT),
         "processing_mode": "local",
         "offline_local_mode": True,
-        "defaults": _serialize_model(defaults),
+        "defaults": _default_preferences()["settings"],
         "preferences": preferences,
         "formats": ["auto", "summary", "daily", "technical", "formal", "brainstorm"],
     }
@@ -1048,7 +1087,15 @@ def save_preferences(request: PreferencesRequest) -> dict[str, Any]:
     _initialize_persistence()
     requested_session_root = resolve_session_root(PROJECT_ROOT, request.ui.session_root or None)
     request.ui.session_root = str(requested_session_root)
-    result = {"settings": _serialize_model(request.settings), "ui": _serialize_model(request.ui)}
+    try:
+        request.settings.namespace()
+        settings_value = _serialize_model(request.settings)
+        settings_value["provider_options"] = normalize_provider_options(
+            settings_value.get("provider_options", {}), legacy_values=settings_value,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Options provider invalides : {exc}") from exc
+    result = {"settings": settings_value, "ui": _serialize_model(request.ui)}
     assert PREFERENCES_STORE is not None
     try:
         PREFERENCES_STORE.save(result)

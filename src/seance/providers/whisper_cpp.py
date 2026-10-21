@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 
 from ..runtime import acquire_ai_engine, AI_ENGINE_LOCK
-from .contracts import ProviderEvent, ProviderInfo, TranscriptSegment, TranscriptionRequest
+from .contracts import ProviderEvent, ProviderInfo, ProviderOption, ProviderOptionChoice, TranscriptSegment, TranscriptionRequest
 from .events import emit_provider_event
 from .srt import read_srt
 
@@ -18,6 +18,27 @@ WHISPER_CPP_INFO = ProviderInfo(
     description="Transcription locale via whisper-cli.",
     execution="system_executable",
     capabilities=("timestamps", "srt", "language-selection", "cancellation"),
+    options=(
+        ProviderOption(
+            key="model", label="Modèle de transcription", type="path",
+            default="models/asr/model.bin",
+            description="Modèle de reconnaissance vocale Whisper déjà téléchargé.",
+            required=True,
+        ),
+        ProviderOption(
+            key="whisper_cli", label="Moteur de transcription", type="path",
+            default="bin/asr/whisper-cli.exe",
+            description="Exécutable whisper-cli fourni avec l’installation.",
+            required=True, advanced=True,
+        ),
+        ProviderOption(
+            key="openvino_device", label="Accélération matérielle", type="select",
+            default="", description="Facultatif. Laissez automatique pour le réglage recommandé.",
+            choices=(ProviderOptionChoice("", "Automatique"), ProviderOptionChoice("CPU", "CPU"),
+                     ProviderOptionChoice("GPU", "GPU"), ProviderOptionChoice("NPU", "NPU")),
+            advanced=True,
+        ),
+    ),
 )
 
 
@@ -32,10 +53,12 @@ class WhisperCppTranscriptionProvider:
         *,
         cancel_event: threading.Event | None = None,
         openvino_device: str | None = None,
+        options: dict | None = None,
     ) -> None:
-        self.executable = Path(executable).expanduser().resolve()
+        self.options = options or {}
+        self.executable = Path(self.options.get("whisper_cli", executable)).expanduser().resolve()
         self.cancel_event = cancel_event
-        self.openvino_device = openvino_device
+        self.openvino_device = self.options.get("openvino_device", openvino_device) or None
 
     def transcribe(
         self,
@@ -44,7 +67,7 @@ class WhisperCppTranscriptionProvider:
         on_event=None,
     ) -> list[TranscriptSegment]:
         audio = Path(request.audio_path).expanduser().resolve()
-        model = Path(request.model_path).expanduser().resolve()
+        model = Path(self.options.get("model", request.model_path)).expanduser().resolve()
         output_base = Path(request.output_prefix).expanduser().resolve()
         output_base.parent.mkdir(parents=True, exist_ok=True)
         command = [
