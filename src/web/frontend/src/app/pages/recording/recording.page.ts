@@ -1,8 +1,9 @@
 import { ChangeDetectorRef, ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
-import { Subscription, interval, startWith, switchMap } from 'rxjs';
+import { Subscription, interval } from 'rxjs';
 import { ApiService } from '../../core/api.service';
+import { JobEventsService } from '../../core/job-events.service';
 import { AudioDeviceInfo, AudioDevices, AudioSourceKind, AudioSourceSelection, GlimioSettings, Job, JobsResponse, PreferencesPayload, ProviderStatus } from '../../core/api.models';
 import { PreferencesService } from '../../core/preferences.service';
 import { ToastService } from '../../core/toast.service';
@@ -21,9 +22,10 @@ import { providerSupportsTranscriptionLanguage, transcriptionLanguageOptions } f
 })
 export class RecordingPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
+  private readonly jobEvents = inject(JobEventsService);
   private readonly preferences = inject(PreferencesService);
   private readonly toast = inject(ToastService);
-  private polling?: Subscription;
+  private jobsSubscription?: Subscription;
   private hasAppliedPreferences = false;
   readonly devices = signal<AudioDevices>({ microphones: [], outputs: [], microphone_devices: [], output_devices: [] });
   readonly sourceKindToAdd = signal<AudioSourceKind>('microphone');
@@ -90,15 +92,11 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.api.providers().subscribe({ next: response => this.providers.set(response.providers), error: () => this.providers.set([]) });
     this.refreshDevices();
-    this.refreshJobs();
-    this.polling = interval(1500).pipe(startWith(0), switchMap(() => this.api.jobs())).subscribe({
-      next: data => { this.setJobsResponse(data); this.syncElapsedTimer(data); },
-      error: error => this.toast.show(`Impossible de récupérer les activités : ${error.message}`, 'error'),
-    });
+    this.jobsSubscription = this.jobEvents.updates$.subscribe(data => { this.setJobsResponse(data); this.syncElapsedTimer(data); });
   }
 
   ngOnDestroy(): void {
-    this.polling?.unsubscribe();
+    this.jobsSubscription?.unsubscribe();
     this.elapsedTick?.unsubscribe();
   }
 

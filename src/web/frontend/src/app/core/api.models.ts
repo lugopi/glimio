@@ -196,7 +196,7 @@ export interface ProviderEvent {
 export interface JobsResponse {
   items: Job[];
   active?: Job | null;
-  queue?: { waiting?: number; running?: Job | null };
+  queue?: { waiting?: number; running?: Job | null; serial?: boolean };
 }
 
 export interface SearchSource {
@@ -210,8 +210,9 @@ export interface SearchSource {
 
 export interface SearchResult {
   id: string;
-  state: 'queued' | 'running' | 'completed' | 'cancelled' | 'error';
+  state: 'queued' | 'running' | 'cancelling' | 'completed' | 'cancelled' | 'error';
   message?: string;
+  updated_at?: string;
   sessions_total?: number;
   sessions_scanned?: number;
   passages_found?: number;

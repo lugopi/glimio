@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
-import { Subscription, interval, startWith, switchMap } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Job, JobsResponse } from '../../core/api.models';
 import { ToastService } from '../../core/toast.service';
 import { IconComponent } from '../../shared/icon.component';
+import { JobEventsService } from '../../core/job-events.service';
 
 @Component({
   standalone: true,
@@ -14,8 +15,9 @@ import { IconComponent } from '../../shared/icon.component';
 })
 export class JobsPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
+  private readonly jobEvents = inject(JobEventsService);
   private readonly toast = inject(ToastService);
-  private polling?: Subscription;
+  private jobsSubscription?: Subscription;
   readonly response = signal<JobsResponse | null>(null);
   readonly loadingError = signal('');
   readonly cancelingIds = signal<ReadonlySet<string>>(new Set());
@@ -34,13 +36,10 @@ export class JobsPageComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
-    this.polling = interval(1500).pipe(startWith(0), switchMap(() => this.api.jobs())).subscribe({
-      next: response => { this.response.set(response); this.loadingError.set(''); },
-      error: error => this.loadingError.set(`Impossible de récupérer les traitements : ${error.message}`),
-    });
+    this.jobsSubscription = this.jobEvents.updates$.subscribe(response => { this.response.set(response); this.loadingError.set(''); });
   }
 
-  ngOnDestroy(): void { this.polling?.unsubscribe(); }
+  ngOnDestroy(): void { this.jobsSubscription?.unsubscribe(); }
 
   refresh(): void {
     this.api.jobs().subscribe({

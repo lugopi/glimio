@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 from contextlib import asynccontextmanager
 import json
 import os
@@ -415,6 +416,8 @@ JOB_STORE: JobStore | None = None
 PREFERENCES_STORE: PreferencesStore | None = None
 PERSISTENCE_RESTORED = False
 PERSISTENCE_LOCK = threading.Lock()
+JOB_EVENT_LOCK = threading.Lock()
+JOB_EVENT_SUBSCRIBERS: dict[str, tuple[asyncio.AbstractEventLoop, asyncio.Queue[tuple[str, str]]]] = {}
 
 # AI library searches are cancellable independently from transcription/recording jobs.
 SEARCH_LOCK = threading.RLock()
@@ -436,20 +439,67 @@ def _job_public(job: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _jobs_response_locked() -> dict[str, Any]:
+    records = sorted(JOBS.values(), key=lambda item: item["created_at"], reverse=True)
+    active_records = [item for item in records if item.get("state") in {"queued", "running", "stopping"}]
+    terminal_records = [item for item in records if item.get("state") not in {"queued", "running", "stopping"}]
+    running = JOBS.get(PROCESSING_JOB_ID) if PROCESSING_JOB_ID else None
+    return {
+        "items": [_job_public(item) for item in [*active_records, *terminal_records[:100]]],
+        "active": _job_public(JOBS[ACTIVE_JOB_ID]) if ACTIVE_JOB_ID and ACTIVE_JOB_ID in JOBS else None,
+        "queue": {
+            "waiting": len(PROCESSING_QUEUE_IDS),
+            "running": _job_public(running) if running else None,
+            "serial": True,
+        },
+    }
+
+
+def _queue_job_event_locked(event_name: str, payload: dict[str, Any]) -> None:
+    """Push a compact job update to connected browser event streams."""
+    if not JOB_EVENT_SUBSCRIBERS:
+        return
+    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    for loop, subscriber_queue in list(JOB_EVENT_SUBSCRIBERS.values()):
+        def offer(target: asyncio.Queue[tuple[str, str]] = subscriber_queue,
+                  event: tuple[str, str] = (event_name, data)) -> None:
+            if target.full():
+                try:
+                    target.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+            try:
+                target.put_nowait(event)
+            except asyncio.QueueFull:
+                pass
+        try:
+            loop.call_soon_threadsafe(offer)
+        except RuntimeError:
+            # The client event loop is shutting down; the stream cleanup removes it.
+            pass
+
+
+def _publish_jobs_snapshot() -> None:
+    with STATE_LOCK:
+        with JOB_EVENT_LOCK:
+            _queue_job_event_locked("snapshot", _jobs_response_locked())
+
+
 def _serialize_model(model: Any) -> dict[str, Any]:
     return model.model_dump() if hasattr(model, "model_dump") else model.dict()
 
 
 def _persist_job_locked(job: dict[str, Any], *, strict: bool = False) -> None:
     """Persist a job snapshot while the state lock keeps updates ordered."""
-    if JOB_STORE is None:
-        return
-    try:
-        JOB_STORE.save(dict(job))
-    except Exception as exc:
-        if strict:
-            raise
-        print(f"[persistence] Could not save job {job.get('id')}: {exc}", flush=True)
+    if JOB_STORE is not None:
+        try:
+            JOB_STORE.save(dict(job))
+        except Exception as exc:
+            if strict:
+                raise
+            print(f"[persistence] Could not save job {job.get('id')}: {exc}", flush=True)
+    with JOB_EVENT_LOCK:
+        _queue_job_event_locked("job", _job_public(job))
 
 
 def _job_payload(job_id: str) -> dict[str, Any]:
@@ -1671,19 +1721,43 @@ def session_artifact(session_id: str, kind: str, response: Response, revision: s
 def jobs() -> dict[str, Any]:
     _initialize_persistence()
     with STATE_LOCK:
-        records = sorted(JOBS.values(), key=lambda item: item["created_at"], reverse=True)
-        active_records = [item for item in records if item.get("state") in {"queued", "running", "stopping"}]
-        terminal_records = [item for item in records if item.get("state") not in {"queued", "running", "stopping"}]
-        running = JOBS.get(PROCESSING_JOB_ID) if PROCESSING_JOB_ID else None
-        return {
-            "items": [_job_public(item) for item in [*active_records, *terminal_records[:100]]],
-            "active": _job_public(JOBS[ACTIVE_JOB_ID]) if ACTIVE_JOB_ID and ACTIVE_JOB_ID in JOBS else None,
-            "queue": {
-                "waiting": len(PROCESSING_QUEUE_IDS),
-                "running": _job_public(running) if running else None,
-                "serial": True,
-            },
-        }
+        return _jobs_response_locked()
+
+
+@app.get("/api/events")
+async def job_events(request: Request) -> StreamingResponse:
+    """Stream current job snapshots and updates to the frontend over SSE."""
+    await asyncio.to_thread(_initialize_persistence)
+    loop = asyncio.get_running_loop()
+    subscriber_id = uuid.uuid4().hex
+    subscriber_queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue(maxsize=128)
+    # Register while holding the same lock order used by publishers so the
+    # initial snapshot cannot race with a state change and leave a gap.
+    with STATE_LOCK:
+        with JOB_EVENT_LOCK:
+            JOB_EVENT_SUBSCRIBERS[subscriber_id] = (loop, subscriber_queue)
+            initial = _jobs_response_locked()
+
+    async def stream():
+        try:
+            yield "retry: 2000\n"
+            yield f"event: snapshot\ndata: {json.dumps(initial, ensure_ascii=False, separators=(',', ':'))}\n\n"
+            while not await request.is_disconnected():
+                try:
+                    event_name, data = await asyncio.wait_for(subscriber_queue.get(), timeout=15)
+                except TimeoutError:
+                    yield ": keep-alive\n\n"
+                    continue
+                yield f"event: {event_name}\ndata: {data}\n\n"
+        finally:
+            with JOB_EVENT_LOCK:
+                JOB_EVENT_SUBSCRIBERS.pop(subscriber_id, None)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.delete("/api/jobs/history")
@@ -1707,6 +1781,8 @@ def clear_job_history() -> dict[str, int]:
             if JOB_STORE is not None:
                 JOB_STORE.delete(job_id)
             deleted += 1
+    if deleted:
+        _publish_jobs_snapshot()
     return {"deleted": deleted}
 
 
@@ -1762,6 +1838,7 @@ def delete_job_history_item(job_id: str) -> dict[str, str]:
         CANCEL_EVENTS.pop(job_id, None)
         if JOB_STORE is not None:
             JOB_STORE.delete(job_id)
+    _publish_jobs_snapshot()
     return {"deleted": job_id}
 
 
@@ -1985,10 +2062,15 @@ def _search_public(search: dict[str, Any]) -> dict[str, Any]:
 
 
 def _set_search(search_id: str, **updates: Any) -> None:
+    public: dict[str, Any] | None = None
     with SEARCH_LOCK:
         if search_id in SEARCHES:
             SEARCHES[search_id].update(updates)
             SEARCHES[search_id]["updated_at"] = _now()
+            public = _search_public(SEARCHES[search_id])
+    if public is not None:
+        with JOB_EVENT_LOCK:
+            _queue_job_event_locked("search", public)
 
 
 def _finish_search_cancelled(search_id: str) -> None:
@@ -2234,6 +2316,9 @@ def start_library_search(request: SearchRequest) -> dict[str, Any]:
         SEARCHES[search_id] = search
         SEARCH_CANCEL_EVENTS[search_id] = threading.Event()
         ACTIVE_SEARCH_ID = search_id
+        public = _search_public(search)
+    with JOB_EVENT_LOCK:
+        _queue_job_event_locked("search", public)
     threading.Thread(
         target=_run_cancellable_search,
         args=(search_id, request),
@@ -2266,6 +2351,8 @@ def cancel_library_search(search_id: str) -> dict[str, Any]:
         search.update({"state": "cancelling", "message": "Annulation en cours…", "updated_at": _now()})
         process = search.get("_process")
         public = _search_public(search)
+    with JOB_EVENT_LOCK:
+        _queue_job_event_locked("search", public)
     if process is not None:
         try:
             if process.poll() is None:
