@@ -418,6 +418,7 @@ PERSISTENCE_RESTORED = False
 PERSISTENCE_LOCK = threading.Lock()
 JOB_EVENT_LOCK = threading.Lock()
 JOB_EVENT_SUBSCRIBERS: dict[str, tuple[asyncio.AbstractEventLoop, asyncio.Queue[tuple[str, str]]]] = {}
+JOB_EVENT_SHUTDOWN = "__server_shutdown__"
 
 # AI library searches are cancellable independently from transcription/recording jobs.
 SEARCH_LOCK = threading.RLock()
@@ -476,6 +477,31 @@ def _queue_job_event_locked(event_name: str, payload: dict[str, Any]) -> None:
             loop.call_soon_threadsafe(offer)
         except RuntimeError:
             # The client event loop is shutting down; the stream cleanup removes it.
+            pass
+
+
+def _close_job_event_streams() -> None:
+    """End open SSE streams before Uvicorn waits for active HTTP connections."""
+    with JOB_EVENT_LOCK:
+        subscribers = list(JOB_EVENT_SUBSCRIBERS.values())
+
+    for loop, subscriber_queue in subscribers:
+        def close_stream(target: asyncio.Queue[tuple[str, str]] = subscriber_queue) -> None:
+            # A busy subscriber must still receive the shutdown marker promptly.
+            while target.full():
+                try:
+                    target.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+            try:
+                target.put_nowait((JOB_EVENT_SHUTDOWN, ""))
+            except asyncio.QueueFull:
+                pass
+
+        try:
+            loop.call_soon_threadsafe(close_stream)
+        except RuntimeError:
+            # The event loop is already closing; the server will cancel its task.
             pass
 
 
@@ -989,6 +1015,12 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
     args = settings.namespace(folder=str(folder))
     cancel_event = CANCEL_EVENTS.get(job_id)
     args._cancel_event = cancel_event
+
+    def publish_artifact_update(kind: str) -> None:
+        with JOB_EVENT_LOCK:
+            _queue_job_event_locked("artifact", {"session_id": folder.name, "kind": kind})
+
+    args.artifact_event_callback = publish_artifact_update
 
     def publish_provider_event(event: Any) -> None:
         phase = {"transcription": "transcribing", "generation": "summarizing"}.get(
@@ -1661,7 +1693,8 @@ def session_audio(session_id: str, filename: str, request: Request):
 
 
 @app.get("/api/sessions/{session_id}/{kind}")
-def session_artifact(session_id: str, kind: str, response: Response, revision: str | None = None) -> dict[str, Any]:
+def session_artifact(session_id: str, kind: str, response: Response,
+                     revision: str | None = None, offset: int = 0) -> dict[str, Any]:
     if kind not in {"summary", "transcript"}:
         raise HTTPException(status_code=404, detail="Document inconnu.")
     try:
@@ -1669,19 +1702,6 @@ def session_artifact(session_id: str, kind: str, response: Response, revision: s
         response.headers["Cache-Control"] = "no-store"
         active_job = _active_session_artifact_job(session_id, kind)
         live_path = _live_session_artifact(folder, session_id, kind)
-        if active_job and kind == "transcript":
-            # Transcription previews can grow to hundreds of thousands of
-            # characters. Sending and re-rendering the whole Markdown document
-            # every poll can freeze the browser; publish the final transcript
-            # once the transcription phase has completed instead.
-            return {
-                "session_id": session_id,
-                "kind": kind,
-                "filename": "",
-                "revision": f"pending:{active_job.get('id', '')}",
-                "pending": True,
-                "content": "",
-            }
         if active_job and live_path is None:
             # Never fall back to the previous completed file while its replacement
             # is being prepared. Otherwise the detail pane can show stale content
@@ -1708,7 +1728,13 @@ def session_artifact(session_id: str, kind: str, response: Response, revision: s
         if revision == current_revision:
             result["unchanged"] = True
             return result
-        result["content"] = path.read_text(encoding="utf-8-sig", errors="replace")
+        content = path.read_text(encoding="utf-8-sig", errors="replace")
+        if offset > 0 and offset <= len(content):
+            result["content"] = content[offset:]
+            result["append"] = True
+        else:
+            result["content"] = content
+            result["append"] = False
         result["unchanged"] = False
         return result
     except ValueError as exc:
@@ -1748,6 +1774,8 @@ async def job_events(request: Request) -> StreamingResponse:
                 except TimeoutError:
                     yield ": keep-alive\n\n"
                     continue
+                if event_name == JOB_EVENT_SHUTDOWN:
+                    break
                 yield f"event: {event_name}\ndata: {data}\n\n"
         finally:
             with JOB_EVENT_LOCK:
@@ -2455,4 +2483,23 @@ def main() -> None:
     print(f"Dossier des séances : {SESSION_ROOT} (existe : {SESSION_ROOT.is_dir()})", flush=True)
     if os.environ.get("GLIMIO_WEB_OPEN_BROWSER", os.environ.get("SEANCE_WEB_OPEN_BROWSER", "1")).casefold() not in {"0", "false", "no"}:
         threading.Timer(1.0, webbrowser.open, args=(url,)).start()
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    class GlimioUvicornServer(uvicorn.Server):
+        async def shutdown(self, sockets=None) -> None:
+            # Uvicorn otherwise waits forever for long-lived SSE connections before
+            # it sends the ASGI lifespan shutdown event.
+            _close_job_event_streams()
+            await super().shutdown(sockets)
+
+    config = uvicorn.Config(
+        app,
+        host=host,
+        port=port,
+        log_level="info",
+        timeout_graceful_shutdown=10,
+    )
+    try:
+        GlimioUvicornServer(config).run()
+    except KeyboardInterrupt:
+        # Uvicorn re-raises the captured SIGINT after its graceful shutdown.
+        # Treat the user's Ctrl+C as a normal exit instead of printing a traceback.
+        pass

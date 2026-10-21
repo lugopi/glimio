@@ -19,62 +19,62 @@
 :host .library-pagination-footer glimio-pagination { @apply min-w-0; }
 :host .page-size-control { @apply flex items-center gap-2; }
 :host .page-size-control .field-label { @apply mb-0 whitespace-nowrap; }
-:host .page-size-control .select { width: 80px; min-width: 80px; }
+:host .page-size-control .select { @apply w-20 min-w-20; }
 :host .session-live-progress { @apply w-full min-w-0; }
-:host .session-progress-icon > .spinner { width: 16px; height: 16px; }
-:host .session-progress-heading { min-width: 0; }
+:host .session-progress-icon > .spinner { @apply size-4; }
+:host .session-progress-heading { @apply min-w-0; }
 :host .session-progress-heading strong { color: var(--c-text); }
 :host .session-live-progress.is-completed .session-progress-icon { color: var(--c-success); background: color-mix(in srgb, var(--c-success) 12%, transparent); }
 :host .session-live-progress.is-error .session-progress-icon { color: var(--c-danger); background: var(--c-danger-soft); }
 
-:host .detail-heading-copy { flex: 1 1 auto; min-width: 0; }
-:host .detail-heading-copy .card-title { margin: 4px 0 5px; overflow-wrap: anywhere; }
+:host .detail-heading-copy { @apply min-w-0 flex-1; }
+:host .detail-heading-copy .card-title { @apply my-1; margin-bottom: 5px; overflow-wrap: anywhere; }
 :host .detail-heading-copy > .eyebrow { @apply whitespace-nowrap; }
-:host .detail-meta { margin: 0; }
+:host .detail-meta { @apply m-0; }
 :host .detail-header { @apply gap-2; }
-:host .detail-actions { flex: 0 0 auto; align-items: center; }
-:host .detail-process-button { min-height: 44px; white-space: nowrap; }
-:host .session-actions-toggle { display: flex; align-items: stretch; justify-content: stretch; box-sizing: border-box; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; }
-:host .session-actions-icon { display: flex; flex: 1 1 auto; align-items: center; justify-content: center; width: 100%; height: 100%; min-width: 0; min-height: 0; }
-:host .session-actions-icon glimio-icon { display: flex; flex: 1 1 auto; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 36px; }
+:host .detail-actions { @apply shrink-0 items-center; }
+:host .detail-process-button { @apply min-h-11 whitespace-nowrap; }
+:host .session-actions-toggle { @apply flex size-11 min-h-11 min-w-11 items-stretch justify-stretch p-0; box-sizing: border-box; }
+:host .session-actions-icon { @apply flex size-full min-h-0 min-w-0 flex-1 items-center justify-center; }
+:host .session-actions-icon glimio-icon { @apply flex size-full flex-1 items-center justify-center; font-size: 36px; }
 :host .session-actions-icon .icon,
-:host .session-actions-icon svg { display: block; width: 100%; height: 100%; max-width: none; max-height: none; }
+:host .session-actions-icon svg { @apply block size-full; max-width: none; max-height: none; }
 :host .detail-processing-status { @apply m-0 flex w-full min-w-0 items-start gap-2 rounded-lg border border-border-soft bg-surface-raised px-3 py-2 text-xs leading-relaxed text-muted; }
-:host .detail-processing-status > glimio-icon { @apply mt-px flex shrink-0; width: 16px; height: 16px; }
+:host .detail-processing-status > glimio-icon { @apply mt-px flex size-4 shrink-0; }
 :host .detail-processing-status > glimio-icon .icon,
 :host .detail-processing-status > glimio-icon svg { @apply block size-full; }
-:host .detail-processing-status > .spinner { @apply mt-0.5 shrink-0; width: 14px; height: 14px; }
+:host .detail-processing-status > .spinner { @apply mt-0.5 size-3.5 shrink-0; }
 :host .detail-processing-status.is-running { color: var(--c-accent); }
 :host .detail-processing-status.is-completed { color: var(--c-success); }
 :host .detail-processing-status.is-error { color: var(--c-danger); border-color: color-mix(in srgb, var(--c-danger) 30%, var(--c-border)); background: var(--c-danger-soft); }
-:host .detail-actions .session-actions-menu { flex: 0 0 auto; }
+:host .detail-actions .session-actions-menu { @apply shrink-0; }
 
 :host .detail-section-heading { @apply flex flex-wrap items-start justify-between gap-3; }
-:host .detail-section-heading h3 { margin: 0; }
-:host .detail-section-heading .field-note { margin: 5px 0 0; }
+:host .detail-section-heading h3 { @apply m-0; }
+:host .detail-section-heading .field-note { @apply mt-1 mb-0; }
 :host .artifact-tabs { @apply mt-0 flex flex-wrap items-stretch gap-0 overflow-hidden rounded-t-xl border border-b-0 border-border-soft bg-surface-raised; }
 :host .artifact-tab { @apply inline-flex min-h-11 items-center justify-center gap-2 border-0 border-b-2 border-transparent px-4 py-2 text-left text-sm font-semibold text-muted; background: transparent; cursor: pointer; }
 :host .artifact-tab[tabindex="-1"] { outline: none; }
 :host .artifact-tab:hover { color: var(--c-text); background: var(--c-surface-raised); }
 :host .artifact-tab.is-active { color: var(--c-accent); border-bottom-color: var(--c-accent); background: var(--c-accent-soft); }
 :host .artifact-tab:focus-visible { outline: 2px solid var(--c-accent); outline-offset: -2px; }
-:host .artifact-tab glimio-icon { width: 17px; height: 17px; }
-:host .artifact-tab .icon, :host .artifact-tab svg { display: block; width: 100%; height: 100%; }
+:host .artifact-tab glimio-icon { @apply size-[17px]; }
+:host .artifact-tab .icon, :host .artifact-tab svg { @apply block size-full; }
 :host .artifact-loading { @apply flex items-center gap-2 text-sm text-muted; }
 :host .documents-empty { @apply mt-4 flex items-start gap-3 rounded-xl border border-dashed border-border-soft p-4 text-sm text-muted; }
-:host .documents-empty > glimio-icon { @apply mt-0.5 shrink-0 text-accent; width: 20px; height: 20px; }
-:host .documents-empty strong { display: block; color: var(--c-text); }
-:host .documents-empty p { margin: .25rem 0 0; line-height: 1.6; }
+:host .documents-empty > glimio-icon { @apply mt-0.5 size-5 shrink-0 text-accent; }
+:host .documents-empty strong { @apply block text-text; }
+:host .documents-empty p { @apply mt-1 mb-0 leading-relaxed; }
 :host .session-card-top { @apply min-w-0 gap-1.5; }
 :host .session-date { @apply shrink-0 whitespace-nowrap; }
 :host .session-markers { @apply min-w-0 flex-wrap items-center gap-1; }
-:host .session-markers .badge { @apply inline-flex min-h-6 shrink-0 items-center justify-center gap-1; padding: 3px 5px; font-size: .6875rem; }
-:host .session-markers .badge > glimio-icon { display: inline-flex; flex: 0 0 12px; align-items: center; justify-content: center; width: 12px; height: 12px; min-width: 12px; min-height: 12px; }
-:host .session-markers .badge > glimio-icon .icon, :host .session-markers .badge > glimio-icon svg { display: block; flex: 0 0 12px; width: 12px; height: 12px; min-width: 12px; min-height: 12px; }
+:host .session-markers .badge { @apply inline-flex min-h-6 shrink-0 items-center justify-center gap-1 px-[5px] py-[3px] text-[.6875rem]; }
+:host .session-markers .badge > glimio-icon { @apply inline-flex size-3 flex-none items-center justify-center; }
+:host .session-markers .badge > glimio-icon .icon, :host .session-markers .badge > glimio-icon svg { @apply block size-3 flex-none; }
 
 @media (width < theme(--breakpoint-sm)) {
   :host .library-pagination-footer { @apply grid-cols-1; }
-  :host .library-pagination-footer glimio-pagination { width: 100%; }
+  :host .library-pagination-footer glimio-pagination { @apply w-full; }
   :host .page-size-control { @apply justify-between; }
   :host .detail-header-top { @apply flex-col; }
   :host .session-actions-menu { flex: 0 0 44px; }
@@ -88,31 +88,31 @@
 }
 
 :host .audio-stale-notice { @apply my-4 flex min-w-0 items-start gap-3 rounded-xl border border-warning bg-surface-raised p-4 text-sm text-muted; }
-:host .audio-stale-notice > glimio-icon { @apply mt-0.5 shrink-0 text-warning; width: 19px; height: 19px; }
-:host .audio-stale-notice > div { min-width: 0; flex: 1 1 auto; }
+:host .audio-stale-notice > glimio-icon { @apply mt-0.5 size-[19px] shrink-0 text-warning; }
+:host .audio-stale-notice > div { @apply min-w-0 flex-1; }
 :host .audio-stale-notice strong { color: var(--c-text); }
-:host .audio-stale-notice p { margin: .25rem 0 0; line-height: 1.6; }
-:host .audio-track { min-width: 0; }
-:host .audio-track audio { width: 100%; max-width: 100%; }
-:host .audio-track-title { min-width: 0; overflow-wrap: anywhere; }
-:host .audio-track-disabled-label { display: block; color: var(--c-warning); font-size: .75rem; margin-top: 3px; }
-:host .audio-track.is-audio-track-disabled { opacity: .8; }
-:host .audio-track-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+:host .audio-stale-notice p { @apply mt-1 mb-0 leading-relaxed; }
+:host .audio-track { @apply min-w-0; }
+:host .audio-track audio { @apply w-full max-w-full; }
+:host .audio-track-title { @apply min-w-0; overflow-wrap: anywhere; }
+:host .audio-track-disabled-label { @apply mt-[3px] block text-xs text-warning; }
+:host .audio-track.is-audio-track-disabled { @apply opacity-80; }
+:host .audio-track-actions { @apply flex flex-wrap items-center gap-2; }
 @media (width < theme(--breakpoint-sm)) {
-  :host .audio-stale-notice { flex-wrap: wrap; }
-  :host .audio-stale-notice > .btn { width: 100%; }
+  :host .audio-stale-notice { @apply flex-wrap; }
+  :host .audio-stale-notice > .btn { @apply w-full; }
   :host .audio-track-actions > .btn { flex: 1 1 auto; }
 }
 
 /* Library polish: tab panel and status icons remain centered. */
 :host .session-card-status { @apply items-start; }
-:host .session-card-status > glimio-icon { @apply mt-px shrink-0 self-start; width: 16px; height: 16px; flex: 0 0 16px; }
+:host .session-card-status > glimio-icon { @apply mt-px size-4 shrink-0 self-start; flex: 0 0 16px; }
 :host .session-card-status > .spinner { @apply mt-px shrink-0; }
 :host .audio-track { grid-template-columns: minmax(115px, 145px) minmax(0, 1fr) auto; }
 :host .audio-track-actions { display: block; justify-self: end; align-self: center; }
 :host .audio-track-actions-menu { @apply relative; }
 :host .audio-track-actions-menu .session-actions-toggle { @apply size-9; }
-:host .audio-track-actions-menu .session-actions-icon glimio-icon { font-size: 20px; }
+:host .audio-track-actions-menu .session-actions-icon glimio-icon { @apply text-xl; }
 :host .audio-track-actions-menu .session-actions-panel { @apply min-w-[12rem]; }
 @media (width < theme(--breakpoint-sm)) {
   :host .audio-track { @apply grid-cols-1; }
@@ -123,6 +123,6 @@
 /* Compact the page-size control when the list column is narrow, without wrapping the paginator. */
 @container (max-width: 360px) {
   :host .page-size-control .field-label { @apply sr-only; }
-  :host .page-size-control .select { width: 64px; min-width: 64px; }
+  :host .page-size-control .select { @apply w-16 min-w-16; }
   :host .library-pagination-footer { @apply gap-2; }
 }

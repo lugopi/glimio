@@ -17,7 +17,7 @@
   .skip-link { position: fixed; z-index: 1000; top: 10px; left: 10px; transform: translateY(calc(-100% - 14px)); padding: 11px 15px; border: 2px solid var(--c-accent-contrast); border-radius: 10px; color: var(--c-accent-contrast); background: var(--c-accent); font-weight: 700; box-shadow: 0 4px 18px rgb(0 0 0 / .24); }
   .skip-link:focus { transform: translateY(0); }
   .app-shell { @apply grid min-h-screen; grid-template-columns: 250px minmax(0, 1fr); }
-  .sidebar { @apply sticky top-0 z-20 flex h-dvh w-[250px] flex-col self-start overflow-y-auto border-r border-border-soft; padding: 25px 15px 18px; background: var(--c-sidebar); }
+  .sidebar { @apply sticky top-0 z-20 flex h-dvh w-[250px] flex-col self-start overflow-y-auto border-r border-border-soft bg-[var(--c-sidebar)] px-[15px] pt-[25px] pb-[18px]; }
   .brand { @apply flex items-center gap-[12px] px-[11px] pb-[33px]; }
   .brand-mark { @apply flex size-[48px] items-center justify-center gap-[3px] text-accent; border: 0; background: transparent; }
   /* Logo injecté en ligne : sizing via .brand-logo (svg) et repli img. */
@@ -34,9 +34,12 @@
   .nav-link.is-active .nav-icon { @apply text-accent; }
   .nav-count { @apply ml-auto font-mono text-[0.8125rem] text-accent; }
   .sidebar-bottom { @apply mt-auto grid gap-[19px]; }
+  .sidebar-info-toggle { @apply justify-between rounded-lg px-3 py-2 text-xs; }
+  .sidebar-info-toggle .nav-icon { @apply size-4; }
+  .sidebar-info-content { @apply grid gap-3; }
   .offline-indicator { @apply flex items-center gap-2.5 rounded-[11px] border border-border bg-surface p-3; }
-  .offline-indicator strong { display: block; font-size: .8125rem; }
-  .offline-indicator small { display: block; margin-top: 3px; color: var(--c-subtle); font-size: .75rem; }
+  .offline-indicator strong { @apply block text-[.8125rem]; }
+  .offline-indicator small { @apply mt-[3px] block text-xs text-subtle; }
   .sidebar-path { @apply overflow-hidden px-2.5; }
   .sidebar-path small { @apply mb-[7px] block font-mono text-[0.75rem] tracking-[1px] text-subtle; }
   .sidebar-path code { @apply font-mono text-[0.75rem] text-muted; overflow-wrap: anywhere; }
@@ -751,6 +754,8 @@
   .app-shell.is-sidebar-collapsed .nav-link { @apply justify-center gap-0 px-2; }
   .app-shell.is-sidebar-collapsed .nav-collapse-toggle { @apply mt-2 border-t border-border-soft; }
   .app-shell.is-sidebar-collapsed .sidebar-bottom { @apply w-full gap-3; }
+  .app-shell.is-sidebar-collapsed .sidebar-info-toggle { @apply justify-center gap-0 px-2; }
+  .app-shell.is-sidebar-collapsed .sidebar-info-toggle .nav-label { max-width: 0; opacity: 0; }
   .app-shell.is-sidebar-collapsed .runtime-indicator { @apply mx-auto w-full flex-col justify-center gap-1.5 px-1 py-2; min-height: 50px; }
   .app-shell.is-sidebar-collapsed .runtime-indicator strong { max-width: 100%; font-size: .625rem; line-height: 1.15; text-align: center; white-space: normal; }
   .app-shell.is-sidebar-collapsed .runtime-indicator small { @apply hidden; }

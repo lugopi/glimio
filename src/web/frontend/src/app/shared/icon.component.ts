@@ -8,6 +8,10 @@ import { glimioIconKey, GLIMIO_ICONS } from './icon-registry';
   imports: [NgIconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [provideIcons(GLIMIO_ICONS)],
+  host: {
+    '[class.icon-host--large]': "size() === 'large'",
+    '[class.icon-host--fill]': "size() === 'fill'",
+  },
   template: `<ng-icon [name]="iconKey()" [class.icon--large]="size() === 'large'" [class.icon--fill]="size() === 'fill'" class="icon" aria-hidden="true"></ng-icon>`,
   styleUrl: './icon.component.scss',
 })

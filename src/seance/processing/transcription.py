@@ -30,6 +30,16 @@ def _status(args: argparse.Namespace, message: str) -> None:
             pass
 
 
+def _publish_artifact_update(args: argparse.Namespace, kind: str) -> None:
+    callback = getattr(args, "artifact_event_callback", None)
+    if callable(callback):
+        try:
+            callback(kind)
+        except Exception:
+            # Live previews are optional and must not interrupt transcription.
+            pass
+
+
 def _stamp(seconds: float) -> str:
     total = max(0, int(seconds))
     hours, remainder = divmod(total, 3600)
@@ -242,6 +252,7 @@ def transcribe(args: argparse.Namespace) -> None:
                 log(f"Read {len(segments)} segments from {filename} segment {chunk_index + 1}/{chunk_count}.")
                 if all_segments:
                     _atomic_write_text(transcript_dir / "transcription_en_cours.md", _render_transcript(all_segments, in_progress=True))
+                    _publish_artifact_update(args, "transcript")
         srt_lines: list[str] = []
         for index, item in enumerate(track_segments, start=1):
             srt_lines.extend([

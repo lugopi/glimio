@@ -44,8 +44,10 @@ export class ApiService {
     return this.get<SessionDetail>(`/api/sessions/${encodeURIComponent(id)}`);
   }
 
-  sessionArtifact(id: string, kind: 'summary' | 'transcript', revision?: string | null): Observable<SessionArtifact> {
-    const params = revision ? new HttpParams().set('revision', revision) : undefined;
+  sessionArtifact(id: string, kind: 'summary' | 'transcript', revision?: string | null, offset?: number): Observable<SessionArtifact> {
+    let params = new HttpParams();
+    if (revision) params = params.set('revision', revision);
+    if (offset) params = params.set('offset', offset);
     return this.get<SessionArtifact>(`/api/sessions/${encodeURIComponent(id)}/${kind}`, params);
   }
 

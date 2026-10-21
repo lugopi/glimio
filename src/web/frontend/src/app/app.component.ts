@@ -28,8 +28,11 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly jobEvents = inject(JobEventsService);
   readonly mobileMenuOpen = signal(false);
   private readonly compactViewportQuery = window.matchMedia('(width >= 48rem) and (width < 64rem)');
+  private readonly shortViewportQuery = window.matchMedia('(max-height: 42rem)');
   readonly sidebarCollapsed = signal(this.compactViewportQuery.matches);
+  readonly sidebarInfoExpanded = signal(!this.shortViewportQuery.matches);
   private compactViewport = this.compactViewportQuery.matches;
+  private shortViewport = this.shortViewportQuery.matches;
   readonly currentPath = signal('/recording');
   readonly libraryCount = this.libraryState.total.asReadonly();
   readonly activeJobsCount = signal(0);
@@ -112,11 +115,15 @@ export class AppComponent implements OnInit, OnDestroy {
   closeMobileMenu(): void { this.mobileMenuOpen.set(false); }
 
   toggleSidebar(): void { this.sidebarCollapsed.update(collapsed => !collapsed); }
+  toggleSidebarInfo(): void { this.sidebarInfoExpanded.update(expanded => !expanded); }
 
   @HostListener('window:resize') onWindowResize(): void {
     const compact = this.compactViewportQuery.matches;
     if (compact !== this.compactViewport) this.sidebarCollapsed.set(compact);
     this.compactViewport = compact;
+    const short = this.shortViewportQuery.matches;
+    if (short !== this.shortViewport) this.sidebarInfoExpanded.set(!short);
+    this.shortViewport = short;
   }
 
   @HostListener('document:keydown.escape') onEscape(): void { this.closeMobileMenu(); }
