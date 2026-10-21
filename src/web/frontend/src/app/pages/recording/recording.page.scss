@@ -4,6 +4,20 @@
 :host .control-grid > *, :host .device-grid > * { @apply min-w-0; }
 
 :host .common-processing-fields > div { @apply min-w-0; }
+:host .common-processing-fields > .processing-basics { @apply col-span-full grid min-w-0 gap-4; }
+:host .processing-quality { @apply grid min-w-0 grid-cols-1 gap-2; }
+:host .processing-quality .field-label { @apply mb-2; }
+:host .processing-quality .field-note { @apply m-0; }
+:host .processing-content-group { @apply grid min-w-0 gap-3 border-t border-border-soft pt-4; }
+:host .processing-content-group > .card-title { @apply m-0 text-sm; }
+:host .processing-content-fields { @apply grid min-w-0 grid-cols-2 items-start gap-[14px]; }
+:host .processing-content-fields:not(:has(> :nth-child(2))) { @apply grid-cols-1; }
+:host .processing-content-fields > * { @apply min-w-0; }
+:host .processing-content-fields .field-label { @apply mb-2; }
+:host .processing-content-fields .field-note { @apply mt-2; }
+:host .common-processing-fields > .processing-extras { @apply col-span-full min-w-0 border-t border-border-soft pt-4; }
+:host .processing-extras > .card-title { @apply mb-3; }
+:host .processing-extras-grid { @apply grid grid-cols-2 items-start gap-[14px]; }
 :host .common-processing-fields .field-label { @apply mb-2; }
 :host .common-processing-fields .field-note { @apply mt-2; }
 :host .common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-label,
@@ -71,6 +85,8 @@
   :host .source-add-button { grid-column: 1 / -1; width: 100%; }
 }
 @media (width < theme(--breakpoint-sm)) {
+  :host .processing-content-fields,
+  :host .processing-extras-grid { grid-template-columns: minmax(0, 1fr); }
   :host .source-add-row { grid-template-columns: minmax(0, 1fr); }
   :host .source-add-button { grid-column: auto; }
   :host .recording-live-row { flex-direction: column; }

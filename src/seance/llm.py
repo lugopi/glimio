@@ -13,6 +13,7 @@ import re
 import subprocess
 import threading
 import time
+from collections.abc import Mapping
 from contextvars import ContextVar, Token
 from functools import lru_cache
 from pathlib import Path
@@ -308,7 +309,7 @@ def run_completion_once(
     cancel_event: threading.Event | None = None,
     on_process: Callable[[subprocess.Popen[bytes] | None], None] | None = None,
     timeout_seconds: float | None = None,
-    openvino_device: str | None = None,
+    environment_overrides: Mapping[str, str | None] | None = None,
 ) -> tuple[str, bool]:
     """Execute one completion. Supports cancellation and process publication to a UI.
 
@@ -343,10 +344,11 @@ def run_completion_once(
     process: subprocess.Popen[bytes] | None = None
     try:
         process_env = os.environ.copy()
-        if openvino_device:
-            process_env["GGML_OPENVINO_DEVICE"] = openvino_device
-        else:
-            process_env.pop("GGML_OPENVINO_DEVICE", None)
+        for name, value in (environment_overrides or {}).items():
+            if value is None:
+                process_env.pop(name, None)
+            else:
+                process_env[name] = value
         process = subprocess.Popen(
             command,
             cwd=str(Path(working_directory).resolve()),
@@ -429,7 +431,7 @@ def run_completion_resilient(
     cancel_event: threading.Event | None = None,
     on_process: Callable[[subprocess.Popen[bytes] | None], None] | None = None,
     timeout_seconds: float | None = None,
-    openvino_device: str | None = None,
+    environment_overrides: Mapping[str, str | None] | None = None,
 ) -> tuple[str, bool]:
     """Retry truncated outputs with a larger budget, preserving cancellation semantics."""
     output_room = estimated_output_room(system_prompt, user_prompt, context)
@@ -457,7 +459,7 @@ def run_completion_resilient(
             cancel_event=cancel_event,
             on_process=on_process,
             timeout_seconds=timeout_seconds,
-            openvino_device=openvino_device,
+            environment_overrides=environment_overrides,
         )
         if not best_text or len(candidate) > len(best_text):
             best_text, best_hit_limit = candidate, hit_limit

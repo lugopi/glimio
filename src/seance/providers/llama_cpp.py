@@ -81,7 +81,13 @@ class LlamaCppTextProvider:
         self.on_process = on_process
         self.timeout_seconds = timeout_seconds
         self.completion_runner = completion_runner
-        self.openvino_device = options.get("openvino_device", "CPU") if options.get("openvino_enabled") else None
+        # Backend-specific environment configuration stays inside this adapter.
+        self.environment_overrides = {
+            "GGML_OPENVINO_DEVICE": (
+                str(options.get("openvino_device", "CPU"))
+                if options.get("openvino_enabled") else None
+            ),
+        }
 
     def generate(self, request: GenerationRequest, *, on_event=None) -> GenerationResult:
         emit_provider_event(ProviderEvent(
@@ -102,7 +108,7 @@ class LlamaCppTextProvider:
             cancel_event=self.cancel_event,
             on_process=self.on_process,
             timeout_seconds=self.timeout_seconds,
-            openvino_device=self.openvino_device,
+            environment_overrides=self.environment_overrides,
         )
         emit_provider_event(ProviderEvent(
             provider_id=self.info.id, task="generation", stage="completed",
@@ -125,6 +131,6 @@ class LlamaCppTextProvider:
             cancel_event=self.cancel_event,
             on_process=self.on_process,
             timeout_seconds=self.timeout_seconds,
-            openvino_device=self.openvino_device,
+            environment_overrides=self.environment_overrides,
         )
         return GenerationResult(text=text, hit_token_limit=hit_limit)

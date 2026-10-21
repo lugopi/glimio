@@ -37,7 +37,6 @@ def _add_processing_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--model", default="models/asr/model.bin", help="Chemin vers le modèle Whisper.")
     parser.add_argument("--language", default="auto", help="Langue de transcription (ex. fr, en ou auto).")
     parser.add_argument("--threads", type=int, default=DEFAULT_THREADS, help="Nombre de threads CPU pour Whisper.")
-    parser.add_argument("--openvino-device", choices=("CPU", "GPU", "NPU"), default=None)
     parser.add_argument("--ffmpeg", default="ffmpeg", help="Commande ou chemin vers FFmpeg.")
     parser.add_argument("--diarize", action="store_true", help="Activer la diarisation (requiert l’édition avec diarisation et ses modèles).")
     parser.add_argument("--segmentation-model", default="models/diarization/segmentation/segmentation.onnx")
