@@ -183,6 +183,7 @@ const ENGLISH: Record<string, string> = {
   'Chargement des paramètres…': 'Loading settings…', 'Pagination de la bibliothèque': 'Library pagination',
   'Page précédente': 'Previous page', 'Précédent': 'Previous', 'Page suivante': 'Next page', 'Suivant': 'Next',
   'Séance': 'Session', 'En attente': 'Queued', 'En cours': 'In progress', 'Finalisation': 'Finishing', 'Terminé': 'Completed', 'Erreur': 'Error', 'Arrêt en cours': 'Stopping', 'Échec': 'Failed', 'Annulé': 'Cancelled',
+  'Préparation': 'Preparing', 'Importation': 'Importing', 'Transcription en cours': 'Transcribing', 'Traitement': 'Processing', 'Interrompu': 'Interrupted', 'Erreur de reprise': 'Recovery error',
   'Monokai': 'Monokai', 'AUDIO · TRANSCRIPTION · NOTES': 'AUDIO · TRANSCRIPTION · NOTES',
   'Thème de l\'interface': 'Interface theme', 'Navigation de l’application': 'Application navigation', 'Navigation principale': 'Main navigation',
   'Périphériques non vérifiés': 'Devices not checked', 'Détection des périphériques…': 'Detecting devices…',

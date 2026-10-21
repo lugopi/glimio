@@ -40,7 +40,7 @@
                 @if (processing.active) { <span class="spinner" aria-hidden="true"></span> }
                 @else if (processing.state === 'completed') { <glimio-icon name="check-circle" /> }
                 @else if (processing.state === 'error') { <glimio-icon name="information-circle" /> }
-                <span><strong>{{ processingStateLabel(processing.state) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processing.error) { <span> · {{ processing.error }}</span> }</span>
+                <span><strong>{{ processingStateLabel(processing.state, processing.phase) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processing.error) { <span> · {{ processing.error }}</span> }</span>
               </div>
             }
           </article>
@@ -67,14 +67,14 @@
               <p class="field-note detail-meta">{{ dateLabel(session.started_at, session.id) }}@if (session.duration_seconds != null) { <span aria-hidden="true"> · </span><span>Durée {{ durationLabel(session.duration_seconds) }}</span> }</p>
             </div>
             <div class="detail-actions">
-              <button class="btn btn--primary btn--small detail-process-button" type="button" [disabled]="working()" (click)="runJob('process')"><glimio-icon name="play" /> Traiter complètement</button>
+              <button class="btn btn--primary btn--small detail-process-button" type="button" [disabled]="processingActionDisabled()" (click)="runJob('process', true)"><glimio-icon name="play" /> Traiter complètement</button>
               <details class="session-actions-menu" #sessionActionsMenu>
                 <summary class="session-actions-toggle" aria-label="Autres actions sur la séance"><span class="session-actions-icon"><glimio-icon name="bars-3" size="fill" /></span></summary>
                 <div class="session-actions-panel">
-                  <button class="btn btn--ghost btn--small" type="button" (click)="renameSession(); sessionActionsMenu.open = false"><glimio-icon name="pencil-square" /><span class="btn-label">Renommer</span></button>
-                  <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" (click)="runJob('transcribe'); sessionActionsMenu.open = false"><glimio-icon name="document-text" /><span class="btn-label">Transcrire</span></button>
-                  <button class="btn btn--ghost btn--small" type="button" [disabled]="working()" (click)="runJob('summarize'); sessionActionsMenu.open = false"><glimio-icon name="sparkles" /><span class="btn-label">Créer un résumé</span></button>
-                  <button class="btn btn--ghost btn--small is-danger" type="button" (click)="deleteSession(); sessionActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer</span></button>
+                  <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled()" (click)="renameSession(); sessionActionsMenu.open = false"><glimio-icon name="pencil-square" /><span class="btn-label">Renommer</span></button>
+                  <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled()" (click)="runJob('transcribe'); sessionActionsMenu.open = false"><glimio-icon name="document-text" /><span class="btn-label">Transcrire</span></button>
+                  <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled()" (click)="runJob('summarize'); sessionActionsMenu.open = false"><glimio-icon name="sparkles" /><span class="btn-label">Créer un résumé</span></button>
+                  <button class="btn btn--ghost btn--small is-danger" type="button" [disabled]="processingActionDisabled()" (click)="deleteSession(); sessionActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer</span></button>
                 </div>
               </details>
             </div>
@@ -85,7 +85,7 @@
               @else if (processing.state === 'completed') { <glimio-icon name="check-circle" /> }
               @else if (processing.state === 'error') { <glimio-icon name="information-circle" /> }
               @else { <glimio-icon name="clock" /> }
-              <span><strong>{{ processingStateLabel(processing.state) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processing.error) { <span> — {{ processing.error }}</span> }</span>
+              <span><strong>{{ processingStateLabel(processing.state, processing.phase) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processing.error) { <span> — {{ processing.error }}</span> }</span>
             </div>
           }
         </header>
@@ -94,14 +94,14 @@
           <div class="audio-stale-notice" role="status">
             <glimio-icon name="information-circle" />
             <div><strong>Les documents ne correspondent peut-être plus aux pistes actives.</strong>@if (session.audio_tracks?.length) { <p>Une piste a été désactivée ou supprimée. Relancez le traitement complet pour actualiser la transcription et le résumé.</p> } @else { <p>Aucune piste audio n’est conservée. Les documents actuels restent consultables, mais pour les recalculer il faudra réimporter une source audio.</p> }</div>
-            @if (session.audio_tracks?.length) { <button class="btn btn--secondary btn--small" type="button" [disabled]="working()" (click)="runJob('process', true)">Actualiser les documents</button> }
+            @if (session.audio_tracks?.length) { <button class="btn btn--secondary btn--small" type="button" [disabled]="processingActionDisabled()" (click)="runJob('process', true)">Actualiser les documents</button> }
           </div>
         }
 
         <section class="detail-section available-documents" aria-labelledby="available-documents-title">
           <div class="detail-section-heading">
             <div><h3 id="available-documents-title">Contenus de la séance</h3><p class="field-note">Les documents générés apparaissent ici directement.</p></div>
-            @if (session.summary) { <button class="btn btn--secondary btn--small" type="button" [disabled]="working()" title="Générer à nouveau le résumé" (click)="runJob('summarize', true)"><glimio-icon name="arrow-path" /> Refaire le résumé</button> }
+            @if (session.summary) { <button class="btn btn--secondary btn--small" type="button" [disabled]="processingActionDisabled()" title="Générer à nouveau le résumé" (click)="runJob('summarize', true)"><glimio-icon name="arrow-path" /> Refaire le résumé</button> }
           </div>
           @if (session.summary || session.transcript) {
             <div class="artifact-tabs" role="tablist" aria-label="Contenu à afficher">
@@ -128,8 +128,8 @@
                   <details class="session-actions-menu audio-track-actions audio-track-actions-menu" #trackActionsMenu>
                     <summary class="session-actions-toggle" [attr.aria-label]="'Actions pour la piste ' + track"><span class="session-actions-icon"><glimio-icon name="bars-3" size="fill" /></span></summary>
                     <div class="session-actions-panel">
-                      <button class="btn btn--ghost btn--small" type="button" [disabled]="working() || !canDisableAudioTrack(track)" [title]="!canDisableAudioTrack(track) ? 'Au moins une piste doit rester active' : ''" (click)="setAudioTrackDisabled(track, !isAudioTrackDisabled(track)); trackActionsMenu.open = false"><glimio-icon [name]="isAudioTrackDisabled(track) ? 'eye' : 'eye-slash'" /><span class="btn-label">{{ isAudioTrackDisabled(track) ? 'Réactiver' : 'Désactiver' }}</span></button>
-                      <button class="btn btn--ghost btn--small is-danger" type="button" [disabled]="working()" (click)="deleteAudioTrack(track); trackActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer le fichier</span></button>
+                      <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled() || !canDisableAudioTrack(track)" [title]="!canDisableAudioTrack(track) ? 'Au moins une piste doit rester active' : ''" (click)="setAudioTrackDisabled(track, !isAudioTrackDisabled(track)); trackActionsMenu.open = false"><glimio-icon [name]="isAudioTrackDisabled(track) ? 'eye' : 'eye-slash'" /><span class="btn-label">{{ isAudioTrackDisabled(track) ? 'Réactiver' : 'Désactiver' }}</span></button>
+                      <button class="btn btn--ghost btn--small is-danger" type="button" [disabled]="processingActionDisabled()" (click)="deleteAudioTrack(track); trackActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer le fichier</span></button>
                     </div>
                   </details>
                 </div>
@@ -140,7 +140,7 @@
 
         @if (sessionSettings(); as options) {
           <section class="detail-section session-processing-options" aria-labelledby="session-processing-options-title">
-            <div class="detail-section-heading"><div><h3 id="session-processing-options-title">Options de traitement de cette séance</h3><p class="field-note">Ces choix sont enregistrés avec la séance et utilisés lors des prochains traitements.</p></div><button class="btn btn--secondary btn--small" type="button" [disabled]="working()" (click)="saveSessionSettings()"><glimio-icon name="check-circle" /><span>Enregistrer les options</span></button></div>
+            <div class="detail-section-heading"><div><h3 id="session-processing-options-title">Options de traitement de cette séance</h3><p class="field-note">Ces choix sont enregistrés avec la séance et utilisés lors des prochains traitements.</p></div><button class="btn btn--secondary btn--small" type="button" [disabled]="processingActionDisabled()" (click)="saveSessionSettings()"><glimio-icon name="check-circle" /><span>Enregistrer les options</span></button></div>
             <div class="settings-grid common-processing-fields">
               <div class="session-processing-column">
                 <div><label class="field-label" for="session-processing-profile">Qualité du traitement</label><select class="select" id="session-processing-profile" [ngModel]="options.processing_profile" (ngModelChange)="patchSessionSetting('processing_profile', $event)"><option value="turbo">Turbo · rapide, détails réduits</option><option value="balanced">Équilibré · recommandé</option><option value="quality">Haute qualité · plus détaillé</option><option value="pixel-perfect">Pixel perfect · très détaillé, très lent</option><option value="custom">Personnalisé · réglages avancés</option></select><small class="field-note">Le profil ajuste le budget de génération et les étapes d’analyse.</small></div>

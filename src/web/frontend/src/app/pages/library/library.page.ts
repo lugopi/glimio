@@ -150,11 +150,31 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  processingStateLabel(state: string): string {
+  processingStateLabel(state: string, phase: string): string {
+    if (state === 'stopping' && phase === 'finalizing') return 'Finalisation';
+    if (state === 'running') {
+      const activePhaseLabels: Record<string, string> = {
+        starting: 'Préparation', preparing: 'Préparation', importing: 'Importation',
+        transcribing: 'Transcription en cours', summarizing: 'Génération du résumé',
+        processing: 'Traitement', recording: 'Enregistrement', finalizing: 'Finalisation',
+        completed: 'Terminé', cancelled: 'Annulé', error: 'Échec',
+      };
+      return activePhaseLabels[phase] ?? 'En cours';
+    }
     return ({
       queued: 'En attente', running: 'En cours', stopping: 'Arrêt en cours',
-      completed: 'Terminé', error: 'Échec', cancelled: 'Annulé',
+      completed: 'Terminé', error: 'Échec', cancelled: 'Annulé', interrupted: 'Interrompu',
+      'recovery-error': 'Erreur de reprise', failed: 'Échec',
     } as Record<string, string>)[state] ?? state;
+  }
+
+  sessionProcessingActive(): boolean {
+    const processing = this.selected()?.processing;
+    return Boolean(processing?.active || processing && ['queued', 'running', 'stopping'].includes(processing.state));
+  }
+
+  processingActionDisabled(): boolean {
+    return this.working() || this.sessionProcessingActive();
   }
 
   searchChanged(): void {
@@ -268,7 +288,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   saveSessionSettings(): void {
     const session = this.selected(); const settings = this.sessionSettings();
-    if (!session || !settings) return;
+    if (!session || !settings || this.sessionProcessingActive()) return;
     this.working.set(true);
     this.api.saveSessionSettings(session.id, settings).subscribe({
       next: result => {
@@ -281,6 +301,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   }
 
   runJob(action: 'transcribe' | 'summarize' | 'process', force = false): void {
+    if (this.sessionProcessingActive()) return;
     const session = this.selected(); const settings = this.sessionSettings() ?? this.preferences.preferences()?.settings;
     if (!session || !settings) { this.toast.show('Les paramètres ne sont pas encore disponibles.', 'error'); return; }
     this.liveArtifactPhaseKey = '';
@@ -296,14 +317,14 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   }
 
   renameSession(): void {
-    const session = this.selected(); if (!session) return;
+    const session = this.selected(); if (!session || this.sessionProcessingActive()) return;
     const title = window.prompt('Nouveau titre de la séance', session.title)?.trim();
     if (!title || title === session.title) return;
     this.api.renameSession(session.id, title).subscribe({ next: () => { this.toast.show('Séance renommée.', 'success'); this.loadSessions(); }, error: error => this.toast.show(error.message, 'error') });
   }
 
   deleteSession(): void {
-    const session = this.selected(); if (!session) return;
+    const session = this.selected(); if (!session || this.sessionProcessingActive()) return;
     if (!window.confirm(`Supprimer définitivement la séance « ${session.title} » et ses fichiers ?`)) return;
     this.api.deleteSession(session.id).subscribe({ next: () => { this.toast.show('Séance supprimée.', 'success'); this.selected.set(null); this.selectedId.set(null); this.loadSessions(true); }, error: error => this.toast.show(error.message, 'error') });
   }
@@ -340,7 +361,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   setAudioTrackDisabled(filename: string, disabled: boolean): void {
     const session = this.selected();
-    if (!session) return;
+    if (!session || this.sessionProcessingActive()) return;
     this.working.set(true);
     this.api.setAudioTrackDisabled(session.id, filename, disabled).subscribe({
       next: result => {
@@ -356,7 +377,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   deleteAudioTrack(filename: string): void {
     const session = this.selected();
-    if (!session) return;
+    if (!session || this.sessionProcessingActive()) return;
     const isLastTrack = (session.audio_tracks ?? []).length <= 1;
     const lastTrackWarning = isLastTrack
       ? '\n\nC’est la dernière piste audio. Après suppression, il sera impossible de régénérer la transcription ou le résumé à partir de cette séance, sauf si vous réimportez une source audio.'
