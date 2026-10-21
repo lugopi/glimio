@@ -13,6 +13,8 @@ import numpy as np
 from ..common import log
 from ..layout import get_audio_path, get_transcript_path, transcript_output_path
 
+_RESAMPLE_CHUNK_SAMPLES = 1_000_000
+
 
 def _read_wav(path: Path) -> tuple[np.ndarray, int]:
     """Read PCM WAV with the standard library and return normalized mono float32 audio."""
@@ -51,36 +53,68 @@ def _resample(audio: np.ndarray, source_rate: int, target_rate: int) -> np.ndarr
     if source_rate == target_rate or not audio.size:
         return audio.astype(np.float32, copy=False)
     target_length = max(1, round(len(audio) * target_rate / source_rate))
-    source_positions = np.arange(len(audio), dtype=np.float64)
-    target_positions = np.linspace(0, max(0, len(audio) - 1), target_length, dtype=np.float64)
-    return np.interp(target_positions, source_positions, audio).astype(np.float32)
+    if target_length == 1:
+        return audio[:1].astype(np.float32, copy=True)
+
+    # Avoid allocating source and target position arrays for the entire recording.
+    # Those float64 arrays, plus np.interp's output, can consume several GB for
+    # long recordings and starve the API/UI while diarization prepares its input.
+    output = np.empty(target_length, dtype=np.float32)
+    scale = (len(audio) - 1) / (target_length - 1)
+    last_source_index = len(audio) - 1
+    for start in range(0, target_length, _RESAMPLE_CHUNK_SAMPLES):
+        end = min(start + _RESAMPLE_CHUNK_SAMPLES, target_length)
+        positions = np.arange(start, end, dtype=np.float64) * scale
+        np.minimum(positions, last_source_index, out=positions)
+        lower = positions.astype(np.intp)
+        upper = np.minimum(lower + 1, last_source_index)
+        fraction = (positions - lower).astype(np.float32)
+        output[start:end] = audio[lower] + (audio[upper] - audio[lower]) * fraction
+    return output
+
+
+def _resampled_length(path: Path, target_rate: int) -> int:
+    """Read only the WAV header to size the combined output before loading tracks."""
+    try:
+        with wave.open(str(path), "rb") as stream:
+            sample_rate = stream.getframerate()
+            frame_count = stream.getnframes()
+    except (OSError, wave.Error) as exc:
+        raise SystemExit(f"Impossible de lire la piste audio pour la diarisation ({path}): {exc}") from exc
+    if sample_rate <= 0:
+        raise SystemExit(f"Piste WAV invalide pour la diarisation : {path}")
+    return max(0, round(frame_count * target_rate / sample_rate))
 
 
 def _combined_audio(folder: Path, target_rate: int) -> np.ndarray:
-    tracks: list[np.ndarray] = []
     from ..layout import list_enabled_audio_paths
-    for path in list_enabled_audio_paths(folder):
-        if not path.is_file():
-            continue
+
+    paths = [path for path in list_enabled_audio_paths(folder) if path.is_file()]
+    if not paths:
+        raise SystemExit(f"Aucune piste WAV exploitable pour la diarisation dans {folder}.")
+
+    output_length = max(_resampled_length(path, target_rate) for path in paths)
+    mixed = np.zeros(output_length, dtype=np.float32)
+    weights = np.zeros(output_length, dtype=np.uint16)
+    has_audio = False
+    for path in paths:
         samples, sample_rate = _read_wav(path)
         samples = _resample(samples, sample_rate, target_rate)
         if samples.size:
+            has_audio = True
             # Normalize each source modestly so a quiet microphone is not completely
             # hidden by loopback audio. Averaging avoids doubling the mixed signal.
-            peak = float(np.max(np.abs(samples)))
+            peak = max(abs(float(np.min(samples))), abs(float(np.max(samples))))
             if peak > 1e-6:
-                samples = samples / max(peak, 0.25)
-            tracks.append(samples)
-    if not tracks:
+                samples /= max(peak, 0.25)
+            length = len(samples)
+            mixed[:length] += samples
+            weights[:length] += 1
+            del samples
+    if not has_audio:
         raise SystemExit(f"Aucune piste WAV exploitable pour la diarisation dans {folder}.")
-    length = max(map(len, tracks))
-    mixed = np.zeros(length, dtype=np.float32)
-    weights = np.zeros(length, dtype=np.float32)
-    for samples in tracks:
-        mixed[:len(samples)] += samples
-        weights[:len(samples)] += 1.0
     np.divide(mixed, weights, out=mixed, where=weights > 0)
-    peak = float(np.max(np.abs(mixed))) if mixed.size else 0.0
+    peak = max(abs(float(np.min(mixed))), abs(float(np.max(mixed)))) if mixed.size else 0.0
     if peak > 1.0:
         mixed /= peak
     return mixed

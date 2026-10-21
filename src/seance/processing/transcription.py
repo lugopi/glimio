@@ -285,8 +285,9 @@ def transcribe(args: argparse.Namespace) -> None:
     _status(args, "Transcription fusionnée et enregistrée")
 
     if getattr(args, "diarize", False):
-        _status(args, "Diarisation · détection des changements de voix…")
+        _status(args, "Détection des changements de voix…")
         from .diarization import diarize_transcription
 
         diarize_transcription(folder, args, backup_existing=True)
         _status(args, "Diarisation terminée")
+        _publish_artifact_update(args, "transcript")

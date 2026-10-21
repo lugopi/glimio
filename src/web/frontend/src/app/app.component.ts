@@ -28,7 +28,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly jobEvents = inject(JobEventsService);
   readonly mobileMenuOpen = signal(false);
   private readonly compactViewportQuery = window.matchMedia('(width >= 48rem) and (width < 64rem)');
-  private readonly shortViewportQuery = window.matchMedia('(max-height: 42rem)');
+  private readonly shortViewportQuery = window.matchMedia('(max-height: 45rem)');
   readonly sidebarCollapsed = signal(this.compactViewportQuery.matches);
   readonly sidebarInfoExpanded = signal(!this.shortViewportQuery.matches);
   private compactViewport = this.compactViewportQuery.matches;

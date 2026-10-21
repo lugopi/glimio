@@ -52,6 +52,7 @@ def transcribe_folder(
         diarization_threshold=getattr(source_args, "diarization_threshold", 0.5),
         _cancel_event=getattr(source_args, "_cancel_event", None),
         status_callback=callback,
+        artifact_event_callback=getattr(source_args, "artifact_event_callback", None),
     )
     from ..providers.events import reset_provider_event_callback, set_provider_event_callback
     event_callback = getattr(source_args, "provider_event_callback", None)
@@ -168,6 +169,7 @@ def minutes_folder(
         diarization_threshold=getattr(source_args, "diarization_threshold", 0.5),
         _cancel_event=getattr(source_args, "_cancel_event", None),
         status_callback=callback,
+        artifact_event_callback=getattr(source_args, "artifact_event_callback", None),
     )
     monitor_stop = threading.Event()
     monitor: threading.Thread | None = None

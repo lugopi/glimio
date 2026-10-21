@@ -1002,6 +1002,8 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
             "llm", "analyse", "résumé", "synthèse", "génération", "rédaction", "relecture",
         )):
             phase = "summarizing"
+        elif "détection des changements de voix" in folded or "diarisation" in folded:
+            phase = "processing" if "terminée" in folded or "terminé" in folded else "diarizing"
         elif "whisper" in folded or "transcription" in folded:
             phase = "transcribing"
         elif "import" in folded:
@@ -1296,7 +1298,8 @@ def _active_session_artifact_job(session_id: str, kind: str) -> dict[str, Any] |
             and (
                 job.get("phase") == expected_phase
                 or (kind == "summary" and job.get("kind") == "process"
-                    and job.get("phase") == "transcribing")
+                    and job.get("phase") in {"transcribing", "diarizing"})
+                or (kind == "transcript" and job.get("phase") == "diarizing")
             )
         ]
     if not active:
@@ -1365,11 +1368,11 @@ def session_detail(session_id: str) -> dict[str, Any]:
     _decorate_session_processing(item)
     processing = item.get("processing") or {}
     if processing.get("active"):
-        if processing.get("phase") == "transcribing" and _active_session_artifact_job(session_id, "transcript"):
+        if processing.get("phase") in {"transcribing", "diarizing"} and _active_session_artifact_job(session_id, "transcript"):
             # Keep the document tab available, but do not expose an ever-growing
-            # transcript preview to the browser while transcription is running.
+            # or stale transcript while transcription or diarization is running.
             item["transcript"] = True
-        if processing.get("kind") == "process" and processing.get("phase") == "transcribing":
+        if processing.get("kind") == "process" and processing.get("phase") in {"transcribing", "diarizing"}:
             # A complete run will replace the summary using its new transcript.
             # Hide the old summary until generation starts to avoid presenting stale results.
             item["summary"] = False

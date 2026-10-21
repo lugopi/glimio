@@ -176,7 +176,24 @@ def _ensure_diarization(folder: Path, args: argparse.Namespace) -> None:
             pass
     if json_path.is_file():
         from .diarization import diarize_transcription
+        status_callback = getattr(args, "status_callback", None)
+        if callable(status_callback):
+            try:
+                status_callback("Détection des changements de voix…")
+            except Exception:
+                pass
         diarize_transcription(folder, args, backup_existing=True)
+        if callable(status_callback):
+            try:
+                status_callback("Diarisation terminée")
+            except Exception:
+                pass
+        artifact_callback = getattr(args, "artifact_event_callback", None)
+        if callable(artifact_callback):
+            try:
+                artifact_callback("transcript")
+            except Exception:
+                pass
         return
 
     # Older sessions may only have a Markdown transcript. Re-run Whisper so diarization
@@ -202,6 +219,9 @@ def _ensure_diarization(folder: Path, args: argparse.Namespace) -> None:
         diarization_embedding_model=getattr(args, "diarization_embedding_model", "models/diarization/embedding/embedding.onnx"),
         diarization_num_speakers=getattr(args, "diarization_num_speakers", -1),
         diarization_threshold=getattr(args, "diarization_threshold", 0.5),
+        _cancel_event=getattr(args, "_cancel_event", None),
+        status_callback=getattr(args, "status_callback", None),
+        artifact_event_callback=getattr(args, "artifact_event_callback", None),
     )
     transcribe_audio(transcribe_args)
 

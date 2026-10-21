@@ -1,97 +1,92 @@
 @reference '../../../styles/tailwind-ref.scss';
 
 :host { @apply block min-w-0; }
-:host .control-grid > *, :host .device-grid > * { @apply min-w-0; }
+.control-grid > *, .device-grid > * { @apply min-w-0; }
 
-:host .common-processing-fields > div { @apply min-w-0; }
-:host .common-processing-fields > .processing-basics { @apply col-span-full grid min-w-0 gap-4; }
-:host .processing-quality { @apply grid min-w-0 grid-cols-1 gap-2; }
-:host .processing-quality .field-label { @apply mb-2; }
-:host .processing-quality .field-note { @apply m-0; }
-:host .processing-content-group { @apply grid min-w-0 gap-3 border-t border-border-soft pt-4; }
-:host .processing-content-group > .card-title { @apply m-0 text-sm; }
-:host .processing-content-fields { @apply grid min-w-0 grid-cols-2 items-start gap-[14px]; }
-:host .processing-content-fields:not(:has(> :nth-child(2))) { @apply grid-cols-1; }
-:host .processing-content-fields > * { @apply min-w-0; }
-:host .processing-content-fields .field-label { @apply mb-2; }
-:host .processing-content-fields .field-note { @apply mt-2; }
-:host .common-processing-fields > .processing-extras { @apply col-span-full min-w-0 border-t border-border-soft pt-4; }
-:host .processing-extras > .card-title { @apply mb-3; }
-:host .processing-extras-grid { @apply grid grid-cols-2 items-start gap-[14px]; }
-:host .common-processing-fields .field-label { @apply mb-2; }
-:host .common-processing-fields .field-note { @apply mt-2; }
-:host .common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-label,
-:host .common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-note { @apply m-0; }
-:host .common-processing-fields .diarization-option { @apply grid content-start gap-3; }
-:host .common-processing-fields .speaker-count-field { @apply grid gap-2; }
-:host .common-processing-fields .diarization-option .field-label,
-:host .common-processing-fields .diarization-option .field-note { @apply m-0; }
-:host .common-processing-fields .normalization-gain-control { @apply mt-3 grid gap-2 border-0 bg-transparent p-0; }
-:host .common-processing-fields .normalization-gain-control .field-label { @apply m-0 flex-wrap justify-between gap-2; }
-:host .common-processing-fields .normalization-gain-control .range-input { @apply m-0 block w-full; }
-:host .audio-source-builder { @apply mt-2 grid min-w-0 gap-3; }
-:host .source-add-row { @apply grid min-w-0 items-end gap-2.5; grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr) auto; }
-:host .source-add-row > * { @apply min-w-0; }
-:host .source-add-button { @apply min-h-11 whitespace-nowrap; }
-:host .source-add-button glimio-icon { @apply size-4 text-base; }
-:host .source-add-button .icon, :host .source-add-button svg { @apply block size-full; }
-:host .device-meta { @apply min-w-0; }
-:host .device-meta > span { @apply min-w-0; overflow-wrap: anywhere; }
-:host .device-meta .text-link-button { @apply inline-flex min-h-11 shrink-0 items-center justify-center gap-[7px] whitespace-nowrap; }
-:host .device-meta .text-link-button glimio-icon { @apply inline-flex size-[17px] text-[17px]; flex: 0 0 17px; }
-:host .device-meta .text-link-button .icon, :host .device-meta .text-link-button svg { @apply block size-full; }
-:host .selected-audio-sources { @apply grid min-w-0 gap-2; }
-:host .selected-audio-source { @apply flex min-w-0 items-center gap-3 rounded-xl border border-border-soft bg-surface-raised px-3 py-2.5; }
-:host .selected-source-icon { @apply flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent; }
-:host .selected-source-icon glimio-icon { @apply flex size-5; }
-:host .selected-source-icon .icon, :host .selected-source-icon svg { @apply block size-full; }
-:host .selected-source-copy { @apply flex min-w-0 flex-1 flex-col gap-0.5; }
-:host .selected-source-copy strong { @apply text-sm font-semibold text-text; }
-:host .selected-source-copy small { @apply text-xs text-muted; overflow-wrap: anywhere; }
-:host .remove-audio-source { @apply flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted; }
-:host .remove-audio-source glimio-icon { @apply flex size-[18px]; }
-:host .remove-audio-source .icon, :host .remove-audio-source svg { @apply block size-full; }
-:host .remove-audio-source:hover:not(:disabled) { color: var(--c-danger); border-color: var(--c-danger); background: var(--c-danger-soft); }
-:host .remove-audio-source:disabled { @apply cursor-not-allowed opacity-40; }
-:host .remove-audio-source:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
-:host .source-validation-message { @apply m-0 rounded-lg border border-danger bg-danger-soft p-3 text-sm text-danger; }
-:host .file-dropzone { @apply mt-2 flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border px-4 py-5 text-center; background: var(--c-surface-raised); transition: border-color .15s, background-color .15s; }
-:host .file-dropzone:hover, :host .file-dropzone.is-dragging { border-color: var(--c-accent); background: var(--c-accent-soft); }
-:host .file-dropzone.has-file { border-style: solid; border-color: color-mix(in srgb, var(--c-accent) 50%, var(--c-border)); }
-:host .file-dropzone:focus-within { outline: 2px solid var(--c-accent); outline-offset: 3px; }
-:host .file-dropzone > strong { @apply max-w-full text-sm; overflow-wrap: anywhere; }
-:host .file-dropzone > small { @apply text-xs leading-normal text-muted; }
-:host .file-dropzone-icon { @apply flex size-[42px] items-center justify-center rounded-xl border border-border bg-accent-soft text-accent; }
-:host .file-dropzone-icon glimio-icon { @apply flex size-[23px]; }
-:host .file-dropzone-icon .icon, :host .file-dropzone-icon svg { @apply block size-full; }
-:host .import-panel .workflow-options { @apply mt-4; }
-:host .import-panel .workflow-options + .btn { @apply mt-4; }
-:host .import-panel > .field-note { @apply mt-2; }
-:host .recording-live-row { @apply flex min-w-0 flex-1 items-stretch gap-2.5; }
-:host .recording-live-status { @apply flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border-soft bg-surface-raised px-3 py-2; }
-:host .recording-live-status .status-dot { @apply size-2 shrink-0; }
-:host .recording-live-status .status-dot.is-recording { background: var(--c-danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-danger) 15%, transparent); animation: pulse 1.2s infinite; }
-:host .recording-live-copy { @apply min-w-0 flex-1 text-sm text-muted; overflow-wrap: anywhere; }
-:host .recording-live-status strong { @apply shrink-0 font-mono text-xs text-text; }
-:host .recording-live-row .stop-recording-button { @apply w-auto min-w-[104px] min-h-11 shrink-0 justify-center whitespace-nowrap; }
-:host .card-actions > .btn--primary { @apply min-h-[46px] w-full; }
-:host .jobs-footer { @apply flex min-w-0 flex-wrap items-center justify-between gap-3; }
-:host .jobs-footer > glimio-pagination { @apply min-w-0 flex-1; }
-:host .jobs-footer > .btn--danger { color: var(--c-danger); border-color: color-mix(in srgb, var(--c-danger) 40%, var(--c-border)); }
-:host .jobs-footer > .btn--danger:hover:not(:disabled) { background: var(--c-danger-soft); border-color: var(--c-danger); }
+.common-processing-fields > div { @apply min-w-0; }
+.common-processing-fields > .processing-basics { @apply col-span-full grid min-w-0 gap-4; }
+.processing-quality { @apply grid min-w-0 grid-cols-1 gap-2; }
+.processing-quality .field-label { @apply mb-2; }
+.processing-quality .field-note { @apply m-0; }
+.processing-content-group { @apply grid min-w-0 gap-3 border-t border-border-soft pt-4; }
+.processing-content-group > .card-title { @apply m-0 text-sm; }
+.processing-content-fields { @apply grid min-w-0 grid-cols-2 items-start gap-[14px]; }
+.processing-content-fields:not(:has(> :nth-child(2))) { @apply grid-cols-1; }
+.processing-content-fields > * { @apply min-w-0; }
+.processing-content-fields .field-label { @apply mb-2; }
+.processing-content-fields .field-note { @apply mt-2; }
+.common-processing-fields > .processing-extras { @apply col-span-full min-w-0 border-t border-border-soft pt-4; }
+.processing-extras > .card-title { @apply mb-3; }
+.processing-extras-grid { @apply grid grid-cols-2 items-start gap-[14px]; }
+.common-processing-fields .field-label { @apply mb-2; }
+.common-processing-fields .field-note { @apply mt-2; }
+.common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-label,
+.common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-note { @apply m-0; }
+.common-processing-fields .diarization-option { @apply grid content-start gap-3; }
+.common-processing-fields .speaker-count-field { @apply grid gap-2; }
+.common-processing-fields .diarization-option .field-label,
+.common-processing-fields .diarization-option .field-note { @apply m-0; }
+.common-processing-fields .normalization-gain-control { @apply mt-3 grid gap-2 border-0 bg-transparent p-0; }
+.common-processing-fields .normalization-gain-control .field-label { @apply m-0 flex-wrap justify-between gap-2; }
+.common-processing-fields .normalization-gain-control .range-input { @apply m-0 block w-full; }
+.audio-source-builder { @apply mt-2 grid min-w-0 gap-3; }
+.source-add-row { @apply grid min-w-0 items-end gap-2.5; grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr) auto; }
+.source-add-row > * { @apply min-w-0; }
+.source-add-button { @apply min-h-11 whitespace-nowrap; }
+.source-add-button glimio-icon { @apply size-4 text-base; }
+.device-meta { @apply min-w-0; }
+.device-meta > span { @apply min-w-0; overflow-wrap: anywhere; }
+.device-meta .text-link-button { @apply inline-flex min-h-11 shrink-0 items-center justify-center gap-[7px] whitespace-nowrap; }
+.device-meta .text-link-button glimio-icon { @apply inline-flex size-[17px] text-[17px]; flex: 0 0 17px; }
+.selected-audio-sources { @apply grid min-w-0 gap-2; }
+.selected-audio-source { @apply flex min-w-0 items-center gap-3 rounded-xl border border-border-soft bg-surface-raised px-3 py-2.5; }
+.selected-source-icon { @apply flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent; }
+.selected-source-icon glimio-icon { @apply flex size-5; }
+.selected-source-copy { @apply flex min-w-0 flex-1 flex-col gap-0.5; }
+.selected-source-copy strong { @apply text-sm font-semibold text-text; }
+.selected-source-copy small { @apply text-xs text-muted; overflow-wrap: anywhere; }
+.remove-audio-source { @apply flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted; }
+.remove-audio-source glimio-icon { @apply flex size-[18px]; }
+.remove-audio-source:hover:not(:disabled) { color: var(--c-danger); border-color: var(--c-danger); background: var(--c-danger-soft); }
+.remove-audio-source:disabled { @apply cursor-not-allowed opacity-40; }
+.remove-audio-source:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+.source-validation-message { @apply m-0 rounded-lg border border-danger bg-danger-soft p-3 text-sm text-danger; }
+.file-dropzone { @apply mt-2 flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border px-4 py-5 text-center; background: var(--c-surface-raised); transition: border-color .15s, background-color .15s; }
+.file-dropzone:hover, .file-dropzone.is-dragging { border-color: var(--c-accent); background: var(--c-accent-soft); }
+.file-dropzone.has-file { border-style: solid; border-color: color-mix(in srgb, var(--c-accent) 50%, var(--c-border)); }
+.file-dropzone:focus-within { outline: 2px solid var(--c-accent); outline-offset: 3px; }
+.file-dropzone > strong { @apply max-w-full text-sm; overflow-wrap: anywhere; }
+.file-dropzone > small { @apply text-xs leading-normal text-muted; }
+.file-dropzone-icon { @apply flex size-[42px] items-center justify-center rounded-xl border border-border bg-accent-soft text-accent; }
+.file-dropzone-icon glimio-icon { @apply flex size-[23px]; }
+.import-panel .workflow-options { @apply mt-4; }
+.import-panel .workflow-options + .btn { @apply mt-4; }
+.import-panel > .field-note { @apply mt-2; }
+.recording-live-row { @apply flex min-w-0 flex-1 items-stretch gap-2.5; }
+.recording-live-status { @apply flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border-soft bg-surface-raised px-3 py-2; }
+.recording-live-status .status-dot { @apply size-2 shrink-0; }
+.recording-live-status .status-dot.is-recording { background: var(--c-danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-danger) 15%, transparent); animation: pulse 1.2s infinite; }
+.recording-live-copy { @apply min-w-0 flex-1 text-sm text-muted; overflow-wrap: anywhere; }
+.recording-live-status strong { @apply shrink-0 font-mono text-xs text-text; }
+.recording-live-row .stop-recording-button { @apply w-auto min-w-[104px] min-h-11 shrink-0 justify-center whitespace-nowrap; }
+.card-actions > .btn--primary { @apply min-h-[46px] w-full; }
+.jobs-footer { @apply flex min-w-0 flex-wrap items-center justify-between gap-3; }
+.jobs-footer > glimio-pagination { @apply min-w-0 flex-1; }
+.jobs-footer > .btn--danger { color: var(--c-danger); border-color: color-mix(in srgb, var(--c-danger) 40%, var(--c-border)); }
+.jobs-footer > .btn--danger:hover:not(:disabled) { background: var(--c-danger-soft); border-color: var(--c-danger); }
 
 @media (width < theme(--breakpoint-md)) {
-  :host .source-add-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  :host .source-add-button { @apply col-span-full w-full; }
+  .source-add-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .source-add-button { @apply col-span-full w-full; }
 }
 @media (width < theme(--breakpoint-sm)) {
-  :host .processing-content-fields,
-  :host .processing-extras-grid { grid-template-columns: minmax(0, 1fr); }
-  :host .source-add-row { grid-template-columns: minmax(0, 1fr); }
-  :host .source-add-button { grid-column: auto; }
-  :host .recording-live-row { @apply flex-col; }
-  :host .recording-live-row .stop-recording-button { @apply w-full; }
-  :host .jobs-footer { @apply items-stretch; }
-  :host .jobs-footer > .btn { @apply w-full justify-center; }
-  :host .jobs-footer > glimio-pagination { flex: 1 1 100%; }
+  .processing-content-fields,
+  .processing-extras-grid { grid-template-columns: minmax(0, 1fr); }
+  .source-add-row { grid-template-columns: minmax(0, 1fr); }
+  .source-add-button { grid-column: auto; }
+  .recording-live-row { @apply flex-col; }
+  .recording-live-row .stop-recording-button { @apply w-full; }
+  .jobs-footer { @apply items-stretch; }
+  .jobs-footer > .btn { @apply w-full justify-center; }
+  .jobs-footer > glimio-pagination { flex: 1 1 100%; }
 }
