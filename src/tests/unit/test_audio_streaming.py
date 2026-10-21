@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from seance.audio import SAMPLE_RATE, _resolve_device_id, _resolve_named_device, _write_audio_chunk, record
+from seance.media.audio import SAMPLE_RATE, _resolve_device_id, _resolve_named_device, _write_audio_chunk, record
 
 
 class StreamingWaveTests(unittest.TestCase):

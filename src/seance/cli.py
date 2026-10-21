@@ -6,8 +6,16 @@ import argparse
 import os
 from pathlib import Path
 
-from . import __version__, audio, minutes, pipeline, transcription
-from web.project_paths import discover_project_root
+from . import __version__
+from .media import audio
+from .processing import minutes, pipeline, transcription
+from .project_paths import discover_project_root
+from .providers.events import reset_provider_event_callback, set_provider_event_callback
+from .providers import (
+    DEFAULT_TEXT_PROVIDER, DEFAULT_TRANSCRIPTION_PROVIDER,
+    TEXT_PROVIDER_IDS, TRANSCRIPTION_PROVIDER_IDS,
+)
+from .providers.selection import reset_text_provider, set_text_provider
 
 
 PROJECT_ROOT = discover_project_root(package_file=__file__)
@@ -37,6 +45,8 @@ def _add_processing_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--speakers", type=int, default=-1, help="Nombre d’interlocuteurs, -1 pour automatique.")
     parser.add_argument("--diarization-threshold", type=float, default=0.5)
     parser.add_argument("--llama-completion", default="bin/llm/llama-completion.exe", help="Chemin vers llama-completion.")
+    parser.add_argument("--text-provider", choices=TEXT_PROVIDER_IDS, default=DEFAULT_TEXT_PROVIDER, help="Provider de génération.")
+    parser.add_argument("--transcription-provider", choices=TRANSCRIPTION_PROVIDER_IDS, default=DEFAULT_TRANSCRIPTION_PROVIDER, help="Provider de transcription.")
     parser.add_argument("--gguf", default="models/llm/model.gguf", help="Chemin vers le modèle GGUF.")
     parser.add_argument("--context", type=int, default=16384)
     parser.add_argument("--max-tokens", type=int, default=6000)
@@ -104,6 +114,10 @@ def _args_namespace(args: argparse.Namespace) -> argparse.Namespace:
 def main() -> None:
     args = build_parser().parse_args()
     namespace = _args_namespace(args)
+    event_token = set_provider_event_callback(
+        lambda event: print(f"[{event.provider_id}] {event.message}", flush=True)
+    )
+    provider_token = set_text_provider(getattr(namespace, "text_provider", None))
     try:
         if args.command == "record":
             namespace.capture_windows = namespace.windows_audio
@@ -118,6 +132,9 @@ def main() -> None:
             pipeline.process(namespace)
     except KeyboardInterrupt:
         raise SystemExit("Traitement interrompu.") from None
+    finally:
+        reset_text_provider(provider_token)
+        reset_provider_event_callback(event_token)
 
 
 if __name__ == "__main__":

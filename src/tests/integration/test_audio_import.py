@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from seance.audio_import import import_audio_file
+from seance.media.audio_import import import_audio_file
 
 
 class FakeProcess:
@@ -72,8 +72,8 @@ def test_import_audio_converts_to_durable_session_and_writes_metadata(tmp_path: 
     sessions = tmp_path / "sessions"
     calls = []
 
-    monkeypatch.setattr("seance.audio_import.subprocess.Popen", make_fake_popen(on_output=write_silence_wav, calls=calls))
-    monkeypatch.setattr("seance.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr("seance.media.audio_import.subprocess.Popen", make_fake_popen(on_output=write_silence_wav, calls=calls))
+    monkeypatch.setattr("seance.media.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
     result = import_audio_file(source, sessions, ffmpeg="ffmpeg")
 
     assert result.parent == sessions
@@ -90,8 +90,8 @@ def test_import_audio_removes_partial_session_when_ffmpeg_fails(tmp_path: Path, 
     source = tmp_path / "broken.wav"
     source.write_bytes(b"not a real wav")
     sessions = tmp_path / "sessions"
-    monkeypatch.setattr("seance.audio_import.subprocess.Popen", make_fake_popen(returncode=1, stderr="decode failed"))
-    monkeypatch.setattr("seance.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr("seance.media.audio_import.subprocess.Popen", make_fake_popen(returncode=1, stderr="decode failed"))
+    monkeypatch.setattr("seance.media.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
 
     with pytest.raises(RuntimeError, match="decode failed"):
         import_audio_file(source, sessions, ffmpeg="ffmpeg")
@@ -103,11 +103,11 @@ def test_import_audio_applies_shared_peak_normalization(tmp_path: Path, monkeypa
     source.write_bytes(b"fake media")
     sessions = tmp_path / "sessions"
 
-    monkeypatch.setattr("seance.audio_import.subprocess.Popen", make_fake_popen(on_output=write_quiet_wav))
-    monkeypatch.setattr("seance.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr("seance.media.audio_import.subprocess.Popen", make_fake_popen(on_output=write_quiet_wav))
+    monkeypatch.setattr("seance.media.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
     result = import_audio_file(source, sessions, ffmpeg="ffmpeg", normalize=True, max_gain_db=30)
 
-    from seance.audio import _wav_pcm16_stats
+    from seance.media.audio import _wav_pcm16_stats
     stats = _wav_pcm16_stats(result / "audio" / "audio_import.wav")
     metadata = json.loads((result / "metadata" / "seance.json").read_text(encoding="utf-8"))
     assert metadata["audio_import_normalization"]["status"] == "normalized"
@@ -119,11 +119,11 @@ def test_import_audio_respects_disabled_normalization(tmp_path: Path, monkeypatc
     source.write_bytes(b"fake media")
     sessions = tmp_path / "sessions"
 
-    monkeypatch.setattr("seance.audio_import.subprocess.Popen", make_fake_popen(on_output=write_quiet_wav))
-    monkeypatch.setattr("seance.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr("seance.media.audio_import.subprocess.Popen", make_fake_popen(on_output=write_quiet_wav))
+    monkeypatch.setattr("seance.media.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
     result = import_audio_file(source, sessions, ffmpeg="ffmpeg", normalize=False, max_gain_db=30)
 
-    from seance.audio import _wav_pcm16_stats
+    from seance.media.audio import _wav_pcm16_stats
     stats = _wav_pcm16_stats(result / "audio" / "audio_import.wav")
     metadata = json.loads((result / "metadata" / "seance.json").read_text(encoding="utf-8"))
     assert metadata["audio_import_normalization"]["status"] == "disabled"

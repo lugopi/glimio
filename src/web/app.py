@@ -21,11 +21,14 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from seance.audio import _soundcard, audio_com_apartment, record
+from seance.media.audio import _soundcard, audio_com_apartment, record
 from seance.layout import get_audio_path, get_transcript_path, has_audio, list_audio_paths
-from seance.pipeline import minutes_folder, process_folder, transcribe_folder
+from seance.processing.pipeline import minutes_folder, process_folder, transcribe_folder
 from seance.llm import (
     LLMCancelled, LLMError, run_completion_resilient,
+)
+from seance.providers import (
+    TEXT_PROVIDER_IDS, TRANSCRIPTION_PROVIDER_IDS, get_provider_statuses,
 )
 
 from .project_paths import discover_project_root, resolve_session_root
@@ -217,6 +220,7 @@ def _angular_file(relative: str) -> Path | None:
 
 class Settings(BaseModel):
     model: str = DEFAULT_WHISPER_MODEL
+    transcription_provider: str = "whisper.cpp"
     whisper_cli: str = DEFAULT_WHISPER_CLI
     language: str = "auto"
     threads: int = Field(default=DEFAULT_THREADS, ge=1, le=256)
@@ -229,6 +233,7 @@ class Settings(BaseModel):
     audio_bitrate_kbps: Literal[128, 256, 384, 512, 768] = 256
     diarization_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
     gguf: str = DEFAULT_GGUF
+    text_provider: str = "llama.cpp"
     llama_completion: str = DEFAULT_LLAMA_COMPLETION
     context: int = Field(default=16384, ge=2048, le=131072)
     max_tokens: int = Field(default=6000, ge=500, le=32768)
@@ -240,6 +245,10 @@ class Settings(BaseModel):
 
     def namespace(self, *, folder: str | None = None) -> argparse.Namespace:
         values = self.model_dump() if hasattr(self, "model_dump") else self.dict()
+        if values.get("text_provider") not in TEXT_PROVIDER_IDS:
+            raise HTTPException(status_code=422, detail="Provider de génération inconnu.")
+        if values.get("transcription_provider") not in TRANSCRIPTION_PROVIDER_IDS:
+            raise HTTPException(status_code=422, detail="Provider de transcription inconnu.")
         values["folder"] = folder
         values["directory"] = str(SESSION_ROOT)
         for key in (
@@ -376,7 +385,11 @@ def _now() -> str:
 
 
 def _job_public(job: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in job.items() if not key.startswith("_")}
+    result = {key: value for key, value in job.items() if not key.startswith("_")}
+    payload = job.get("_payload")
+    if isinstance(payload, dict) and isinstance(payload.get("provider_event"), dict):
+        result["provider_event"] = payload["provider_event"]
+    return result
 
 
 def _serialize_model(model: Any) -> dict[str, Any]:
@@ -853,6 +866,16 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
     cancel_event = CANCEL_EVENTS.get(job_id)
     args._cancel_event = cancel_event
 
+    def publish_provider_event(event: Any) -> None:
+        phase = {"transcription": "transcribing", "generation": "summarizing"}.get(
+            event.task, "processing",
+        )
+        current = _job_payload(job_id)
+        current["provider_event"] = event.to_dict()
+        _set_job(job_id, phase=phase, message=event.message, _payload=current)
+
+    args.provider_event_callback = publish_provider_event
+
     def mark_outputs_current(*, transcript: bool = False, summary: bool = False) -> None:
         metadata = _read_session_metadata(folder)
         if transcript:
@@ -931,7 +954,7 @@ def _run_import_job(job_id: str) -> None:
         source_file = Path(str(payload.get("source_file") or "")).expanduser()
         if not source_file.is_file():
             raise FileNotFoundError(f"Fichier importé temporaire introuvable : {source_file}")
-        from seance.audio_import import import_audio_file
+        from seance.media.audio_import import import_audio_file
         display_name = str(payload.get("display_name") or source_file.name)
         _set_job(job_id, state="running", phase="importing", message=f"Import local de {display_name}…")
         folder = import_audio_file(
@@ -1003,6 +1026,15 @@ def config() -> dict[str, Any]:
         "preferences": preferences,
         "formats": ["auto", "summary", "daily", "technical", "formal", "brainstorm"],
     }
+
+
+@app.get("/api/providers")
+def providers() -> dict[str, Any]:
+    """Return neutral provider metadata and current local readiness to the UI."""
+    settings = _get_preferences()["settings"]
+    return {"providers": [item.to_dict() for item in get_provider_statuses(
+        Settings(**settings), project_root=PROJECT_ROOT,
+    )]}
 
 
 @app.get("/api/preferences")
@@ -1852,7 +1884,8 @@ def _generate_search_synthesis(
     return _generate_search_synthesis_impl(
         query, passages, settings, binary, model,
         cancel_event=cancel_event, on_process=on_process, on_progress=on_progress,
-        working_directory=PROJECT_ROOT, completion_runner=run_completion_resilient,
+        working_directory=PROJECT_ROOT, provider_id=settings.text_provider,
+        completion_runner=run_completion_resilient,
     )
 
 
@@ -1913,17 +1946,6 @@ def _run_cancellable_search(search_id: str, request: SearchRequest) -> None:
             binary = PROJECT_ROOT / binary
         if not model.is_absolute():
             model = PROJECT_ROOT / model
-        if not binary.is_file() or not model.is_file():
-            missing = "exécutable llama.cpp" if not binary.is_file() else "modèle GGUF"
-            _set_search(
-                search_id,
-                state="completed",
-                message="Recherche textuelle terminée ; LLM indisponible",
-                answer=None,
-                llm_error=f"Recherche textuelle effectuée, mais {missing} introuvable. Vérifie les chemins dans les réglages.",
-                finished_at=_now(),
-            )
-            return
         if cancel_event.is_set():
             _finish_search_cancelled(search_id)
             return
@@ -1950,7 +1972,7 @@ def _run_cancellable_search(search_id: str, request: SearchRequest) -> None:
         except LLMCancelled:
             _finish_search_cancelled(search_id)
             return
-        except LLMError as exc:
+        except (LLMError, ValueError) as exc:
             with SEARCH_LOCK:
                 cancelled = cancel_event.is_set()
             if cancelled:

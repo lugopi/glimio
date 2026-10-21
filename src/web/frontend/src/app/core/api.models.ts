@@ -5,6 +5,7 @@ export type JobAction = 'transcribe' | 'summarize' | 'process';
 
 export interface GlimioSettings {
   model: string;
+  transcription_provider: string;
   whisper_cli: string;
   language: string;
   threads: number;
@@ -17,6 +18,7 @@ export interface GlimioSettings {
   audio_bitrate_kbps: 128 | 256 | 384 | 512 | 768;
   diarization_threshold: number;
   gguf: string;
+  text_provider: string;
   llama_completion: string;
   context: number;
   max_tokens: number;
@@ -56,6 +58,24 @@ export interface AppConfig {
   defaults: GlimioSettings;
   preferences: PreferencesPayload;
   formats: string[];
+}
+
+export interface ProviderStatus {
+  id: string;
+  name: string;
+  task: 'transcription' | 'generation' | 'diarization' | 'media';
+  description: string;
+  execution: 'embedded' | 'bundled_executable' | 'system_executable' | 'remote';
+  capabilities: string[];
+  ready: boolean;
+  message: string;
+  version: string | null;
+  missing: string[];
+  details: Record<string, unknown>;
+}
+
+export interface ProvidersResponse {
+  providers: ProviderStatus[];
 }
 
 export type AudioSourceKind = 'microphone' | 'output';
@@ -141,6 +161,16 @@ export interface Job {
   started_at?: string | null;
   finished_at?: string | null;
   queue_position?: number | null;
+  provider_event?: ProviderEvent | null;
+}
+
+export interface ProviderEvent {
+  provider_id: string;
+  task: 'transcription' | 'generation' | 'diarization' | 'media';
+  stage: string;
+  message: string;
+  progress: number | null;
+  details: Record<string, unknown>;
 }
 
 export interface JobsResponse {

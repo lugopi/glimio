@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from seance.audio import _normalize_wav_peak, _wav_pcm16_stats, record
+from seance.media.audio import _normalize_wav_peak, _wav_pcm16_stats, record
 
 
 def write_pcm16(path: Path, samples: np.ndarray, *, sample_rate: int = 16_000) -> None:
@@ -172,7 +172,7 @@ class WindowsAudioNormalizationTests(unittest.TestCase):
                 normalize_windows=True, normalize_windows_max_gain_db=30.0,
                 auto_pv=False, auto_transcribe=False,
             )
-            with patch("seance.audio._soundcard", return_value=fake_soundcard):
+            with patch("seance.media.audio._soundcard", return_value=fake_soundcard):
                 record(args, stop_event=stop_event)
 
             sessions = [path for path in root.iterdir() if path.is_dir()]

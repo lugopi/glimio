@@ -5,11 +5,11 @@ import threading
 from pathlib import Path
 from typing import Callable
 
-from .audio_import import import_audio_file
-from .common import log
-from .layout import get_transcript_path, has_audio
+from ..common import log
+from ..layout import get_transcript_path, has_audio
+from ..media.audio_import import import_audio_file
+from ..sessions import resolve_session
 from .minutes import summarize
-from .sessions import resolve_session
 from .transcription import transcribe
 
 StatusCallback = Callable[[str], None]
@@ -40,6 +40,7 @@ def transcribe_folder(
         directory=getattr(source_args, "directory", "seances"),
         model=getattr(source_args, "model", "models/asr/model.bin"),
         whisper_cli=getattr(source_args, "whisper_cli", "bin/asr/whisper-cli.exe"),
+        transcription_provider=getattr(source_args, "transcription_provider", "whisper.cpp"),
         language=getattr(source_args, "language", "auto"),
         openvino_device=getattr(source_args, "openvino_device", None),
         threads=getattr(source_args, "threads", 1),
@@ -52,7 +53,16 @@ def transcribe_folder(
         _cancel_event=getattr(source_args, "_cancel_event", None),
         status_callback=callback,
     )
-    transcribe(args)
+    from ..providers.events import reset_provider_event_callback, set_provider_event_callback
+    event_callback = getattr(source_args, "provider_event_callback", None)
+    if event_callback is None and callback is not None:
+        event_callback = lambda event: _notify(callback, event.message)
+    event_token = set_provider_event_callback(event_callback) if event_callback is not None else None
+    try:
+        transcribe(args)
+    finally:
+        if event_token is not None:
+            reset_provider_event_callback(event_token)
     _notify(callback, "Whisper · transcription enregistrée")
 
 
@@ -142,6 +152,7 @@ def minutes_folder(
         directory=getattr(source_args, "directory", "seances"),
         gguf=getattr(source_args, "gguf", "models/llm/model.gguf"),
         llama_completion=getattr(source_args, "llama_completion", "bin/llm/llama-completion.exe"),
+        text_provider=getattr(source_args, "text_provider", "llama.cpp"),
         context=getattr(source_args, "context", 16384),
         max_tokens=getattr(source_args, "max_tokens", 6000),
         analysis_tokens=getattr(source_args, "analysis_tokens", 3500),
@@ -168,10 +179,21 @@ def minutes_folder(
         )
         monitor.start()
     try:
-        from .llm import reset_job_cancel_event, set_job_cancel_event
+        from ..llm import reset_job_cancel_event, set_job_cancel_event
+        from ..providers.events import reset_provider_event_callback, set_provider_event_callback
+        from ..providers.selection import reset_text_provider, set_text_provider
         cancel_token = set_job_cancel_event(getattr(args, "_cancel_event", None))
+        provider_token = set_text_provider(getattr(args, "text_provider", None))
+        event_callback = getattr(source_args, "provider_event_callback", None)
+        if event_callback is None and callback is not None:
+            event_callback = lambda event: _notify(callback, event.message)
+        event_token = set_provider_event_callback(event_callback) if event_callback is not None else None
         summarize(args)
     finally:
+        if "event_token" in locals() and event_token is not None:
+            reset_provider_event_callback(event_token)
+        if "provider_token" in locals():
+            reset_text_provider(provider_token)
         if "cancel_token" in locals():
             reset_job_cancel_event(cancel_token)
         monitor_stop.set()

@@ -8,7 +8,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from .layout import ensure_session_layout, metadata_output_path
+from ..layout import ensure_session_layout, metadata_output_path
 
 
 def import_audio_file(

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from seance.audio import audio_com_apartment, record
+from seance.media.audio import audio_com_apartment, record
 from web.app import _device_names
 
 
@@ -29,14 +29,14 @@ class _FakeOle32:
 
 class AudioComApartmentTests(unittest.TestCase):
     def test_non_windows_is_a_noop(self) -> None:
-        with patch("seance.audio.os.name", "posix"):
+        with patch("seance.media.audio.os.name", "posix"):
             with audio_com_apartment():
                 self.assertTrue(True)
 
     def test_successful_initialization_is_balanced(self) -> None:
         ole32 = _FakeOle32(0)  # S_OK
-        with patch("seance.audio.os.name", "nt"), patch(
-            "seance.audio.ctypes.WinDLL", return_value=ole32, create=True
+        with patch("seance.media.audio.os.name", "nt"), patch(
+            "seance.media.audio.ctypes.WinDLL", return_value=ole32, create=True
         ):
             with audio_com_apartment():
                 pass
@@ -46,8 +46,8 @@ class AudioComApartmentTests(unittest.TestCase):
 
     def test_s_false_initialization_is_also_balanced(self) -> None:
         ole32 = _FakeOle32(1)  # S_FALSE still increments COM's init count
-        with patch("seance.audio.os.name", "nt"), patch(
-            "seance.audio.ctypes.WinDLL", return_value=ole32, create=True
+        with patch("seance.media.audio.os.name", "nt"), patch(
+            "seance.media.audio.ctypes.WinDLL", return_value=ole32, create=True
         ):
             with audio_com_apartment():
                 pass
@@ -55,8 +55,8 @@ class AudioComApartmentTests(unittest.TestCase):
 
     def test_changed_apartment_mode_is_not_uninitialized_by_this_scope(self) -> None:
         ole32 = _FakeOle32(0x80010106)  # RPC_E_CHANGED_MODE
-        with patch("seance.audio.os.name", "nt"), patch(
-            "seance.audio.ctypes.WinDLL", return_value=ole32, create=True
+        with patch("seance.media.audio.os.name", "nt"), patch(
+            "seance.media.audio.ctypes.WinDLL", return_value=ole32, create=True
         ):
             with audio_com_apartment():
                 pass
@@ -64,8 +64,8 @@ class AudioComApartmentTests(unittest.TestCase):
 
     def test_com_initialization_failure_is_reported(self) -> None:
         ole32 = _FakeOle32(0x800401F0)  # CO_E_NOTINITIALIZED / failed HRESULT
-        with patch("seance.audio.os.name", "nt"), patch(
-            "seance.audio.ctypes.WinDLL", return_value=ole32, create=True
+        with patch("seance.media.audio.os.name", "nt"), patch(
+            "seance.media.audio.ctypes.WinDLL", return_value=ole32, create=True
         ):
             with self.assertRaisesRegex(OSError, "0x800401F0"):
                 with audio_com_apartment():
@@ -131,7 +131,7 @@ class AudioComApartmentTests(unittest.TestCase):
         def fake_record_impl(*args, **kwargs):
             order.append("record-impl")
 
-        from seance import audio
+            from seance.media import audio
         args = SimpleNamespace(capture_microphone=True, capture_windows=False)
         with patch.object(audio, "_soundcard", side_effect=fake_soundcard), patch.object(
             audio, "audio_com_apartment", side_effect=fake_com_scope

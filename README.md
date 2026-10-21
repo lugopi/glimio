@@ -37,7 +37,7 @@ Les transcriptions et résumés issus de modèles peuvent être erronés. Vérif
 - FFmpeg sur le `PATH` pour les imports nécessitant une conversion.
 - whisper.cpp et son modèle Whisper pour la transcription.
 - llama.cpp et un modèle GGUF pour les résumés/recherches.
-- Pour la diarisation, l’extra Python `diarization` (`sherpa-onnx`) et les deux modèles ONNX attendus. Le module d’intégration est fourni dans `src/seance/diarization.py` ; la dépendance seule ne télécharge pas les poids des modèles.
+- Pour la diarisation, l’extra Python `diarization` (`sherpa-onnx`) et les deux modèles ONNX attendus. Le module d’intégration est fourni dans `src/seance/processing/diarization.py` ; la dépendance seule ne télécharge pas les poids des modèles.
 
 Les poids IA et exécutables natifs sont volontairement exclus du dépôt Git. Les noms de fichiers, chemins et liens éditeurs sont documentés dans [`docs/MODELS.md`](docs/MODELS.md).
 
@@ -143,6 +143,8 @@ La suite Python se lance séparément à la racine avec `python -m pytest -q src
 Le `.gitignore` exclut l’état local, les séances, les poids de modèles, les exécutables et les binaires compilés. Avant le premier push, vérifie `git status --ignored` et assure-toi qu’aucun poids IA, exécutable, fichier audio de test privé, base SQLite ou secret n’est inclus. Si de tels fichiers ont déjà été indexés par Git, `.gitignore` ne les retire pas de l’index : suis les étapes de [`docs/GIT_PREPARATION.md`](docs/GIT_PREPARATION.md).
 
 Les contributions doivent inclure des tests et documenter les nouveaux modèles/dépendances. Voir [`CONTRIBUTING.md`](CONTRIBUTING.md) et [`SECURITY.md`](SECURITY.md). Pour créer les paquets et publier une version, suivre [`docs/RELEASING.md`](docs/RELEASING.md) ; les changements notables sont consignés dans [`CHANGELOG.md`](CHANGELOG.md).
+
+Les frontières entre cœur Python, API Web et frontend ainsi que le contrat des providers sont décrits dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Licence
 

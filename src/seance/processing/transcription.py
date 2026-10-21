@@ -3,19 +3,18 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
-import sys
 import tempfile
 import wave
 from pathlib import Path
 from typing import Any
 
-from .audio_import import import_audio_file
-from .common import log
-from .layout import ensure_session_layout, get_audio_path, transcript_output_path
-from .sessions import resolve_session
-from .runtime import AI_ENGINE_LOCK
+from ..common import log
+from ..layout import ensure_session_layout, get_audio_path, transcript_output_path
+from ..media.audio_import import import_audio_file
+from ..providers import DEFAULT_TRANSCRIPTION_PROVIDER, create_transcription_provider
+from ..providers.contracts import TranscriptionRequest
+from ..sessions import resolve_session
 
 TRANSCRIPTION_CHUNK_SECONDS = 15 * 60
 TRANSCRIPTION_CHUNK_OVERLAP_SECONDS = 10
@@ -29,79 +28,6 @@ def _status(args: argparse.Namespace, message: str) -> None:
         except Exception:
             # Progress reporting is optional and must not affect transcription.
             pass
-
-
-def _srt_seconds(stamp: str) -> float:
-    stamp = stamp.strip().replace(".", ",")
-    match = re.fullmatch(r"(\d{1,2}):(\d{2}):(\d{2}),(\d{1,3})", stamp)
-    if not match:
-        raise ValueError(f"Invalid SRT timestamp: {stamp!r}")
-    hours, minutes, seconds, milliseconds = match.groups()
-    milliseconds = milliseconds.ljust(3, "0")
-    return (
-        int(hours) * 3600 + int(minutes) * 60 + int(seconds)
-        + int(milliseconds) / 1000
-    )
-
-
-def _read_srt(path: Path, source: str) -> list[dict[str, Any]]:
-    if not path.is_file():
-        raise SystemExit(f"SRT file not found: {path}")
-
-    raw = path.read_bytes()
-    if not raw:
-        return []
-    if raw.startswith(b"\xef\xbb\xbf"):
-        text = raw.decode("utf-8-sig")
-    elif raw.startswith((b"\xff\xfe", b"\xfe\xff")):
-        text = raw.decode("utf-16")
-    else:
-        text = None
-        for encoding in ("utf-8", "cp1252"):
-            try:
-                text = raw.decode(encoding)
-                break
-            except UnicodeDecodeError:
-                continue
-        if text is None:
-            text = raw.decode("latin-1")
-
-    text = text.replace("\r\n", "\n").replace("\r", "\n").strip()
-    segments: list[dict[str, Any]] = []
-    for block in re.split(r"\n[ \t]*\n+", text):
-        lines = [line.strip() for line in block.splitlines() if line.strip()]
-        if not lines:
-            continue
-        timing_index = next((i for i, line in enumerate(lines) if "-->" in line), None)
-        if timing_index is None:
-            continue
-        match = re.fullmatch(
-            r"\s*(\d{1,2}:\d{2}:\d{2}[,.]\d{1,3})\s*-->\s*"
-            r"(\d{1,2}:\d{2}:\d{2}[,.]\d{1,3})(?:\s+.*)?",
-            lines[timing_index],
-        )
-        if not match:
-            log(f"Ignoring invalid timestamp: {lines[timing_index]!r}", error=True)
-            continue
-        try:
-            start = _srt_seconds(match.group(1))
-            end = _srt_seconds(match.group(2))
-        except ValueError as exc:
-            log(str(exc), error=True)
-            continue
-        if end < start:
-            log("Ignoring segment: end is before start.", error=True)
-            continue
-        content = " ".join(lines[timing_index + 1:]).strip()
-        if content:
-            segments.append({
-                "start": start,
-                "end": end,
-                "speaker": source,
-                "source": source,
-                "text": content,
-            })
-    return segments
 
 
 def _stamp(seconds: float) -> str:
@@ -192,36 +118,9 @@ def _run_cancellable_command(command: list[str], *, cwd: Path, cancel_event: Any
             continue
 
 
-def _run_command(command: list[str], *, cwd: Path, cancel_event: Any = None) -> subprocess.CompletedProcess[str]:
-    log(f"Waiting for the local AI engine slot: {Path(command[0]).name}")
-    try:
-        # Share the same process-local slot with llama.cpp. This prevents Whisper and
-        # LLM model processes from competing for memory/CPU while still allowing capture.
-        with AI_ENGINE_LOCK:
-            log(f"Running: {Path(command[0]).name}")
-            result = _run_cancellable_command(command, cwd=cwd, cancel_event=cancel_event)
-    except OSError as exc:
-        raise SystemExit(f"Could not run {command[0]}: {exc}") from exc
-
-    if result.returncode != 0:
-        log(f"Program failed (exit code {result.returncode}).", error=True)
-        if result.stdout.strip():
-            print(result.stdout[-12000:], file=sys.stderr, flush=True)
-        if result.stderr.strip():
-            print(result.stderr[-12000:], file=sys.stderr, flush=True)
-        raise SystemExit(result.returncode)
-    return result
-
-
 def transcribe(args: argparse.Namespace) -> None:
     executable = Path(args.whisper_cli).expanduser().resolve()
     model_path = Path(args.model).expanduser().resolve()
-    if not executable.is_file():
-        raise SystemExit(f"Whisper executable not found: {executable}")
-    if not model_path.is_file():
-        raise SystemExit(f"Whisper model not found: {model_path}")
-    if args.threads < 1:
-        raise SystemExit("--threads must be at least 1.")
 
     requested = getattr(args, "folder", None)
     if requested and Path(requested).expanduser().is_file():
@@ -242,7 +141,7 @@ def transcribe(args: argparse.Namespace) -> None:
     tracks_found = 0
     transcript_dir = folder / "transcript"
     transcript_dir.mkdir(parents=True, exist_ok=True)
-    from .layout import list_audio_paths
+    from ..layout import list_audio_paths
     metadata_sources: dict[str, dict[str, Any]] = {}
     disabled_tracks: set[str] = set()
     metadata_value: dict[str, Any] = {}
@@ -262,6 +161,12 @@ def transcribe(args: argparse.Namespace) -> None:
         metadata_sources = {}
     tracks = [path for path in list_audio_paths(folder) if path.name not in disabled_tracks]
     (transcript_dir / "transcription_en_cours.md").unlink(missing_ok=True)
+    provider = create_transcription_provider(
+        getattr(args, "transcription_provider", DEFAULT_TRANSCRIPTION_PROVIDER),
+        executable,
+        cancel_event=getattr(args, "_cancel_event", None),
+        openvino_device=getattr(args, "openvino_device", None),
+    )
     for audio_path in tracks:
         cancel_event = getattr(args, "_cancel_event", None)
         if cancel_event is not None and cancel_event.is_set():
@@ -302,22 +207,22 @@ def transcribe(args: argparse.Namespace) -> None:
                     source_path = temp_path / f"audio_{chunk_index + 1:04d}.wav"
                     _extract_chunk(audio_path, source_path, media_start, media_end, str(getattr(args, "ffmpeg", "ffmpeg")), cancel_event)
                 output_base = temp_path / f"{audio_path.stem}_{chunk_index + 1:04d}"
-                srt_path = output_base.with_suffix(".srt")
-                command = [
-                    str(executable), "-m", str(model_path), "-f", str(source_path),
-                    "-l", args.language, "-osrt", "-of", str(output_base),
-                    # Prefer more robust decoding over greedy speed, especially on long
-                    # recordings where a bad phrase can otherwise reinforce later windows.
-                    "-t", str(args.threads), "-bs", "5", "-mc", "512",
-                ]
-                if args.openvino_device:
-                    command.extend(["--ov-e-device", args.openvino_device])
                 _status(args, f"Whisper · {filename} · segment {chunk_index + 1}/{chunk_count}…")
                 log(f"Transcribing {filename}, segment {chunk_index + 1}/{chunk_count}...")
-                _run_command(command, cwd=folder, cancel_event=cancel_event)
-                if not srt_path.is_file():
-                    raise SystemExit(f"Expected SRT file was not created: {srt_path}")
-                segments = _read_srt(srt_path, source_name)
+                provider_segments = provider.transcribe(TranscriptionRequest(
+                    audio_path=str(source_path),
+                    model_path=str(model_path),
+                    output_prefix=str(output_base),
+                    language=args.language,
+                    threads=args.threads,
+                ))
+                segments = [{
+                    "start": item.start_seconds,
+                    "end": item.end_seconds,
+                    "speaker": source_name,
+                    "source": source_name,
+                    "text": item.text,
+                } for item in provider_segments]
                 for item in segments:
                     item["start"] += media_start
                     item["end"] += media_start

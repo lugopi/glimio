@@ -4,6 +4,7 @@ import { Observable, catchError, throwError } from 'rxjs';
 import {
   AppConfig, AudioDevices, AudioSourceSelection, GlimioSettings, JobsResponse, JobAction, Job,
   PreferencesPayload, SearchResult, SessionArtifact, SessionDetail, SessionPage,
+  ProvidersResponse,
 } from './api.models';
 
 @Injectable({ providedIn: 'root' })
@@ -12,6 +13,10 @@ export class ApiService {
 
   config(): Observable<AppConfig> {
     return this.get<AppConfig>('/api/config');
+  }
+
+  providers(): Observable<ProvidersResponse> {
+    return this.get<ProvidersResponse>('/api/providers');
   }
 
   preferences(): Observable<PreferencesPayload> {

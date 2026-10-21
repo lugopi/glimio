@@ -4,7 +4,7 @@ import argparse
 import shutil
 from pathlib import Path
 
-from seance.audio import _normalize_wav_peak
+from seance.media.audio import _normalize_wav_peak
 
 
 def find_tracks(target: Path) -> list[Path]:
