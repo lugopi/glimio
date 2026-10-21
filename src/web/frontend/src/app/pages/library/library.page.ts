@@ -40,6 +40,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly working = signal(false);
   readonly sessionSettingsSaving = signal(false);
   readonly sessionSettings = signal<GlimioSettings | null>(null);
+  private readonly jobHistory = signal<Job[]>([]);
   readonly providers = signal<ProviderStatus[] | null>(null);
   readonly transcriptionLanguages = computed(() => transcriptionLanguageOptions(this.preferences.preferences()?.ui.language ?? 'fr'));
   readonly formats = ['auto', 'summary', 'daily', 'technical', 'formal', 'brainstorm'];
@@ -64,6 +65,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   private pendingSessionId: string | null = null;
   private initialized = false;
   private jobsSubscription?: Subscription;
+  private artifactSubscription?: Subscription;
   readonly pageItems = computed(() => this.sessions());
   readonly sessionsWithSummary = computed(() => this.sessions().filter(session => session.summary).length);
 
@@ -83,10 +85,12 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     });
 
     this.jobsSubscription = this.jobEvents.updates$.subscribe(response => this.handleJobUpdates(response));
+    this.artifactSubscription = this.jobEvents.artifactUpdates$.subscribe(update => this.handleArtifactUpdate(update));
   }
 
   ngOnDestroy(): void {
     this.jobsSubscription?.unsubscribe();
+    this.artifactSubscription?.unsubscribe();
     window.clearTimeout(this.searchTimer);
     void this.flushPendingSessionSettings().catch(() => undefined);
   }
@@ -429,7 +433,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
         if (request !== this.artifactRequest || this.selectedId() !== session.id) return;
         this.artifactRevision = result.revision;
         this.artifactPending.set(Boolean(result.pending));
-        this.artifactContent.set(result.content ?? 'Contenu indisponible.');
+        if (!result.pending) this.artifactContent.set(result.content ?? 'Contenu indisponible.');
         this.artifactLoading.set(false);
       },
       error: error => {
@@ -441,7 +445,35 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  private handleArtifactUpdate(update: { session_id: string; kind: 'summary' | 'transcript' }): void {
+    if (this.selectedId() !== update.session_id) return;
+    if (!this.artifactKind()) {
+      this.selected.update(current => current ? { ...current, [update.kind]: true } : current);
+      this.loadArtifact(update.kind);
+      return;
+    }
+    if (this.artifactKind() !== update.kind) return;
+    const request = ++this.artifactRequest;
+    const offset = Array.from(this.artifactContent()).length;
+    this.api.sessionArtifact(update.session_id, update.kind, this.artifactRevision, offset).subscribe({
+      next: result => {
+        if (request !== this.artifactRequest || this.selectedId() !== update.session_id || this.artifactKind() !== update.kind) return;
+        if (!result.unchanged) {
+          this.artifactRevision = result.revision;
+          if (!result.pending && result.content !== undefined) {
+            if (result.append) this.artifactContent.update(content => content + result.content);
+            else this.artifactContent.set(result.content);
+          }
+        }
+        this.artifactPending.set(Boolean(result.pending));
+        this.artifactLoading.set(false);
+      },
+      error: () => { /* The SSE job state remains authoritative if a preview is not ready yet. */ },
+    });
+  }
+
   private handleJobUpdates(response: JobsResponse): void {
+    this.jobHistory.set(response.items);
     const latestBySession = new Map<string, Job>();
     let discoveredSession = false;
     for (const job of response.items) {
@@ -504,7 +536,41 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
       active: ['queued', 'running', 'stopping'].includes(job.state),
       message: job.message ?? 'Traitement en cours…',
       error: job.error,
+      started_at: job.started_at,
+      finished_at: job.finished_at,
     };
+  }
+
+  processingEtaLabel(processing: ProcessingInfo): string | null {
+    if (!processing.active || !processing.started_at) return null;
+    const now = Date.now();
+    const startedAt = Date.parse(processing.started_at);
+    if (!Number.isFinite(startedAt)) return null;
+    const previousDurations = this.jobHistory()
+      .filter(job => job.id !== processing.job_id && job.kind === processing.kind && job.state === 'completed' && job.started_at && job.finished_at)
+      .map(job => (Date.parse(job.finished_at!) - Date.parse(job.started_at!)) / 1000)
+      .filter(duration => Number.isFinite(duration) && duration > 0)
+      .slice(0, 7)
+      .sort((left, right) => left - right);
+    if (!previousDurations.length) return null;
+    const middle = Math.floor(previousDurations.length / 2);
+    const typicalDuration = previousDurations.length % 2
+      ? previousDurations[middle]
+      : (previousDurations[middle - 1] + previousDurations[middle]) / 2;
+    const remaining = Math.max(0, typicalDuration - (now - startedAt) / 1000);
+    const estimate = new Date(now + remaining * 1000);
+    const locale = document.documentElement.lang === 'en' ? 'en-CH' : 'fr-CH';
+    const time = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(estimate);
+    return time;
+  }
+
+  isArtifactLive(): boolean {
+    const kind = this.artifactKind();
+    const processing = this.selected()?.processing;
+    return Boolean(processing?.active && (
+      kind === 'transcript' && processing.phase === 'transcribing'
+      || kind === 'summary' && processing.phase === 'summarizing'
+    ));
   }
 
   private followProcessingArtifact(session: SessionDetail): void {

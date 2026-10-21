@@ -6,6 +6,8 @@ const ENGLISH: Record<string, string> = {
   'Aller au contenu principal': 'Skip to main content', 'ESPACE DE TRAVAIL': 'WORKSPACE',
   'Enregistrement': 'Recording', 'Bibliothèque': 'Library', 'Recherche intelligente': 'Smart search',
   'Paramètres': 'Settings', 'Traitements': 'Processing', 'Traitements en cours': 'Active processing', 'Traitement local': 'Local processing', 'Les modèles sont exécutés sur cet appareil.': 'Models run on this device.',
+  'Fin estimée vers': 'Estimated finish around', '· approximative': '· approximate',
+  'Infos locales': 'Local information', 'Masquer les informations locales': 'Hide local information', 'Afficher les informations locales': 'Show local information',
   'Consultez les tâches actives et en attente. Vous pouvez annuler un traitement qui semble bloqué.': 'View active and queued tasks. You can cancel a task that appears stuck.',
   'tâche(s) en attente · les modèles sont exécutés séquentiellement.': 'task(s) queued · models run sequentially.',
   'Aucun traitement en cours ou en attente.': 'No active or queued processing.', 'Annulation…': 'Cancelling…',

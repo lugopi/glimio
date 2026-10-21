@@ -30,27 +30,27 @@
 :host .common-processing-fields .normalization-gain-control .field-label { @apply m-0 flex-wrap justify-between gap-2; }
 :host .common-processing-fields .normalization-gain-control .range-input { @apply m-0 block w-full; }
 :host .audio-source-builder { @apply mt-2 grid min-w-0 gap-3; }
-:host .source-add-row { display: grid; grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr) auto; align-items: end; gap: 10px; min-width: 0; }
-:host .source-add-row > * { min-width: 0; }
-:host .source-add-button { min-height: 44px; white-space: nowrap; }
-:host .source-add-button glimio-icon { width: 16px; height: 16px; font-size: 16px; }
-:host .source-add-button .icon, :host .source-add-button svg { display: block; width: 100%; height: 100%; }
-:host .device-meta { min-width: 0; }
-:host .device-meta > span { min-width: 0; overflow-wrap: anywhere; }
-:host .device-meta .text-link-button { display: inline-flex; min-height: 44px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
-:host .device-meta .text-link-button glimio-icon { display: inline-flex; flex: 0 0 17px; width: 17px; height: 17px; font-size: 17px; }
-:host .device-meta .text-link-button .icon, :host .device-meta .text-link-button svg { display: block; width: 100%; height: 100%; }
-:host .selected-audio-sources { @apply grid gap-2; min-width: 0; }
+:host .source-add-row { @apply grid min-w-0 items-end gap-2.5; grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr) auto; }
+:host .source-add-row > * { @apply min-w-0; }
+:host .source-add-button { @apply min-h-11 whitespace-nowrap; }
+:host .source-add-button glimio-icon { @apply size-4 text-base; }
+:host .source-add-button .icon, :host .source-add-button svg { @apply block size-full; }
+:host .device-meta { @apply min-w-0; }
+:host .device-meta > span { @apply min-w-0; overflow-wrap: anywhere; }
+:host .device-meta .text-link-button { @apply inline-flex min-h-11 shrink-0 items-center justify-center gap-[7px] whitespace-nowrap; }
+:host .device-meta .text-link-button glimio-icon { @apply inline-flex size-[17px] text-[17px]; flex: 0 0 17px; }
+:host .device-meta .text-link-button .icon, :host .device-meta .text-link-button svg { @apply block size-full; }
+:host .selected-audio-sources { @apply grid min-w-0 gap-2; }
 :host .selected-audio-source { @apply flex min-w-0 items-center gap-3 rounded-xl border border-border-soft bg-surface-raised px-3 py-2.5; }
-:host .selected-source-icon { @apply flex shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent; width: 36px; height: 36px; }
-:host .selected-source-icon glimio-icon { display: flex; width: 20px; height: 20px; }
-:host .selected-source-icon .icon, :host .selected-source-icon svg { display: block; width: 100%; height: 100%; }
+:host .selected-source-icon { @apply flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent; }
+:host .selected-source-icon glimio-icon { @apply flex size-5; }
+:host .selected-source-icon .icon, :host .selected-source-icon svg { @apply block size-full; }
 :host .selected-source-copy { @apply flex min-w-0 flex-1 flex-col gap-0.5; }
 :host .selected-source-copy strong { @apply text-sm font-semibold text-text; }
 :host .selected-source-copy small { @apply text-xs text-muted; overflow-wrap: anywhere; }
-:host .remove-audio-source { @apply flex shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted; width: 40px; height: 40px; }
-:host .remove-audio-source glimio-icon { display: flex; width: 18px; height: 18px; }
-:host .remove-audio-source .icon, :host .remove-audio-source svg { display: block; width: 100%; height: 100%; }
+:host .remove-audio-source { @apply flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted; }
+:host .remove-audio-source glimio-icon { @apply flex size-[18px]; }
+:host .remove-audio-source .icon, :host .remove-audio-source svg { @apply block size-full; }
 :host .remove-audio-source:hover:not(:disabled) { color: var(--c-danger); border-color: var(--c-danger); background: var(--c-danger-soft); }
 :host .remove-audio-source:disabled { @apply cursor-not-allowed opacity-40; }
 :host .remove-audio-source:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
@@ -59,22 +59,22 @@
 :host .file-dropzone:hover, :host .file-dropzone.is-dragging { border-color: var(--c-accent); background: var(--c-accent-soft); }
 :host .file-dropzone.has-file { border-style: solid; border-color: color-mix(in srgb, var(--c-accent) 50%, var(--c-border)); }
 :host .file-dropzone:focus-within { outline: 2px solid var(--c-accent); outline-offset: 3px; }
-:host .file-dropzone > strong { max-width: 100%; overflow-wrap: anywhere; font-size: .875rem; }
-:host .file-dropzone > small { color: var(--c-muted); font-size: .75rem; line-height: 1.5; }
-:host .file-dropzone-icon { @apply flex items-center justify-center rounded-xl border border-border bg-accent-soft text-accent; width: 42px; height: 42px; }
-:host .file-dropzone-icon glimio-icon { display: flex; width: 23px; height: 23px; }
-:host .file-dropzone-icon .icon, :host .file-dropzone-icon svg { display: block; width: 100%; height: 100%; }
+:host .file-dropzone > strong { @apply max-w-full text-sm; overflow-wrap: anywhere; }
+:host .file-dropzone > small { @apply text-xs leading-normal text-muted; }
+:host .file-dropzone-icon { @apply flex size-[42px] items-center justify-center rounded-xl border border-border bg-accent-soft text-accent; }
+:host .file-dropzone-icon glimio-icon { @apply flex size-[23px]; }
+:host .file-dropzone-icon .icon, :host .file-dropzone-icon svg { @apply block size-full; }
 :host .import-panel .workflow-options { @apply mt-4; }
 :host .import-panel .workflow-options + .btn { @apply mt-4; }
 :host .import-panel > .field-note { @apply mt-2; }
 :host .recording-live-row { @apply flex min-w-0 flex-1 items-stretch gap-2.5; }
 :host .recording-live-status { @apply flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border-soft bg-surface-raised px-3 py-2; }
-:host .recording-live-status .status-dot { @apply shrink-0; width: 8px; height: 8px; }
+:host .recording-live-status .status-dot { @apply size-2 shrink-0; }
 :host .recording-live-status .status-dot.is-recording { background: var(--c-danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-danger) 15%, transparent); animation: pulse 1.2s infinite; }
 :host .recording-live-copy { @apply min-w-0 flex-1 text-sm text-muted; overflow-wrap: anywhere; }
 :host .recording-live-status strong { @apply shrink-0 font-mono text-xs text-text; }
-:host .recording-live-row .stop-recording-button { @apply w-auto shrink-0 justify-center; min-width: 104px; min-height: 44px; white-space: nowrap; }
-:host .card-actions > .btn--primary { @apply w-full; min-height: 46px; }
+:host .recording-live-row .stop-recording-button { @apply w-auto min-w-[104px] min-h-11 shrink-0 justify-center whitespace-nowrap; }
+:host .card-actions > .btn--primary { @apply min-h-[46px] w-full; }
 :host .jobs-footer { @apply flex min-w-0 flex-wrap items-center justify-between gap-3; }
 :host .jobs-footer > glimio-pagination { @apply min-w-0 flex-1; }
 :host .jobs-footer > .btn--danger { color: var(--c-danger); border-color: color-mix(in srgb, var(--c-danger) 40%, var(--c-border)); }
@@ -82,16 +82,16 @@
 
 @media (width < theme(--breakpoint-md)) {
   :host .source-add-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  :host .source-add-button { grid-column: 1 / -1; width: 100%; }
+  :host .source-add-button { @apply col-span-full w-full; }
 }
 @media (width < theme(--breakpoint-sm)) {
   :host .processing-content-fields,
   :host .processing-extras-grid { grid-template-columns: minmax(0, 1fr); }
   :host .source-add-row { grid-template-columns: minmax(0, 1fr); }
   :host .source-add-button { grid-column: auto; }
-  :host .recording-live-row { flex-direction: column; }
-  :host .recording-live-row .stop-recording-button { width: 100%; }
-  :host .jobs-footer { align-items: stretch; }
-  :host .jobs-footer > .btn { width: 100%; justify-content: center; }
+  :host .recording-live-row { @apply flex-col; }
+  :host .recording-live-row .stop-recording-button { @apply w-full; }
+  :host .jobs-footer { @apply items-stretch; }
+  :host .jobs-footer > .btn { @apply w-full justify-center; }
   :host .jobs-footer > glimio-pagination { flex: 1 1 100%; }
 }

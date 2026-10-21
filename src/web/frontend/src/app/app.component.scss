@@ -1,23 +1,17 @@
 @reference '../styles/tailwind-ref.scss';
 
 :host {
-  display: block;
-  min-height: 100dvh;
+  @apply block min-h-dvh;
 }
 
 .brand-logo {
-  display: block;
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
+  @apply block size-10 object-contain;
 }
 
 .mobile-nav-toggle {
-  min-width: 48px;
-  min-height: 48px;
-  touch-action: manipulation;
+  @apply min-h-12 min-w-12 touch-manipulation;
 }
 
 @media (width >= theme(--breakpoint-md)) {
-  .mobile-nav-toggle { display: none; }
+  .mobile-nav-toggle { @apply hidden; }
 }

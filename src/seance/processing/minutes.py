@@ -887,6 +887,13 @@ pas encore le résumé final. Ne reprends pas dans tes notes les mentions de dé
                 + "\n\n".join(sections)
             )
             _write_text_atomic(live_summary_path, preview)
+            callback = getattr(args, "artifact_event_callback", None)
+            if callable(callback):
+                try:
+                    callback("summary")
+                except Exception:
+                    # Live previews are optional and must not interrupt generation.
+                    pass
 
     for bundle_index, notes_bundle in enumerate(note_bundles, start=1):
         is_multi_bundle = len(note_bundles) > 1

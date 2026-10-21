@@ -127,6 +127,8 @@ export interface ProcessingInfo {
   active: boolean;
   message: string;
   error?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
 }
 
 export interface SessionSummary {
@@ -165,6 +167,7 @@ export interface SessionArtifact {
   revision: string;
   unchanged?: boolean;
   pending?: boolean;
+  append?: boolean;
   content?: string;
 }
 

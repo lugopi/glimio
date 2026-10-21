@@ -89,7 +89,7 @@
               @else if (processing.state === 'completed') { <glimio-icon name="check-circle" /> }
               @else if (processing.state === 'error') { <glimio-icon name="information-circle" /> }
               @else { <glimio-icon name="clock" /> }
-              <span><strong>{{ processingStateLabel(processing.state, processing.phase) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processing.error) { <span> — {{ processing.error }}</span> }</span>
+              <span><strong>{{ processingStateLabel(processing.state, processing.phase) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processingEtaLabel(processing); as eta) { <small class="detail-processing-eta"> · Fin estimée vers {{ eta }} · approximative</small> }@if (processing.error) { <span> — {{ processing.error }}</span> }</span>
             </div>
           }
         </header>
@@ -111,7 +111,7 @@
             </div>
             <div class="artifact-content-pane" id="artifact-content-pane" role="tabpanel" tabindex="0" [attr.aria-labelledby]="artifactKind() === 'transcript' ? 'artifact-tab-transcript' : 'artifact-tab-summary'">
               @if (artifactLoading() || artifactPending()) { <div class="artifact-loading" role="status"><span class="spinner" aria-hidden="true"></span> {{ artifactPending() ? 'Préparation du document…' : 'Chargement du contenu…' }}</div> }
-              @else if (artifactContent()) { <article class="artifact-rendered" [innerHTML]="artifactHtml()"></article> }
+              @else if (artifactContent()) { <article class="artifact-rendered" [innerHTML]="artifactHtml()"></article>@if (isArtifactLive()) { <span class="spinner" aria-hidden="true"></span> } }
             </div>
           } @else {
             <div class="documents-empty"><glimio-icon name="document-text" /><div><strong>Aucun résumé ni transcription</strong><p>Vous pouvez lancer « Traiter complètement » ou créer une transcription depuis le menu d’actions.</p></div></div>

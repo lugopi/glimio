@@ -7,6 +7,8 @@ import { Job, JobsResponse, SearchResult } from './api.models';
 export class JobEventsService {
   private readonly searchUpdates = new Subject<SearchResult>();
   readonly searchUpdates$ = this.searchUpdates.asObservable();
+  private readonly artifactUpdates = new Subject<{ session_id: string; kind: 'summary' | 'transcript' }>();
+  readonly artifactUpdates$ = this.artifactUpdates.asObservable();
 
   readonly updates$ = new Observable<JobsResponse>(observer => {
     const source = new EventSource('/api/events');
@@ -51,6 +53,15 @@ export class JobEventsService {
         this.searchUpdates.next(JSON.parse((event as MessageEvent<string>).data) as SearchResult);
       } catch {
         // Ignore malformed events; the next search update carries the current state.
+      }
+    });
+
+    source.addEventListener('artifact', event => {
+      try {
+        const update = JSON.parse((event as MessageEvent<string>).data) as { session_id: string; kind: 'summary' | 'transcript' };
+        if (update.session_id && ['summary', 'transcript'].includes(update.kind)) this.artifactUpdates.next(update);
+      } catch {
+        // Ignore malformed events; the next artifact update will refresh the preview.
       }
     });
 

@@ -7,16 +7,16 @@
 :host .source-list { @apply grid min-w-0 gap-0; }
 :host .search-source-results { @apply min-w-0; }
 :host .search-source-list { @apply mt-3 gap-2 p-0; }
-:host .search-source-card { @apply rounded-[11px] border border-border-soft bg-surface-raised; padding: 13px 16px; }
+:host .search-source-card { @apply rounded-[11px] border border-border-soft bg-surface-raised px-4 py-[13px]; }
 :host .search-source-card > strong { @apply mb-2 block text-sm font-semibold; overflow-wrap: anywhere; }
-:host .search-source-excerpt { @apply mt-1; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; white-space: pre-line; }
+:host .search-source-excerpt { @apply mt-1 whitespace-pre-line; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
 :host .search-source-footer { @apply mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3; }
 :host .search-source-meta { @apply min-w-0 text-xs text-subtle; overflow-wrap: anywhere; }
 :host .source-open { @apply ml-auto mt-0 shrink-0; }
 :host .search-source-pagination-footer { @apply mt-3 flex min-w-0 flex-nowrap items-center justify-between gap-3 border-t border-border-soft pt-3; }
 :host .search-source-pagination-footer .page-size-control { @apply flex shrink-0 items-center gap-2; }
 :host .search-source-pagination-footer .field-label { @apply mb-0 whitespace-nowrap; }
-:host .search-source-pagination-footer .select { @apply min-h-9; width: 76px; min-width: 76px; }
+:host .search-source-pagination-footer .select { @apply min-h-9 min-w-[76px] w-[76px]; }
 :host .search-source-pagination-footer glimio-pagination { @apply min-w-0 flex-1; }
 :host .search-answer-markdown { @apply mt-0 rounded-none border-0 bg-transparent p-0; }
 :host .search-answer-markdown > :first-child { @apply mt-0; }
