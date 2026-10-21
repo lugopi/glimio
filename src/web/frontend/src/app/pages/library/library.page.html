@@ -73,7 +73,11 @@
                 <div class="session-actions-panel">
                   <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled()" (click)="renameSession(); sessionActionsMenu.open = false"><glimio-icon name="pencil-square" /><span class="btn-label">Renommer</span></button>
                   <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled()" (click)="runJob('transcribe'); sessionActionsMenu.open = false"><glimio-icon name="document-text" /><span class="btn-label">Transcrire</span></button>
-                  <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled()" (click)="runJob('summarize'); sessionActionsMenu.open = false"><glimio-icon name="sparkles" /><span class="btn-label">Créer un résumé</span></button>
+                  @if (session.summary) {
+                    <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled()" (click)="runJob('summarize', true); sessionActionsMenu.open = false"><glimio-icon name="arrow-path" /><span class="btn-label">Refaire le résumé</span></button>
+                  } @else {
+                    <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled()" (click)="runJob('summarize'); sessionActionsMenu.open = false"><glimio-icon name="sparkles" /><span class="btn-label">Créer un résumé</span></button>
+                  }
                   <button class="btn btn--ghost btn--small is-danger" type="button" [disabled]="processingActionDisabled()" (click)="deleteSession(); sessionActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer</span></button>
                 </div>
               </details>
@@ -99,10 +103,7 @@
         }
 
         <section class="detail-section available-documents" aria-labelledby="available-documents-title">
-          <div class="detail-section-heading">
-            <div><h3 id="available-documents-title">Contenus de la séance</h3><p class="field-note">Les documents générés apparaissent ici directement.</p></div>
-            @if (session.summary) { <button class="btn btn--secondary btn--small" type="button" [disabled]="processingActionDisabled()" title="Générer à nouveau le résumé" (click)="runJob('summarize', true)"><glimio-icon name="arrow-path" /> Refaire le résumé</button> }
-          </div>
+            <div class="detail-section-heading"><div><h3 id="available-documents-title">Contenus de la séance</h3><p class="field-note">Les documents générés apparaissent ici directement.</p></div></div>
           @if (session.summary || session.transcript) {
             <div class="artifact-tabs" role="tablist" aria-label="Contenu à afficher">
               @if (session.summary) { <button id="artifact-tab-summary" class="artifact-tab" role="tab" type="button" aria-controls="artifact-content-pane" [attr.tabindex]="artifactKind() === 'summary' ? 0 : -1" [attr.aria-selected]="artifactKind() === 'summary'" [class.is-active]="artifactKind() === 'summary'" (keydown)="onArtifactTabKeydown($event, 'summary')" (click)="loadArtifact('summary')"><glimio-icon name="sparkles" /> Résumé</button> }
@@ -140,7 +141,7 @@
 
         @if (sessionSettings(); as options) {
           <section class="detail-section session-processing-options" aria-labelledby="session-processing-options-title">
-            <div class="detail-section-heading"><div><h3 id="session-processing-options-title">Options de traitement de cette séance</h3><p class="field-note">Ces choix sont enregistrés avec la séance et utilisés lors des prochains traitements.</p></div><button class="btn btn--secondary btn--small" type="button" [disabled]="processingActionDisabled()" (click)="saveSessionSettings()"><glimio-icon name="check-circle" /><span>Enregistrer les options</span></button></div>
+            <div class="detail-section-heading"><div><h3 id="session-processing-options-title">Options de traitement de cette séance</h3><p class="field-note">Les changements sont enregistrés automatiquement. @if (sessionSettingsSaving()) { <span>Enregistrement…</span> }</p></div></div>
             <div class="settings-grid common-processing-fields">
               <div class="session-processing-column">
                 <div><label class="field-label" for="session-processing-profile">Qualité du traitement</label><select class="select" id="session-processing-profile" [ngModel]="options.processing_profile" (ngModelChange)="patchSessionSetting('processing_profile', $event)"><option value="turbo">Turbo · rapide, détails réduits</option><option value="balanced">Équilibré · recommandé</option><option value="quality">Haute qualité · plus détaillé</option><option value="pixel-perfect">Pixel perfect · très détaillé, très lent</option><option value="custom">Personnalisé · réglages avancés</option></select><small class="field-note">Le profil ajuste le budget de génération et les étapes d’analyse.</small></div>

@@ -1,7 +1,8 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { Subscription, takeWhile, switchMap, timer } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { SearchResult } from '../../core/api.models';
+import { JobEventsService } from '../../core/job-events.service';
 import { PreferencesService } from '../../core/preferences.service';
 import { ToastService } from '../../core/toast.service';
 
@@ -9,9 +10,10 @@ import { ToastService } from '../../core/toast.service';
 @Injectable({ providedIn: 'root' })
 export class SearchStateService {
   private readonly api = inject(ApiService);
+  private readonly jobEvents = inject(JobEventsService);
   private readonly preferences = inject(PreferencesService);
   private readonly toast = inject(ToastService);
-  private poll?: Subscription;
+  private searchSubscription?: Subscription;
 
   readonly query = signal('');
   readonly running = signal(false);
@@ -31,28 +33,25 @@ export class SearchStateService {
       return;
     }
 
-    this.poll?.unsubscribe();
+    this.searchSubscription?.unsubscribe();
     this.running.set(true);
     this.searchId.set(null);
     this.result.set(null);
     this.api.startSearch(query, settings, 20).subscribe({
       next: created => {
         this.searchId.set(created.id);
-        this.poll = timer(0, 750).pipe(
-          switchMap(() => this.api.search(created.id)),
-          takeWhile(value => !['completed', 'cancelled', 'error'].includes(value.state), true),
-        ).subscribe({
-          next: result => {
-            this.result.set(result);
-            if (['completed', 'cancelled', 'error'].includes(result.state)) {
-              this.running.set(false);
-              this.searchId.set(null);
-            }
-          },
+        this.searchSubscription = this.jobEvents.searchUpdates$.subscribe(result => {
+          if (result.id === created.id && this.searchId() === created.id) this.applySearchResult(result);
+        });
+        // Hydrate once in case the worker emitted its first event before the
+        // start request returned. Subsequent progress arrives through SSE.
+        this.api.search(created.id).subscribe({
+          next: result => { if (this.searchId() === created.id) this.applySearchResult(result); },
           error: error => {
             this.toast.show(`La recherche a échoué : ${error.message}`, 'error');
             this.running.set(false);
             this.searchId.set(null);
+            this.searchSubscription?.unsubscribe();
           },
         });
       },
@@ -70,5 +69,17 @@ export class SearchStateService {
       next: () => this.toast.show('Demande d’annulation envoyée.', 'success'),
       error: error => this.toast.show(error.message, 'error'),
     });
+  }
+
+  private applySearchResult(result: SearchResult): void {
+    const current = this.result();
+    if (current?.id === result.id && current.updated_at && result.updated_at
+        && current.updated_at.localeCompare(result.updated_at) > 0) return;
+    this.result.set(result);
+    if (['completed', 'cancelled', 'error'].includes(result.state)) {
+      this.running.set(false);
+      this.searchId.set(null);
+      this.searchSubscription?.unsubscribe();
+    }
   }
 }

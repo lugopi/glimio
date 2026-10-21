@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
-import { Subscription, catchError, exhaustMap, interval, map, of, startWith, switchMap } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import { GlimioSettings, ProviderStatus, SessionDetail, SessionPage, SessionSummary } from '../../core/api.models';
+import { GlimioSettings, Job, JobsResponse, ProcessingInfo, ProviderStatus, SessionDetail, SessionPage, SessionSummary } from '../../core/api.models';
 import { LibraryStateService } from '../../core/library-state.service';
 import { PreferencesService } from '../../core/preferences.service';
 import { ToastService } from '../../core/toast.service';
@@ -14,6 +14,7 @@ import { PaginationComponent } from '../../shared/pagination.component';
 import { ProviderOptionsComponent } from '../../shared/provider-options.component';
 import { renderMarkdownToHtml } from '../../shared/markdown';
 import { providerSupportsTranscriptionLanguage, transcriptionLanguageOptions } from '../../shared/transcription-languages';
+import { JobEventsService } from '../../core/job-events.service';
 
 @Component({
   standalone: true,
@@ -24,6 +25,7 @@ import { providerSupportsTranscriptionLanguage, transcriptionLanguageOptions } f
 })
 export class LibraryPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
+  private readonly jobEvents = inject(JobEventsService);
   private readonly route = inject(ActivatedRoute);
   private readonly preferences = inject(PreferencesService);
   private readonly libraryState = inject(LibraryStateService);
@@ -36,6 +38,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly selected = signal<SessionDetail | null>(null);
   readonly mobileDetailOpen = signal(false);
   readonly working = signal(false);
+  readonly sessionSettingsSaving = signal(false);
   readonly sessionSettings = signal<GlimioSettings | null>(null);
   readonly providers = signal<ProviderStatus[] | null>(null);
   readonly transcriptionLanguages = computed(() => transcriptionLanguageOptions(this.preferences.preferences()?.ui.language ?? 'fr'));
@@ -49,15 +52,18 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly artifactHtml = computed(() => renderMarkdownToHtml(this.artifactContent()));
   private artifactRequest = 0;
   private artifactRevision: string | null = null;
-  private artifactRefreshPending = false;
   private liveArtifactPhaseKey = '';
   private liveArtifactPhaseFollowed = false;
+  private readonly seenSessionJobs = new Set<string>();
   query = '';
   filter = 'all';
   private searchTimer?: number;
+  private settingsSaveTimer?: number;
+  private pendingSettingsSave: { sessionId: string; settings: GlimioSettings } | null = null;
+  private settingsSaveChain: Promise<void> = Promise.resolve();
   private pendingSessionId: string | null = null;
   private initialized = false;
-  private polling?: Subscription;
+  private jobsSubscription?: Subscription;
   readonly pageItems = computed(() => this.sessions());
   readonly sessionsWithSummary = computed(() => this.sessions().filter(session => session.summary).length);
 
@@ -76,62 +82,13 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
       this.initialized = true;
     });
 
-    // Job state is live data: refresh the visible list and selected detail while
-    // the library is open, without re-opening the session (which clears artifact
-    // previews and can overwrite unsaved form state).
-    this.polling = interval(2000).pipe(
-      startWith(0),
-      exhaustMap(() => {
-        const options = {
-          query: this.query,
-          filter: this.filter,
-          limit: this.pageSize(),
-          offset: (this.page() - 1) * this.pageSize(),
-        };
-        return this.api.sessions(options).pipe(
-          switchMap(result => {
-            const id = this.selectedId();
-            if (!id) return of({ result, id: null, detail: null });
-            return this.api.session(id).pipe(
-              map(detail => ({ result, id, detail })),
-              catchError(() => of({ result, id, detail: null })),
-            );
-          }),
-          // Keep the interval alive after transient HTTP/network failures.
-          catchError(() => of(null)),
-        );
-      }),
-    ).subscribe({
-      next: payload => {
-        if (!payload) return;
-        const { result, id, detail } = payload;
-        this.sessions.set(result.items);
-        this.total.set(result.count);
-        this.libraryState.total.set(result.count);
-        if (detail && id && this.selectedId() === id) {
-          const previous = this.selected();
-          this.selected.set(detail);
-          const defaultKind = detail.summary ? 'summary' : detail.transcript ? 'transcript' : null;
-          const processingFinished = Boolean(
-            detail.processing
-            && !detail.processing.active
-            && (previous?.processing?.active || previous?.processing?.job_id !== detail.processing.job_id),
-          );
-          if (processingFinished) {
-            this.settleArtifactsAfterProcessing(detail);
-          } else if (!this.artifactKind() && defaultKind) {
-            this.loadArtifact(defaultKind);
-          }
-          this.followProcessingArtifact(detail);
-          if (detail.processing?.active && this.artifactKind()) this.refreshArtifact(this.artifactKind()!);
-        }
-      },
-    });
+    this.jobsSubscription = this.jobEvents.updates$.subscribe(response => this.handleJobUpdates(response));
   }
 
   ngOnDestroy(): void {
-    this.polling?.unsubscribe();
+    this.jobsSubscription?.unsubscribe();
     window.clearTimeout(this.searchTimer);
+    void this.flushPendingSessionSettings().catch(() => undefined);
   }
 
   @HostListener('document:click', ['$event'])
@@ -209,7 +166,10 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   changePageSize(value: number): void { this.pageSize.set(Number(value)); this.page.set(1); this.loadSessions(); }
 
   openSession(id: string, showOnMobile = false): void {
-    if (this.selectedId() !== id) {
+    const changingSession = this.selectedId() !== id;
+    if (changingSession) {
+      void this.flushPendingSessionSettings().catch(error => this.toast.show(`Impossible d’enregistrer les options : ${error.message}`, 'error'));
+      this.sessionSettings.set(null);
       this.liveArtifactPhaseKey = '';
       this.liveArtifactPhaseFollowed = false;
     }
@@ -217,7 +177,6 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     if (showOnMobile) this.mobileDetailOpen.set(true);
     this.artifactRequest++;
     this.artifactRevision = null;
-    this.artifactRefreshPending = false;
     this.artifactKind.set(null);
     this.artifactTitle.set('');
     this.artifactContent.set('');
@@ -250,7 +209,10 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   patchSessionSetting<K extends keyof GlimioSettings>(key: K, value: GlimioSettings[K]): void {
     const current = this.sessionSettings();
-    if (current) this.sessionSettings.set({ ...current, [key]: value });
+    if (current) {
+      this.sessionSettings.set({ ...current, [key]: value });
+      this.scheduleSessionSettingsSave();
+    }
   }
 
   sessionTranscriptionProvider(): ProviderStatus | undefined {
@@ -268,6 +230,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
       ...current,
       provider_options: { ...providerOptions, [provider.id]: { ...(providerOptions[provider.id] ?? {}), [key]: value } },
     });
+    this.scheduleSessionSettingsSave();
   }
 
   private settingsForJob(settings: GlimioSettings): GlimioSettings {
@@ -286,18 +249,41 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   numberValue(value: string | number): number { return Number(value); }
   formatLabel(value: string): string { return ({ auto: 'Automatique', summary: 'Synthèse générale', daily: 'Daily — compte rendu de réunion', technical: 'Technique', formal: 'Formel', brainstorm: 'Brainstorming' } as Record<string, string>)[value] ?? value; }
 
-  saveSessionSettings(): void {
-    const session = this.selected(); const settings = this.sessionSettings();
-    if (!session || !settings || this.sessionProcessingActive()) return;
-    this.working.set(true);
-    this.api.saveSessionSettings(session.id, settings).subscribe({
-      next: result => {
-        this.selected.update(current => current ? { ...current, metadata: result.metadata } : current);
-        this.toast.show('Options de la séance enregistrées.', 'success');
-        this.working.set(false);
-      },
-      error: error => { this.toast.show(`Impossible d’enregistrer les options : ${error.message}`, 'error'); this.working.set(false); },
+  private scheduleSessionSettingsSave(): void {
+    const sessionId = this.selectedId();
+    const settings = this.sessionSettings();
+    if (!sessionId || !settings) return;
+    this.pendingSettingsSave = { sessionId, settings };
+    window.clearTimeout(this.settingsSaveTimer);
+    this.settingsSaveTimer = window.setTimeout(() => {
+      this.settingsSaveTimer = undefined;
+      void this.flushPendingSessionSettings().catch(error => this.toast.show(`Impossible d’enregistrer les options : ${error.message}`, 'error'));
+    }, 450);
+  }
+
+  private flushPendingSessionSettings(): Promise<void> {
+    window.clearTimeout(this.settingsSaveTimer);
+    this.settingsSaveTimer = undefined;
+    const pending = this.pendingSettingsSave;
+    this.pendingSettingsSave = null;
+    if (!pending) return this.settingsSaveChain;
+    return this.persistSessionSettings(pending.sessionId, pending.settings);
+  }
+
+  private persistSessionSettings(sessionId: string, settings: GlimioSettings): Promise<void> {
+    const save = this.settingsSaveChain.catch(() => undefined).then(async () => {
+      this.sessionSettingsSaving.set(true);
+      try {
+        const result = await firstValueFrom(this.api.saveSessionSettings(sessionId, settings));
+        if (this.selectedId() === sessionId) {
+          this.selected.update(current => current ? { ...current, metadata: result.metadata } : current);
+        }
+      } finally {
+        this.sessionSettingsSaving.set(false);
+      }
     });
+    this.settingsSaveChain = save;
+    return save;
   }
 
   runJob(action: 'transcribe' | 'summarize' | 'process', force = false): void {
@@ -307,13 +293,15 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     this.liveArtifactPhaseKey = '';
     this.liveArtifactPhaseFollowed = false;
     this.working.set(true);
-    this.api.saveSessionSettings(session.id, settings).subscribe({
-      next: () => this.api.startSessionJob(action, session.id, this.settingsForJob(settings), force).subscribe({
-        next: () => { this.toast.show('Traitement ajouté à la file avec les options de cette séance.', 'success'); this.working.set(false); this.openSession(session.id); },
-        error: error => { this.toast.show(error.message, 'error'); this.working.set(false); },
-      }),
-      error: error => { this.toast.show(`Impossible d’enregistrer les options : ${error.message}`, 'error'); this.working.set(false); },
-    });
+    void this.flushPendingSessionSettings().catch(() => undefined)
+      .then(() => this.persistSessionSettings(session.id, settings))
+      .then(() => firstValueFrom(this.api.startSessionJob(action, session.id, this.settingsForJob(settings), force)))
+      .then(() => { this.toast.show('Traitement ajouté à la file avec les options de cette séance.', 'success'); this.working.set(false); this.openSession(session.id); })
+      .catch(error => {
+        const message = error?.message ?? String(error);
+        this.toast.show(message.startsWith('Impossible d’enregistrer les options') ? message : `Impossible d’enregistrer les options : ${message}`, 'error');
+        this.working.set(false);
+      });
   }
 
   renameSession(): void {
@@ -431,7 +419,6 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     if (!session || (kind === 'summary' && !session.summary) || (kind === 'transcript' && !session.transcript)) return;
     const request = ++this.artifactRequest;
     this.artifactRevision = null;
-    this.artifactRefreshPending = false;
     this.artifactKind.set(kind);
     this.artifactTitle.set(kind === 'summary' ? 'Résumé' : 'Transcription');
     this.artifactContent.set('');
@@ -454,25 +441,70 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  private refreshArtifact(kind: 'summary' | 'transcript'): void {
-    const session = this.selected();
-    if (!session || !session.processing?.active || this.artifactLoading() || this.artifactRefreshPending) return;
-    const sessionId = session.id;
-    const request = this.artifactRequest;
-    this.artifactRefreshPending = true;
-    this.api.sessionArtifact(sessionId, kind, this.artifactRevision).subscribe({
-      next: result => {
-        if (request === this.artifactRequest && this.selectedId() === sessionId && this.artifactKind() === kind) {
-          this.artifactRevision = result.revision;
-          this.artifactPending.set(Boolean(result.pending));
-          if (!result.unchanged && result.content !== undefined && result.content !== this.artifactContent()) {
-            this.artifactContent.set(result.content);
+  private handleJobUpdates(response: JobsResponse): void {
+    const latestBySession = new Map<string, Job>();
+    let discoveredSession = false;
+    for (const job of response.items) {
+      if (!job.session_id) continue;
+      const association = `${job.id}:${job.session_id}`;
+      if (!this.seenSessionJobs.has(association)) {
+        this.seenSessionJobs.add(association);
+        if (['recording', 'import'].includes(job.kind)
+            && !this.sessions().some(session => session.id === job.session_id)) discoveredSession = true;
+      }
+      const existing = latestBySession.get(job.session_id);
+      if (!existing || (job.updated_at ?? '').localeCompare(existing.updated_at ?? '') > 0) {
+        latestBySession.set(job.session_id, job);
+      }
+    }
+    this.sessions.update(items => items.map(item => {
+      const job = latestBySession.get(item.id);
+      return job ? { ...item, processing: this.processingInfo(job) } : item;
+    }));
+    if (discoveredSession) this.loadSessions();
+
+    const sessionId = this.selectedId();
+    const current = this.selected();
+    if (!sessionId || !current) return;
+    const job = latestBySession.get(sessionId);
+    if (!job) return;
+    const nextProcessing = this.processingInfo(job);
+    const previous = current.processing;
+    const phaseChanged = previous?.job_id !== nextProcessing.job_id || previous?.phase !== nextProcessing.phase;
+    const finished = previous?.active === true && previous.job_id === nextProcessing.job_id && !nextProcessing.active;
+    this.selected.set({ ...current, processing: nextProcessing });
+
+    if (phaseChanged || finished) {
+      this.api.session(sessionId).subscribe({
+        next: detail => {
+          const latest = this.selected();
+          if (this.selectedId() !== sessionId || !latest || latest.processing?.job_id !== job.id
+              || latest.processing.phase !== nextProcessing.phase) return;
+          this.selected.set(detail);
+          if (finished) {
+            this.settleArtifactsAfterProcessing(detail);
+            this.loadSessions();
+          } else {
+            this.followProcessingArtifact(detail);
           }
-        }
-        this.artifactRefreshPending = false;
-      },
-      error: () => { this.artifactRefreshPending = false; },
-    });
+        },
+        error: () => { /* Job status continues to update from the event stream. */ },
+      });
+    } else if (nextProcessing.active) {
+      this.followProcessingArtifact({ ...current, processing: nextProcessing });
+    }
+  }
+
+  private processingInfo(job: Job): ProcessingInfo {
+    return {
+      job_id: job.id,
+      kind: job.kind,
+      state: job.state,
+      phase: job.phase,
+      active: ['queued', 'running', 'stopping'].includes(job.state),
+      message: job.message ?? 'Traitement en cours…',
+      error: job.error,
+    };
   }
 
   private followProcessingArtifact(session: SessionDetail): void {
@@ -514,7 +546,6 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     // to the now-finished live artifact (for example after cancellation).
     this.artifactRequest++;
     this.artifactRevision = null;
-    this.artifactRefreshPending = false;
     this.artifactKind.set(null);
     this.artifactTitle.set('');
     this.artifactContent.set('');
