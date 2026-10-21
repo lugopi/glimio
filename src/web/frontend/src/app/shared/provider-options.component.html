@@ -1,11 +1,13 @@
 <div class="provider-settings">
-  <div class="provider-settings__heading">
-    <strong>{{ provider().name }}</strong>
-    <span class="provider-status" [attr.data-ready]="provider().ready">{{ provider().ready ? 'Prêt' : provider().message }}</span>
-  </div>
-  <small class="field-note">{{ provider().description }}</small>
-  @if (provider().missing.length) {
-    <small class="provider-missing">À configurer : {{ provider().missing.join(', ') }}</small>
+  @if (!perJobOnly()) {
+    <div class="provider-settings__heading">
+      <strong>{{ provider().name }}</strong>
+      <span class="provider-status" [attr.data-ready]="provider().ready">{{ provider().ready ? 'Prêt' : provider().message }}</span>
+    </div>
+    <small class="field-note">{{ provider().description }}</small>
+    @if (provider().missing.length) {
+      <small class="provider-missing">À configurer : {{ provider().missing.join(', ') }}</small>
+    }
   }
 
   @for (option of options(false); track option.key) {
@@ -25,27 +27,28 @@
 </div>
 
 <ng-template #optionField let-option>
-  <label class="provider-option">
-    <span class="field-label">{{ option.label }}{{ option.required ? ' *' : '' }}</span>
-    @switch (option.type) {
-      @case ('select') {
-        <select class="select" [ngModel]="value(option)" (ngModelChange)="update(option, $event)">
-          @for (choice of option.choices; track choice.value) { <option [value]="choice.value">{{ choice.label }}</option> }
-        </select>
+  @if (option.type === 'boolean') {
+    <glimio-checkbox-field [fieldId]="fieldId(option)" [title]="option.label + (option.required ? ' *' : '')" [description]="option.description" [checked]="!!value(option)" (checkedChange)="update(option, $event)" />
+  } @else {
+    <label class="provider-option">
+      <span class="field-label">{{ option.label }}{{ option.required ? ' *' : '' }}</span>
+      @switch (option.type) {
+        @case ('select') {
+          <select class="select" [ngModel]="value(option)" (ngModelChange)="update(option, $event)">
+            @for (choice of option.choices; track choice.value) { <option [value]="choice.value">{{ choice.label }}</option> }
+          </select>
+        }
+        @case ('number') {
+          <input class="input" type="number" [attr.min]="option.minimum" [attr.max]="option.maximum" [attr.step]="option.step ?? 1" [ngModel]="value(option)" (ngModelChange)="update(option, $event)">
+        }
+        @case ('secret') {
+          <input class="input" type="password" autocomplete="off" [ngModel]="value(option)" (ngModelChange)="update(option, $event)">
+        }
+        @default {
+          <input class="input" type="text" [ngModel]="value(option)" (ngModelChange)="update(option, $event)">
+        }
       }
-      @case ('number') {
-        <input class="input" type="number" [attr.min]="option.minimum" [attr.max]="option.maximum" [attr.step]="option.step ?? 1" [ngModel]="value(option)" (ngModelChange)="update(option, $event)">
-      }
-      @case ('boolean') {
-        <input type="checkbox" [ngModel]="value(option)" (ngModelChange)="update(option, $event)">
-      }
-      @case ('secret') {
-        <input class="input" type="password" autocomplete="off" [ngModel]="value(option)" (ngModelChange)="update(option, $event)">
-      }
-      @default {
-        <input class="input" type="text" [ngModel]="value(option)" (ngModelChange)="update(option, $event)">
-      }
-    }
-    @if (option.description) { <small class="field-note">{{ option.description }}</small> }
-  </label>
+      @if (option.description) { <small class="field-note">{{ option.description }}</small> }
+    </label>
+  }
 </ng-template>

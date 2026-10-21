@@ -74,6 +74,15 @@ def normalize_provider_options(
         saved = configured.get(provider_id, {})
         if not isinstance(saved, dict):
             raise ValueError(f"Les options du provider {provider_id} doivent être un objet.")
+        saved = dict(saved)
+        if provider_id == "whisper.cpp":
+            # Migrate the former single device field without turning the new
+            # opt-in toggle on for old blank/automatic values.
+            old_device = saved.get("openvino_device", legacy.get("openvino_device"))
+            if "openvino_enabled" not in saved and old_device:
+                saved["openvino_enabled"] = True
+            if old_device in (None, ""):
+                saved.pop("openvino_device", None)
         values = dict(defaults[provider_id])
         for option in provider.options:
             value = saved.get(option.key, legacy.get(option.key, values.get(option.key)))

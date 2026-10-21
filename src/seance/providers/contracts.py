@@ -35,6 +35,9 @@ class ProviderOption:
     step: float | None = None
     choices: tuple[ProviderOptionChoice, ...] = ()
     advanced: bool = False
+    per_job: bool = False
+    depends_on: str | None = None
+    depends_value: Any = True
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -49,6 +52,9 @@ class ProviderOption:
             "step": self.step,
             "choices": [choice.to_dict() for choice in self.choices],
             "advanced": self.advanced,
+            "per_job": self.per_job,
+            "depends_on": self.depends_on,
+            "depends_value": self.depends_value,
         }
 
 

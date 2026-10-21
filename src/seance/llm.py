@@ -8,6 +8,7 @@ prompts: minutes and cross-session search provide their own instructions.
 """
 
 import math
+import os
 import re
 import subprocess
 import threading
@@ -307,6 +308,7 @@ def run_completion_once(
     cancel_event: threading.Event | None = None,
     on_process: Callable[[subprocess.Popen[bytes] | None], None] | None = None,
     timeout_seconds: float | None = None,
+    openvino_device: str | None = None,
 ) -> tuple[str, bool]:
     """Execute one completion. Supports cancellation and process publication to a UI.
 
@@ -340,12 +342,18 @@ def run_completion_once(
 
     process: subprocess.Popen[bytes] | None = None
     try:
+        process_env = os.environ.copy()
+        if openvino_device:
+            process_env["GGML_OPENVINO_DEVICE"] = openvino_device
+        else:
+            process_env.pop("GGML_OPENVINO_DEVICE", None)
         process = subprocess.Popen(
             command,
             cwd=str(Path(working_directory).resolve()),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=False,
+            env=process_env,
         )
         if on_process:
             try:
@@ -421,6 +429,7 @@ def run_completion_resilient(
     cancel_event: threading.Event | None = None,
     on_process: Callable[[subprocess.Popen[bytes] | None], None] | None = None,
     timeout_seconds: float | None = None,
+    openvino_device: str | None = None,
 ) -> tuple[str, bool]:
     """Retry truncated outputs with a larger budget, preserving cancellation semantics."""
     output_room = estimated_output_room(system_prompt, user_prompt, context)
@@ -448,6 +457,7 @@ def run_completion_resilient(
             cancel_event=cancel_event,
             on_process=on_process,
             timeout_seconds=timeout_seconds,
+            openvino_device=openvino_device,
         )
         if not best_text or len(candidate) > len(best_text):
             best_text, best_hit_limit = candidate, hit_limit

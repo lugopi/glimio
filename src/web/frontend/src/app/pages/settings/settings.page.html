@@ -32,7 +32,7 @@
       <section class="card settings-panel" aria-labelledby="transcription-title">
         <div class="settings-body">
           <h2 class="card-title" id="transcription-title">Transcription</h2>
-          <p class="field-note">Le moteur transforme vos fichiers audio en texte.</p>
+          <p class="field-note">Le moteur transforme vos fichiers audio en texte. L’accélération matérielle dépend du moteur et de votre installation.</p>
           @if (providersError(); as error) { <p class="settings-error" role="status">{{ error }}</p> }
           <div class="settings-grid">
             <div>
@@ -47,25 +47,13 @@
               <p class="field-note">Aucun moteur de transcription n’est disponible.</p>
             }
           </div>
-          <div class="settings-grid settings-grid--compact">
-            <div>
-              <label class="field-label" for="transcription-language">Langue parlée</label>
-              <input class="input" id="transcription-language" [ngModel]="value.language" (ngModelChange)="patch('language', $event)" placeholder="auto, fr, en…">
-              <small class="field-note">« auto » détecte automatiquement la langue.</small>
-            </div>
-            <div>
-              <label class="field-label" for="threads">Utilisation du processeur</label>
-              <input class="input" id="threads" type="number" min="1" max="256" [ngModel]="value.threads" (ngModelChange)="patch('threads', numberValue($event))">
-              <small class="field-note">Nombre de cœurs utilisés lors des traitements.</small>
-            </div>
-          </div>
         </div>
       </section>
 
       <section class="card settings-panel" aria-labelledby="summary-title">
         <div class="settings-body">
           <h2 class="card-title" id="summary-title">Résumés et recherche</h2>
-          <p class="field-note">Ce moteur rédige les comptes rendus et répond aux recherches dans vos séances.</p>
+          <p class="field-note">Ce moteur rédige les comptes rendus et répond aux recherches dans vos séances. Les options d’accélération dépendent du moteur et de votre installation.</p>
           <div class="settings-grid">
             <div>
               <label class="field-label" for="text-provider">Moteur de rédaction</label>
@@ -80,12 +68,6 @@
             }
           </div>
           <div class="settings-grid settings-grid--compact">
-            <div>
-              <label class="field-label" for="format">Style du compte rendu</label>
-              <select class="select" id="format" [ngModel]="value.format" (ngModelChange)="patch('format', $event)">
-                @for (format of preferences.config()?.formats ?? []; track format) { <option [value]="format">{{ formatLabel(format) }}</option> }
-              </select>
-            </div>
             <div>
               <label class="field-label" for="bitrate">Qualité audio</label>
               <select class="select" id="bitrate" [ngModel]="value.audio_bitrate_kbps" (ngModelChange)="patch('audio_bitrate_kbps', audioBitrateValue($event))">
@@ -102,22 +84,20 @@
         <div class="settings-body">
           <section class="settings-section" aria-labelledby="diarization-title">
             <h2 class="card-title" id="diarization-title">Reconnaissance des voix</h2>
-            <label class="settings-toggle">
-              <input type="checkbox" [ngModel]="value.diarize" (ngModelChange)="patch('diarize', $event)">
-              <span><strong>Identifier les différentes voix</strong><small class="field-note">Nécessite les modèles ONNX de diarisation.</small></span>
-            </label>
             <div class="settings-grid">
               @for (provider of providersFor('diarization'); track provider.id) {
                 <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" [showAllOptions]="true" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" />
               }
+            </div>
+          </section>
+
+          <section class="settings-section" aria-labelledby="transcription-advanced-title">
+            <h2 class="card-title" id="transcription-advanced-title">Réglages de transcription</h2>
+            <div class="settings-grid settings-grid--compact">
               <div>
-                <label class="field-label" for="diarization-threshold">Séparation des voix <output>{{ value.diarization_threshold | number:'1.2-2' }}</output></label>
-                <input class="range-input" id="diarization-threshold" type="range" min="0" max="1" step="0.01" [ngModel]="value.diarization_threshold" (ngModelChange)="patch('diarization_threshold', numberValue($event))">
-                <small class="field-note">Une valeur plus élevée regroupe les voix de façon plus stricte.</small>
-              </div>
-              <div>
-                <label class="field-label" for="diarization-speakers">Nombre de personnes (0 pour automatique)</label>
-                <input class="input" id="diarization-speakers" type="number" min="0" max="256" [ngModel]="value.diarization_num_speakers === -1 ? 0 : value.diarization_num_speakers" (ngModelChange)="patch('diarization_num_speakers', numberValue($event) || -1)">
+                <label class="field-label" for="threads">Cœurs du processeur utilisés</label>
+                <input class="input" id="threads" type="number" min="1" max="256" [ngModel]="value.threads" (ngModelChange)="patch('threads', numberValue($event))">
+                <small class="field-note">Nombre de cœurs sollicités pour transcrire l’audio.</small>
               </div>
             </div>
           </section>
@@ -125,13 +105,14 @@
           <section class="settings-section" aria-labelledby="generation-advanced-title">
             <h2 class="card-title" id="generation-advanced-title">Réglages de génération</h2>
             <div class="settings-grid settings-grid--compact">
-              <div><label class="field-label" for="context">Taille du contexte</label><input class="input" id="context" type="number" min="2048" max="131072" step="1024" [ngModel]="value.context" (ngModelChange)="patch('context', numberValue($event))"></div>
-              <div><label class="field-label" for="max-tokens">Longueur maximale du résumé</label><input class="input" id="max-tokens" type="number" min="500" max="32768" [ngModel]="value.max_tokens" (ngModelChange)="patch('max_tokens', numberValue($event))"></div>
-              <div><label class="field-label" for="analysis-tokens">Budget d’analyse</label><input class="input" id="analysis-tokens" type="number" min="100" max="32768" [ngModel]="value.analysis_tokens" (ngModelChange)="patch('analysis_tokens', numberValue($event))"></div>
-              <div><label class="field-label" for="analysis-retries">Reprises après erreur</label><input class="input" id="analysis-retries" type="number" min="0" max="10" [ngModel]="value.analysis_retries" (ngModelChange)="patch('analysis_retries', numberValue($event))"></div>
-              <div><label class="field-label" for="analysis-splits">Découpages supplémentaires</label><input class="input" id="analysis-splits" type="number" min="0" max="12" [ngModel]="value.analysis_max_splits" (ngModelChange)="patch('analysis_max_splits', numberValue($event))"></div>
-              <glimio-checkbox-field fieldId="disable-final-review" title="Désactiver la relecture finale" description="Réduit les étapes de vérification du résumé." [checked]="value.no_review" (checkedChange)="patch('no_review', $event)" />
+              <div><label class="field-label" for="context">Taille du contexte</label><input class="input" id="context" type="number" min="2048" max="131072" step="1024" [disabled]="generationReadOnly()" [ngModel]="generationValue('context')" (ngModelChange)="patch('context', numberValue($event))"></div>
+              <div><label class="field-label" for="max-tokens">Longueur maximale du résumé</label><input class="input" id="max-tokens" type="number" min="500" max="32768" [disabled]="generationReadOnly()" [ngModel]="generationValue('max_tokens')" (ngModelChange)="patch('max_tokens', numberValue($event))"></div>
+              <div><label class="field-label" for="analysis-tokens">Budget d’analyse</label><input class="input" id="analysis-tokens" type="number" min="100" max="32768" [disabled]="generationReadOnly()" [ngModel]="generationValue('analysis_tokens')" (ngModelChange)="patch('analysis_tokens', numberValue($event))"></div>
+              <div><label class="field-label" for="analysis-retries">Reprises après erreur</label><input class="input" id="analysis-retries" type="number" min="0" max="10" [disabled]="generationReadOnly()" [ngModel]="generationValue('analysis_retries')" (ngModelChange)="patch('analysis_retries', numberValue($event))"></div>
+              <div><label class="field-label" for="analysis-splits">Découpages supplémentaires</label><input class="input" id="analysis-splits" type="number" min="0" max="12" [disabled]="generationReadOnly()" [ngModel]="generationValue('analysis_max_splits')" (ngModelChange)="patch('analysis_max_splits', numberValue($event))"></div>
+              <glimio-checkbox-field fieldId="disable-final-review" title="Désactiver la relecture finale" description="Réduit les étapes de vérification du résumé." [checked]="!!generationValue('no_review')" [disabled]="generationReadOnly()" (checkedChange)="patch('no_review', $event)" />
             </div>
+            <p class="field-note">Les profils communs affichent ici leurs paramètres effectifs. Choisissez « Personnalisé » dans Enregistrement pour modifier ces valeurs.</p>
           </section>
 
           @for (provider of providersFor('media'); track provider.id) {

@@ -1,17 +1,20 @@
 import { ChangeDetectorRef, ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DecimalPipe } from '@angular/common';
 import { Subscription, interval, startWith, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
-import { AudioDeviceInfo, AudioDevices, AudioSourceKind, AudioSourceSelection, GlimioSettings, Job, JobsResponse, PreferencesPayload } from '../../core/api.models';
+import { AudioDeviceInfo, AudioDevices, AudioSourceKind, AudioSourceSelection, GlimioSettings, Job, JobsResponse, PreferencesPayload, ProviderStatus } from '../../core/api.models';
 import { PreferencesService } from '../../core/preferences.service';
 import { ToastService } from '../../core/toast.service';
 import { CheckboxFieldComponent } from '../../shared/checkbox-field.component';
 import { IconComponent } from '../../shared/icon.component';
 import { PaginationComponent } from '../../shared/pagination.component';
+import { ProviderOptionsComponent } from '../../shared/provider-options.component';
+import { providerSupportsTranscriptionLanguage, transcriptionLanguageOptions } from '../../shared/transcription-languages';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, CheckboxFieldComponent, IconComponent, PaginationComponent],
+  imports: [FormsModule, DecimalPipe, CheckboxFieldComponent, IconComponent, PaginationComponent, ProviderOptionsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './recording.page.html',
   styleUrl: './recording.page.scss',
@@ -33,6 +36,9 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
   readonly jobsResponse = signal<JobsResponse | null>(null);
   readonly jobs = computed(() => this.jobsResponse()?.items ?? []);
   readonly settings = computed(() => this.preferences.preferences()?.settings ?? null);
+  readonly providers = signal<ProviderStatus[] | null>(null);
+  readonly perJobOverrides = signal<Record<string, Record<string, unknown>>>({});
+  readonly transcriptionLanguages = computed(() => transcriptionLanguageOptions(this.preferences.preferences()?.ui.language ?? 'fr'));
   readonly formats = ['auto', 'summary', 'daily', 'technical', 'formal', 'brainstorm'];
   readonly speakerCounts = [...Array.from({ length: 20 }, (_, index) => index + 1), 25, 30, 40, 50, 100];
   readonly visibleJobs = computed(() => this.jobs().slice((this.jobsPage() - 1) * this.pageSize, this.jobsPage() * this.pageSize));
@@ -82,6 +88,7 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.api.providers().subscribe({ next: response => this.providers.set(response.providers), error: () => this.providers.set([]) });
     this.refreshDevices();
     this.refreshJobs();
     this.polling = interval(1500).pipe(startWith(0), switchMap(() => this.api.jobs())).subscribe({
@@ -207,22 +214,53 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
   }
 
   private settingsForJob(settings: GlimioSettings): GlimioSettings {
-    const language = settings.language === 'detect'
-      ? 'auto'
-      : settings.language === 'auto'
-        ? (document.documentElement.lang.toLowerCase().startsWith('en') ? 'en' : 'fr')
-        : settings.language;
-    return { ...settings, language };
+    const support = providerSupportsTranscriptionLanguage(this.providers(), settings.transcription_provider);
+    const language = support === false || settings.language === 'detect' ? 'auto' : settings.language;
+    const providerOptions = { ...settings.provider_options };
+    for (const [providerId, overrides] of Object.entries(this.perJobOverrides())) {
+      providerOptions[providerId] = { ...(providerOptions[providerId] ?? {}), ...overrides };
+    }
+    return { ...settings, language, provider_options: providerOptions };
+  }
+
+  activeTranscriptionProvider(): ProviderStatus | undefined {
+    const id = this.settings()?.transcription_provider;
+    return this.providers()?.find(provider => provider.id === id);
+  }
+
+  hasPerJobOptions(provider: ProviderStatus): boolean { return provider.options.some(option => option.per_job); }
+
+  perJobValues(provider: ProviderStatus): Record<string, unknown> {
+    return { ...(this.settings()?.provider_options[provider.id] ?? {}), ...(this.perJobOverrides()[provider.id] ?? {}) };
+  }
+
+  patchPerJobProviderOption(provider: ProviderStatus, key: string, value: unknown): void {
+    this.perJobOverrides.update(all => ({ ...all, [provider.id]: { ...(all[provider.id] ?? {}), [key]: value } }));
+  }
+
+  supportsTranscriptionLanguage(): boolean {
+    const providerId = this.settings()?.transcription_provider ?? '';
+    return providerSupportsTranscriptionLanguage(this.providers(), providerId) === true;
   }
 
   patchSetting<K extends keyof GlimioSettings>(key: K, value: GlimioSettings[K]): void {
     const current = this.preferences.preferences();
     if (!current) return;
     this.preferences.updatePreferences({ ...current, settings: { ...current.settings, [key]: value } });
+    if (key === 'processing_profile') this.perJobOverrides.set({});
   }
 
   numberValue(value: string | number): number { return Number(value); }
   formatLabel(value: string): string { return ({ auto: 'Automatique', summary: 'Synthèse générale', daily: 'Daily — compte rendu de réunion', technical: 'Technique', formal: 'Formel', brainstorm: 'Brainstorming' } as Record<string, string>)[value] ?? value; }
+  profileDescription(profile: GlimioSettings['processing_profile']): string {
+    return ({
+      turbo: 'Petits budgets, peu de reprises et sans relecture finale : le plus rapide, avec moins de détails.',
+      balanced: 'Budgets équilibrés et relecture finale : bon compromis pour la plupart des séances.',
+      quality: 'Budgets plus larges et davantage de reprises : résultats plus détaillés, traitement plus long.',
+      'pixel-perfect': 'Budgets et découpages maximaux : très détaillé, mais nettement plus lent. La qualité dépend aussi du modèle.',
+      custom: 'Les réglages avancés de génération sont accessibles dans Paramètres.',
+    } as Record<GlimioSettings['processing_profile'], string>)[profile];
+  }
 
   private syncLegacySourceFlags(): void {
     const sources = this.selectedAudioSources();

@@ -32,11 +32,23 @@ WHISPER_CPP_INFO = ProviderInfo(
             required=True, advanced=True,
         ),
         ProviderOption(
-            key="openvino_device", label="Accélération matérielle", type="select",
-            default="", description="Facultatif. Laissez automatique pour le réglage recommandé.",
-            choices=(ProviderOptionChoice("", "Automatique"), ProviderOptionChoice("CPU", "CPU"),
-                     ProviderOptionChoice("GPU", "GPU"), ProviderOptionChoice("NPU", "NPU")),
+            key="beam_size", label="Recherche de transcription", type="select",
+            default="5", description="Compare davantage d’hypothèses pour améliorer la transcription, au prix du temps de calcul.",
+            choices=(ProviderOptionChoice("1", "Rapide"), ProviderOptionChoice("3", "Équilibrée"),
+                     ProviderOptionChoice("5", "Précise"), ProviderOptionChoice("8", "Très précise")),
+            advanced=True, per_job=True,
+        ),
+        ProviderOption(
+            key="openvino_enabled", label="Utiliser OpenVINO", type="boolean",
+            default=False,
+            description="Facultatif. Demande un whisper.cpp compilé avec OpenVINO et un modèle d’encodeur OpenVINO converti.",
             advanced=True,
+        ),
+        ProviderOption(
+            key="openvino_device", label="Périphérique OpenVINO", type="select",
+            default="CPU", description="OpenVINO accélère l’encodeur sur CPU ou GPU Intel.",
+            choices=(ProviderOptionChoice("CPU", "CPU"), ProviderOptionChoice("GPU", "GPU")),
+            advanced=True, depends_on="openvino_enabled",
         ),
     ),
 )
@@ -53,12 +65,15 @@ class WhisperCppTranscriptionProvider:
         *,
         cancel_event: threading.Event | None = None,
         openvino_device: str | None = None,
+        openvino_enabled: bool = False,
         options: dict | None = None,
     ) -> None:
         self.options = options or {}
         self.executable = Path(self.options.get("whisper_cli", executable)).expanduser().resolve()
         self.cancel_event = cancel_event
-        self.openvino_device = self.options.get("openvino_device", openvino_device) or None
+        self.openvino_enabled = bool(self.options.get("openvino_enabled", openvino_enabled)) or bool(openvino_device)
+        self.openvino_device = self.options.get("openvino_device", openvino_device) or "CPU"
+        self.beam_size = int(self.options.get("beam_size", 5))
 
     def transcribe(
         self,
@@ -73,9 +88,9 @@ class WhisperCppTranscriptionProvider:
         command = [
             str(self.executable), "-m", str(model), "-f", str(audio),
             "-l", request.language, "-osrt", "-of", str(output_base),
-            "-t", str(request.threads), "-bs", "5", "-mc", "512",
+            "-t", str(request.threads), "-bs", str(self.beam_size), "-mc", "512",
         ]
-        if self.openvino_device:
+        if self.openvino_enabled:
             command.extend(["--ov-e-device", self.openvino_device])
 
         emit_provider_event(ProviderEvent(

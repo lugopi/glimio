@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DecimalPipe } from '@angular/common';
 import { GlimioSettings, PreferencesPayload, ProviderOption, ProviderStatus } from '../../core/api.models';
 import { PreferencesService } from '../../core/preferences.service';
 import { ApiService } from '../../core/api.service';
@@ -10,7 +9,7 @@ import { ProviderOptionsComponent } from '../../shared/provider-options.componen
 
 @Component({
   standalone: true,
-  imports: [FormsModule, DecimalPipe, CheckboxFieldComponent, IconComponent, ProviderOptionsComponent],
+  imports: [FormsModule, CheckboxFieldComponent, IconComponent, ProviderOptionsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './settings.page.html',
   styleUrl: './settings.page.scss',
@@ -58,7 +57,11 @@ export class SettingsPageComponent implements OnInit {
   patch<K extends keyof GlimioSettings>(key: K, value: GlimioSettings[K]): void {
     const current = this.preferences.preferences();
     if (!current) return;
-    const updated: PreferencesPayload = { ...current, settings: { ...current.settings, [key]: value } };
+    const advancedKeys: (keyof GlimioSettings)[] = ['context', 'max_tokens', 'analysis_tokens', 'analysis_retries', 'analysis_max_splits', 'no_review'];
+    const updated: PreferencesPayload = { ...current, settings: {
+      ...current.settings, [key]: value,
+      ...(advancedKeys.includes(key) ? { processing_profile: 'custom' as const } : {}),
+    } };
     this.preferences.updatePreferences(updated);
   }
 
@@ -73,6 +76,16 @@ export class SettingsPageComponent implements OnInit {
   }
 
   numberValue(value: string | number): number { return Number(value); }
+
+  generationValue(key: 'context' | 'max_tokens' | 'analysis_tokens' | 'analysis_retries' | 'analysis_max_splits' | 'no_review'): number | boolean {
+    const value = this.settings();
+    if (!value) return key === 'no_review' ? false : 0;
+    if (value.processing_profile === 'custom') return value[key];
+    if (key === 'context') return value.context;
+    return this.preferences.config()?.processing_profiles?.[value.processing_profile]?.[key] ?? value[key];
+  }
+
+  generationReadOnly(): boolean { return this.settings()?.processing_profile !== 'custom'; }
 
   audioBitrateValue(value: string | number): GlimioSettings['audio_bitrate_kbps'] {
     const bitrate = Number(value);

@@ -4,6 +4,7 @@ export type JobState = 'queued' | 'running' | 'stopping' | 'completed' | 'cancel
 export type JobAction = 'transcribe' | 'summarize' | 'process';
 
 export interface GlimioSettings {
+  processing_profile: 'turbo' | 'balanced' | 'quality' | 'pixel-perfect' | 'custom';
   model: string;
   transcription_provider: string;
   provider_options: Record<string, Record<string, unknown>>;
@@ -59,6 +60,7 @@ export interface AppConfig {
   defaults: GlimioSettings;
   preferences: PreferencesPayload;
   formats: string[];
+  processing_profiles: Record<string, Partial<Pick<GlimioSettings, 'max_tokens' | 'analysis_tokens' | 'analysis_retries' | 'analysis_max_splits' | 'no_review'>>>;
 }
 
 export interface ProviderStatus {
@@ -88,6 +90,9 @@ export interface ProviderOption {
   step: number | null;
   choices: { value: string; label: string }[];
   advanced: boolean;
+  per_job: boolean;
+  depends_on: string | null;
+  depends_value: unknown;
 }
 
 export interface ProvidersResponse {
