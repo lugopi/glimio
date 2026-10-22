@@ -142,7 +142,7 @@ La suite Python se lance séparément à la racine avec `python -m pytest -q src
 
 Le `.gitignore` exclut l’état local, les séances, les poids de modèles, les exécutables et les binaires compilés. Avant le premier push, vérifie `git status --ignored` et assure-toi qu’aucun poids IA, exécutable, fichier audio de test privé, base SQLite ou secret n’est inclus. Si de tels fichiers ont déjà été indexés par Git, `.gitignore` ne les retire pas de l’index : suis les étapes de [`docs/GIT_PREPARATION.md`](docs/GIT_PREPARATION.md).
 
-Les contributions doivent inclure des tests et documenter les nouveaux modèles/dépendances. Voir [`CONTRIBUTING.md`](CONTRIBUTING.md) et [`SECURITY.md`](SECURITY.md). Pour créer les paquets et publier une version, suivre [`docs/RELEASING.md`](docs/RELEASING.md) ; les changements notables sont consignés dans [`CHANGELOG.md`](CHANGELOG.md).
+Les contributions doivent inclure des tests et documenter les nouveaux modèles/dépendances. Voir [`CONTRIBUTING.md`](CONTRIBUTING.md) et [`SECURITY.md`](SECURITY.md). Les assistants de code suivent les conventions du dépôt décrites dans [`AGENTS.md`](AGENTS.md). Pour créer les paquets et publier une version, suivre [`docs/RELEASING.md`](docs/RELEASING.md) ; les changements notables sont consignés dans [`CHANGELOG.md`](CHANGELOG.md).
 
 Les frontières entre cœur Python, API Web et frontend ainsi que le contrat des providers sont décrits dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 

@@ -3,8 +3,8 @@
 ## 0.4.4 — temps réel, UI mobile fluide et harmonisation du design — 2026-10-21
 
 **Temps réel de la Bibliothèque**
-- L'état d'avancement d'une séance (En attente / En cours / Terminé / Échec) s'affiche en temps réel dans la liste et le panneau de détail grâce à un rafraîchissement périodique des données de jobs, sans réinitialiser les aperçus d'artefacts ni les options de traitement en cours d'édition.
-- Le rafraîchissement automatique évite les requêtes concurrentes et reste actif malgré les erreurs réseau passagères ; les messages d'erreur des jobs sont affichés dès qu'ils sont disponibles.
+- L'état d'avancement d'une séance (En attente / En cours / Terminé / Échec) s'affiche dans la liste et le panneau de détail grâce au flux SSE partagé, sans rafraîchissement périodique ni réinitialisation des aperçus d'artefacts ou des options en cours d'édition.
+- Les messages d'erreur et les changements de phase des jobs sont transmis par les événements du serveur dès qu'ils sont disponibles.
 - Suivi de phase de l'artefact en cours : l'aperçu suit automatiquement la nouvelle phase de traitement tant que l'utilisateur n'a pas changé d'onglet manuellement.
 
 **Interface fluide sur mobile**
