@@ -2,6 +2,8 @@
 
 Merci de contribuer. Glimio est encore en développement ; les interfaces et les formats de configuration peuvent évoluer entre versions `0.x`.
 
+Les assistants de code doivent aussi suivre les conventions du dépôt décrites dans [`AGENTS.md`](AGENTS.md).
+
 ## Avant une pull request
 
 1. Décris le problème et le changement visible/utilisateur.
