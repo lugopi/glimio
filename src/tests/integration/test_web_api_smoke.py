@@ -5,10 +5,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 from starlette.requests import Request
 
-from web.app import (AudioTrackToggleRequest, AudioDevicesResponse, clear_job_history, delete_job_history_item, devices, health, session_audio, sessions, set_session_audio_track_disabled, delete_session_audio_track)
+from web.app import (AudioTrackToggleRequest, AudioDevicesResponse, _artifact_tail_hash, clear_job_history, delete_job_history_item, devices, health, session_audio, session_artifact, sessions, set_session_audio_track_disabled, delete_session_audio_track)
 
 
 class WebApiSmokeTests(unittest.TestCase):
@@ -171,6 +171,124 @@ class WebApiSmokeTests(unittest.TestCase):
             result = clear_job_history()
             self.assertEqual(result, {"deleted": 2})
             self.assertEqual(set(web_app.JOBS), {"running", "queued"})
+
+    def _live_transcript_session(self, temp_dir: str, content: str) -> tuple[Path, Path]:
+        root = Path(temp_dir) / "seances"
+        session = root / "2026-10-17_10-30-00"
+        live = session / "transcript" / "transcription_en_cours.md"
+        live.parent.mkdir(parents=True)
+        live.write_text(content, encoding="utf-8")
+        return root, live
+
+    def test_session_artifact_returns_live_content_and_full_document_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, live = self._live_transcript_session(temp_dir, "Bonjour le monde")
+            response = Response()
+            with patch("web.app.SESSION_ROOT", root), \
+                 patch("web.app._active_session_artifact_job", return_value={"id": "job-1"}):
+                result = session_artifact(live.parent.parent.name, "transcript", response)
+
+            self.assertTrue(result["live"])
+            self.assertEqual(result["content"], "Bonjour le monde")
+            self.assertFalse(result["append"])
+            self.assertFalse(result["unchanged"])
+
+            with patch("web.app.SESSION_ROOT", root), \
+                 patch("web.app._active_session_artifact_job", return_value={"id": "job-1"}):
+                unchanged = session_artifact(
+                    live.parent.parent.name, "transcript", Response(), revision=result["revision"],
+                )
+
+            self.assertTrue(unchanged["unchanged"])
+            self.assertTrue(unchanged["live"])
+            self.assertNotIn("content", unchanged)
+
+    def test_session_artifact_appends_with_matching_tail(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, live = self._live_transcript_session(temp_dir, "Bonjour le monde")
+            with patch("web.app.SESSION_ROOT", root), \
+                 patch("web.app._active_session_artifact_job", return_value={"id": "job-1"}):
+                result = session_artifact(
+                    live.parent.parent.name, "transcript", Response(),
+                    offset=len("Bonjour"), tail_hash=_artifact_tail_hash("Bonjour"),
+                )
+
+            self.assertTrue(result["append"])
+            self.assertEqual(result["content"], " le monde")
+            self.assertTrue(result["live"])
+
+    def test_session_artifact_hashes_unicode_tail_by_code_point(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, live = self._live_transcript_session(temp_dir, "a😀b suite")
+            content = "a😀b suite"
+            offset = 3
+            self.assertEqual(content[:offset], "a😀b")
+            with patch("web.app.SESSION_ROOT", root), \
+                 patch("web.app._active_session_artifact_job", return_value={"id": "job-1"}):
+                result = session_artifact(
+                    live.parent.parent.name, "transcript", Response(),
+                    offset=offset, tail_hash=_artifact_tail_hash(content[:offset]),
+                )
+
+            self.assertTrue(result["append"])
+            self.assertEqual(result["content"], " suite")
+
+    def test_artifact_tail_hash_vectors(self) -> None:
+        self.assertEqual(_artifact_tail_hash("abc"), "1a47e90b")
+        self.assertEqual(_artifact_tail_hash("a😀b"), "4e6351d2")
+
+    def test_session_artifact_replaces_content_when_tail_does_not_match(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, live = self._live_transcript_session(temp_dir, "Bonjour le monde")
+            with patch("web.app.SESSION_ROOT", root), \
+                 patch("web.app._active_session_artifact_job", return_value={"id": "job-1"}):
+                result = session_artifact(
+                    live.parent.parent.name, "transcript", Response(),
+                    offset=len("Bonjour"), tail_hash=_artifact_tail_hash("Autre texte"),
+                )
+
+            self.assertFalse(result["append"])
+            self.assertEqual(result["content"], "Bonjour le monde")
+
+    def test_session_artifact_keeps_offset_only_append_for_compatibility(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, live = self._live_transcript_session(temp_dir, "Bonjour le monde")
+            with patch("web.app.SESSION_ROOT", root), \
+                 patch("web.app._active_session_artifact_job", return_value={"id": "job-1"}):
+                result = session_artifact(
+                    live.parent.parent.name, "transcript", Response(), offset=len("Bonjour"),
+                )
+
+            self.assertTrue(result["append"])
+            self.assertEqual(result["content"], " le monde")
+
+    def test_session_artifact_reports_a_final_document_as_not_live(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "seances"
+            session = root / "2026-10-17_10-30-00"
+            final = session / "transcript" / "transcription.md"
+            final.parent.mkdir(parents=True)
+            final.write_text("Document final", encoding="utf-8")
+            with patch("web.app.SESSION_ROOT", root), \
+                 patch("web.app._active_session_artifact_job", return_value=None):
+                result = session_artifact(session.name, "transcript", Response())
+
+            self.assertFalse(result["live"])
+            self.assertEqual(result["content"], "Document final")
+            self.assertFalse(result["append"])
+
+    def test_session_artifact_reports_pending_without_a_live_file_as_not_live(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "seances"
+            session = root / "2026-10-17_10-30-00"
+            (session / "transcript").mkdir(parents=True)
+            with patch("web.app.SESSION_ROOT", root), \
+                 patch("web.app._active_session_artifact_job", return_value={"id": "job-1"}):
+                result = session_artifact(session.name, "transcript", Response())
+
+            self.assertTrue(result["pending"])
+            self.assertFalse(result["live"])
+            self.assertEqual(result["content"], "")
 
 
 if __name__ == "__main__":

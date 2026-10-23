@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import multiprocessing as mp
 import os
 from pathlib import Path
 import sys
@@ -17,10 +18,11 @@ def _configure_runtime() -> None:
 
 _configure_runtime()
 
-from web.app import main  # noqa: E402
-
 
 if __name__ == "__main__":
+    # Keep the spawned diarization child lean: freeze_support must run before
+    # importing the web application, otherwise every child loads FastAPI too.
+    mp.freeze_support()
     if sys.argv[1:] == ["--check-bundle"]:
         from web.app import ANGULAR_DIST_DIR
 
@@ -29,4 +31,6 @@ if __name__ == "__main__":
             raise SystemExit(f"Frontend Glimio empaqueté introuvable : {index_file}")
         print(f"Frontend Glimio inclus : {index_file}")
         raise SystemExit(0)
+    from web.app import main  # noqa: E402
+
     main()

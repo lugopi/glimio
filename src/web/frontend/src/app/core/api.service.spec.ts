@@ -32,4 +32,22 @@ describe('ApiService', () => {
     expect(request.request.body).toEqual({ action: 'transcribe', session_id: 'session-1', settings, force: false });
     request.flush({ id: 'job-1', kind: 'transcribe', state: 'queued', phase: 'queued' });
   });
+
+  it('sends the incremental artifact revision, offset and tail hash', () => {
+    api.sessionArtifact('session-1', 'transcript', 'rev-1', 120, '1a47e90b').subscribe(value => {
+      expect(value.content).toBe(' suite');
+      expect(value.append).toBe(true);
+      expect(value.live).toBe(true);
+    });
+    const request = http.expectOne(req => req.url === '/api/sessions/session-1/transcript');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.params.get('revision')).toBe('rev-1');
+    expect(request.request.params.get('offset')).toBe('120');
+    expect(request.request.params.get('tail_hash')).toBe('1a47e90b');
+    expect(request.request.params.has('tail')).toBe(false);
+    request.flush({
+      session_id: 'session-1', kind: 'transcript', filename: 'transcription_en_cours.md',
+      revision: 'rev-2', content: ' suite', append: true, live: true,
+    });
+  });
 });

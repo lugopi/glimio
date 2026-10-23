@@ -168,6 +168,7 @@ export interface SessionArtifact {
   unchanged?: boolean;
   pending?: boolean;
   append?: boolean;
+  live?: boolean;
   content?: string;
 }
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import wave
 from pathlib import Path
@@ -148,6 +149,18 @@ def _format_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds_part:02d}"
 
 
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Replace a transcript file without exposing a half-written version."""
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        temporary.replace(path)
+    except OSError as exc:
+        raise SystemExit(f"Impossible d'écrire {path} : {exc}") from exc
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backup_existing: bool = False) -> dict[str, Any]:
     """Detect speaker turns and align them to Whisper's timestamped transcript."""
     cancel_event = getattr(args, "_cancel_event", None)
@@ -203,6 +216,9 @@ def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backu
         raise SystemExit("Les pistes audio sont vides : impossible de lancer la diarisation.")
     if cancel_event is not None and cancel_event.is_set():
         raise SystemExit("Traitement annulé.")
+    # This native call can hold the GIL for its whole duration. Web and CLI
+    # callers go through diarization_process.diarize_transcription_isolated so
+    # the API and SSE loop stay responsive; direct use is kept for tests.
     detected = diarizer.process(audio).sort_by_start_time()
     if cancel_event is not None and cancel_event.is_set():
         raise SystemExit("Traitement annulé.")
@@ -229,11 +245,6 @@ def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backu
         segment["speaker_id"] = f"speaker_{speaker_id:02d}"
         segment["speaker"] = speaker_labels[speaker_id]
 
-    transcript_output_path(root, "speaker_diarization.json").write_text(
-        json.dumps({"sample_rate": int(diarizer.sample_rate), "speakers": speaker_labels, "segments": detected_segments}, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    json_path.write_text(json.dumps(transcript, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     lines = ["# Transcription audio", "", "Les étiquettes Speaker indiquent les voix détectées automatiquement. Elles ne permettent pas d'identifier nominativement les personnes.", ""]
     for segment in segments:
         if not isinstance(segment, dict) or not str(segment.get("text", "")).strip():
@@ -245,6 +256,14 @@ def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backu
             start, end = "00:00:00", "00:00:00"
         speaker = str(segment.get("speaker", segment.get("source", "Speaker inconnu")))
         lines.append(f"[{start}–{end}] **{speaker}**: {str(segment['text']).strip()}")
-    markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # Write the source of truth (transcription.json) last: if the isolated
+    # process is cancelled mid-write, the next run sees no speaker_id and redoes
+    # the alignment instead of reusing a partially updated session.
+    _atomic_write_text(markdown_path, "\n".join(lines) + "\n")
+    _atomic_write_text(
+        transcript_output_path(root, "speaker_diarization.json"),
+        json.dumps({"sample_rate": int(diarizer.sample_rate), "speakers": speaker_labels, "segments": detected_segments}, ensure_ascii=False, indent=2) + "\n",
+    )
+    _atomic_write_text(json_path, json.dumps(transcript, ensure_ascii=False, indent=2) + "\n")
     log(f"Diarisation terminée : {len(speaker_ids)} voix détectée(s), {len(detected_segments)} segments de voix.")
     return {"speakers": speaker_labels, "segments": detected_segments}

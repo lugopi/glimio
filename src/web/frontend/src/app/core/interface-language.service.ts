@@ -36,6 +36,7 @@ const ENGLISH: Record<string, string> = {
   'Les documents générés apparaissent ici directement.': 'Generated documents appear here.', 'Refaire le résumé': 'Regenerate summary',
   'Chargement du contenu…': 'Loading content…', 'Aucun résumé ni transcription': 'No summary or transcript',
   'Contenu en cours de génération…': 'Content is being generated…',
+  'Préparation du document…': 'Preparing document…',
   'Diarisation en cours': 'Diarization in progress', 'Détection des changements de voix…': 'Detecting speaker changes…',
   'Vous pouvez lancer « Traiter complètement » ou créer une transcription depuis le menu d’actions.': 'Run “Process all” or create a transcript from the actions menu.',
   'Pistes audio': 'Audio tracks', 'Désactivée pour les prochains traitements': 'Disabled for future processing',
