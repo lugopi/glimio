@@ -44,10 +44,12 @@ export class ApiService {
     return this.get<SessionDetail>(`/api/sessions/${encodeURIComponent(id)}`);
   }
 
-  sessionArtifact(id: string, kind: 'summary' | 'transcript', revision?: string | null, offset?: number): Observable<SessionArtifact> {
+  sessionArtifact(id: string, kind: 'summary' | 'transcript',
+                  revision?: string | null, offset?: number, tailHash?: string | null): Observable<SessionArtifact> {
     let params = new HttpParams();
     if (revision) params = params.set('revision', revision);
     if (offset) params = params.set('offset', offset);
+    if (tailHash) params = params.set('tail_hash', tailHash);
     return this.get<SessionArtifact>(`/api/sessions/${encodeURIComponent(id)}/${kind}`, params);
   }
 

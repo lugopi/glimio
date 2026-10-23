@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Diarisation isolée dans un processus enfant : l'inférence native `sherpa-onnx` ne bloque plus le GIL du serveur, donc l'API et le flux SSE restent réactifs pendant le job ; une annulation termine le processus enfant et les transcriptions sont remplacées atomiquement.
+- Consolidation des événements SSE : les mises à jour rapprochées d'un même job, d'un artefact ou d'une recherche sont regroupées avant diffusion, ce qui allège le flux et évite les rafales de rendus dans l'interface.
+- Rafraîchissements d'artefacts non bloquants : les aperçus en cours de génération sont demandés en arrière-plan avec un découpage incrémental vérifié, sans interrompre l'édition ni les actions en cours.
+- Affichage progressif des documents en cours de génération, avec révélation accélérée du texte déjà reçu et respect de `prefers-reduced-motion`.
+
 ## 0.4.4 — temps réel, UI mobile fluide et harmonisation du design — 2026-10-21
 
 **Temps réel de la Bibliothèque**

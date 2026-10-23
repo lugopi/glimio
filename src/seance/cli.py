@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import multiprocessing as mp
 import os
 from pathlib import Path
 
@@ -111,6 +112,8 @@ def _args_namespace(args: argparse.Namespace) -> argparse.Namespace:
 
 
 def main() -> None:
+    # Required by the spawn-based diarization child in frozen (PyInstaller) builds.
+    mp.freeze_support()
     args = build_parser().parse_args()
     namespace = _args_namespace(args)
     event_token = set_provider_event_callback(

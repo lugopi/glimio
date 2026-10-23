@@ -4,6 +4,7 @@ import argparse
 import asyncio
 from contextlib import asynccontextmanager
 import json
+import multiprocessing as mp
 import os
 import queue
 import subprocess
@@ -419,6 +420,17 @@ PERSISTENCE_LOCK = threading.Lock()
 JOB_EVENT_LOCK = threading.Lock()
 JOB_EVENT_SUBSCRIBERS: dict[str, tuple[asyncio.AbstractEventLoop, asyncio.Queue[tuple[str, str]]]] = {}
 JOB_EVENT_SHUTDOWN = "__server_shutdown__"
+# Live updates are coalesced for a short window so a fast-writing document does
+# not flood the browser with one SSE message per line. The pending map keeps
+# insertion order: an updated key is removed then re-appended, so the flush
+# order matches the order in which the last change of each key happened.
+JOB_EVENT_COALESCE_SECONDS = 0.12
+JOB_EVENT_PENDING: dict[str, tuple[str, str]] = {}
+JOB_EVENT_WAKE = threading.Event()
+JOB_EVENT_STOP = threading.Event()
+JOB_EVENT_FLUSHER: threading.Thread | None = None
+JOB_EVENT_FLUSHER_LOCK = threading.Lock()
+ARTIFACT_TAIL_CODE_POINTS = 64
 
 # AI library searches are cancellable independently from transcription/recording jobs.
 SEARCH_LOCK = threading.RLock()
@@ -456,11 +468,10 @@ def _jobs_response_locked() -> dict[str, Any]:
     }
 
 
-def _queue_job_event_locked(event_name: str, payload: dict[str, Any]) -> None:
-    """Push a compact job update to connected browser event streams."""
+def _send_job_event_locked(event_name: str, data: str) -> None:
+    """Push one serialized event to connected streams. Requires JOB_EVENT_LOCK."""
     if not JOB_EVENT_SUBSCRIBERS:
         return
-    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     for loop, subscriber_queue in list(JOB_EVENT_SUBSCRIBERS.values()):
         def offer(target: asyncio.Queue[tuple[str, str]] = subscriber_queue,
                   event: tuple[str, str] = (event_name, data)) -> None:
@@ -480,9 +491,68 @@ def _queue_job_event_locked(event_name: str, payload: dict[str, Any]) -> None:
             pass
 
 
+def _coalesce_job_event_locked(event_name: str, payload: dict[str, Any], key: str) -> None:
+    """Replace a pending event for ``key`` and wake the coalescing flusher.
+
+    Requires JOB_EVENT_LOCK. Updating an existing key re-appends it so the
+    pending dict keeps the last-write order used for the flush.
+    """
+    if not JOB_EVENT_SUBSCRIBERS or JOB_EVENT_STOP.is_set():
+        return
+    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    JOB_EVENT_PENDING.pop(key, None)
+    JOB_EVENT_PENDING[key] = (event_name, data)
+    _ensure_job_event_flusher()
+    JOB_EVENT_WAKE.set()
+
+
+def _flush_job_events_locked() -> None:
+    """Send every pending event in insertion order. Requires JOB_EVENT_LOCK."""
+    if not JOB_EVENT_PENDING:
+        return
+    batch = list(JOB_EVENT_PENDING.values())
+    JOB_EVENT_PENDING.clear()
+    for event_name, data in batch:
+        _send_job_event_locked(event_name, data)
+
+
+def _flush_job_events() -> None:
+    with JOB_EVENT_LOCK:
+        _flush_job_events_locked()
+
+
+def _job_event_flusher_loop() -> None:
+    while not JOB_EVENT_STOP.is_set():
+        JOB_EVENT_WAKE.wait(1.0)
+        if JOB_EVENT_STOP.is_set():
+            break
+        JOB_EVENT_WAKE.clear()
+        if JOB_EVENT_STOP.wait(JOB_EVENT_COALESCE_SECONDS):
+            break
+        _flush_job_events()
+
+
+def _ensure_job_event_flusher() -> None:
+    """Start the coalescing thread once. Requires JOB_EVENT_LOCK."""
+    global JOB_EVENT_FLUSHER
+    with JOB_EVENT_FLUSHER_LOCK:
+        if JOB_EVENT_FLUSHER is not None and JOB_EVENT_FLUSHER.is_alive():
+            return
+        JOB_EVENT_STOP.clear()
+        JOB_EVENT_FLUSHER = threading.Thread(
+            target=_job_event_flusher_loop, name="glimio-job-event-flusher", daemon=True,
+        )
+        JOB_EVENT_FLUSHER.start()
+
+
 def _close_job_event_streams() -> None:
     """End open SSE streams before Uvicorn waits for active HTTP connections."""
     with JOB_EVENT_LOCK:
+        # Stop coalescing before the final flush so no producer can enqueue an
+        # event between the flush and the shutdown marker.
+        JOB_EVENT_STOP.set()
+        JOB_EVENT_WAKE.set()
+        _flush_job_events_locked()
         subscribers = list(JOB_EVENT_SUBSCRIBERS.values())
 
     for loop, subscriber_queue in subscribers:
@@ -508,7 +578,13 @@ def _close_job_event_streams() -> None:
 def _publish_jobs_snapshot() -> None:
     with STATE_LOCK:
         with JOB_EVENT_LOCK:
-            _queue_job_event_locked("snapshot", _jobs_response_locked())
+            # Pending job events describe changes the snapshot already contains;
+            # flush them first so a subscriber never sees an older state after it.
+            _flush_job_events_locked()
+            if not JOB_EVENT_SUBSCRIBERS:
+                return
+            data = json.dumps(_jobs_response_locked(), ensure_ascii=False, separators=(",", ":"))
+            _send_job_event_locked("snapshot", data)
 
 
 def _serialize_model(model: Any) -> dict[str, Any]:
@@ -525,7 +601,7 @@ def _persist_job_locked(job: dict[str, Any], *, strict: bool = False) -> None:
                 raise
             print(f"[persistence] Could not save job {job.get('id')}: {exc}", flush=True)
     with JOB_EVENT_LOCK:
-        _queue_job_event_locked("job", _job_public(job))
+        _coalesce_job_event_locked("job", _job_public(job), f"job:{job.get('id')}")
 
 
 def _job_payload(job_id: str) -> dict[str, Any]:
@@ -1019,8 +1095,20 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
     args._cancel_event = cancel_event
 
     def publish_artifact_update(kind: str) -> None:
+        payload: dict[str, Any] = {"session_id": folder.name, "kind": kind}
+        live_path = folder / (
+            "transcript/transcription_en_cours.md"
+            if kind == "transcript"
+            else "summary/resume_audio_en_cours.md"
+        )
+        try:
+            stat = live_path.stat()
+        except OSError:
+            pass
+        else:
+            payload["revision"] = f"{stat.st_mtime_ns}:{stat.st_size}"
         with JOB_EVENT_LOCK:
-            _queue_job_event_locked("artifact", {"session_id": folder.name, "kind": kind})
+            _coalesce_job_event_locked("artifact", payload, f"artifact:{folder.name}:{kind}")
 
     args.artifact_event_callback = publish_artifact_update
 
@@ -1695,9 +1783,19 @@ def session_audio(session_id: str, filename: str, request: Request):
     return StreamingResponse(stream_file(), status_code=status_code, media_type="audio/wav", headers=headers)
 
 
+def _artifact_tail_hash(value: str) -> str:
+    """Stable FNV-1a 32-bit hash over Unicode code points."""
+    result = 2166136261
+    for char in value:
+        result ^= ord(char)
+        result = (result * 16777619) & 0xFFFFFFFF
+    return f"{result:08x}"
+
+
 @app.get("/api/sessions/{session_id}/{kind}")
 def session_artifact(session_id: str, kind: str, response: Response,
-                     revision: str | None = None, offset: int = 0) -> dict[str, Any]:
+                     revision: str | None = None, offset: int = 0,
+                     tail_hash: str | None = None) -> dict[str, Any]:
     if kind not in {"summary", "transcript"}:
         raise HTTPException(status_code=404, detail="Document inconnu.")
     try:
@@ -1716,25 +1814,40 @@ def session_artifact(session_id: str, kind: str, response: Response,
                 "revision": f"pending:{active_job.get('id', '')}",
                 "pending": True,
                 "content": "",
+                "live": False,
             }
         path = live_path or (summary_path(folder) if kind == "summary" else transcript_path(folder))
         if path is None:
             raise FileNotFoundError(f"Aucun document {kind} trouvé pour cette séance.")
         stat = path.stat()
         current_revision = f"{stat.st_mtime_ns}:{stat.st_size}"
+        is_live = live_path is not None
         result: dict[str, Any] = {
             "session_id": session_id,
             "kind": kind,
             "filename": path.name,
             "revision": current_revision,
+            "live": is_live,
         }
         if revision == current_revision:
             result["unchanged"] = True
             return result
         content = path.read_text(encoding="utf-8-sig", errors="replace")
+        offset = max(0, offset)
         if offset > 0 and offset <= len(content):
-            result["content"] = content[offset:]
-            result["append"] = True
+            if tail_hash is None:
+                prefix_ok = True
+            else:
+                # The client sends a hash of the last code points it already
+                # has; a mismatch means the content was rewritten.
+                window = content[max(0, offset - ARTIFACT_TAIL_CODE_POINTS):offset]
+                prefix_ok = _artifact_tail_hash(window) == tail_hash
+            if prefix_ok:
+                result["content"] = content[offset:]
+                result["append"] = True
+            else:
+                result["content"] = content
+                result["append"] = False
         else:
             result["content"] = content
             result["append"] = False
@@ -1761,11 +1874,14 @@ async def job_events(request: Request) -> StreamingResponse:
     subscriber_id = uuid.uuid4().hex
     subscriber_queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue(maxsize=128)
     # Register while holding the same lock order used by publishers so the
-    # initial snapshot cannot race with a state change and leave a gap.
+    # initial snapshot cannot race with a state change and leave a gap. Pending
+    # events are flushed to existing subscribers before the registration, so the
+    # new stream starts from a snapshot that is never older than its next event.
     with STATE_LOCK:
         with JOB_EVENT_LOCK:
-            JOB_EVENT_SUBSCRIBERS[subscriber_id] = (loop, subscriber_queue)
+            _flush_job_events_locked()
             initial = _jobs_response_locked()
+            JOB_EVENT_SUBSCRIBERS[subscriber_id] = (loop, subscriber_queue)
 
     async def stream():
         try:
@@ -2101,7 +2217,7 @@ def _set_search(search_id: str, **updates: Any) -> None:
             public = _search_public(SEARCHES[search_id])
     if public is not None:
         with JOB_EVENT_LOCK:
-            _queue_job_event_locked("search", public)
+            _coalesce_job_event_locked("search", public, f"search:{search_id}")
 
 
 def _finish_search_cancelled(search_id: str) -> None:
@@ -2349,7 +2465,7 @@ def start_library_search(request: SearchRequest) -> dict[str, Any]:
         ACTIVE_SEARCH_ID = search_id
         public = _search_public(search)
     with JOB_EVENT_LOCK:
-        _queue_job_event_locked("search", public)
+        _coalesce_job_event_locked("search", public, f"search:{search_id}")
     threading.Thread(
         target=_run_cancellable_search,
         args=(search_id, request),
@@ -2383,7 +2499,7 @@ def cancel_library_search(search_id: str) -> dict[str, Any]:
         process = search.get("_process")
         public = _search_public(search)
     with JOB_EVENT_LOCK:
-        _queue_job_event_locked("search", public)
+        _coalesce_job_event_locked("search", public, f"search:{search_id}")
     if process is not None:
         try:
             if process.poll() is None:
@@ -2453,6 +2569,8 @@ app.add_api_route("/{spa_path:path}", angular_spa, methods=["GET"], include_in_s
 
 
 def main() -> None:
+    # Required by the spawn-based diarization child in frozen (PyInstaller) builds.
+    mp.freeze_support()
     try:
         import uvicorn
     except ImportError as exc:

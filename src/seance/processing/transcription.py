@@ -15,6 +15,7 @@ from ..media.audio_import import import_audio_file
 from ..providers import DEFAULT_TRANSCRIPTION_PROVIDER, create_transcription_provider
 from ..providers.contracts import TranscriptionRequest
 from ..sessions import resolve_session
+from .diarization_process import diarize_transcription_isolated
 
 TRANSCRIPTION_CHUNK_SECONDS = 15 * 60
 TRANSCRIPTION_CHUNK_OVERLAP_SECONDS = 10
@@ -286,8 +287,11 @@ def transcribe(args: argparse.Namespace) -> None:
 
     if getattr(args, "diarize", False):
         _status(args, "Détection des changements de voix…")
-        from .diarization import diarize_transcription
-
-        diarize_transcription(folder, args, backup_existing=True)
+        diarize_transcription_isolated(
+            folder,
+            args,
+            backup_existing=True,
+            cancel_event=getattr(args, "_cancel_event", None),
+        )
         _status(args, "Diarisation terminée")
         _publish_artifact_update(args, "transcript")

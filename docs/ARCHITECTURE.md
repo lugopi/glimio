@@ -12,7 +12,7 @@ Les providers ne doivent jamais importer `web`, FastAPI ou le frontend. Le code 
 ## Organisation du code Python
 
 - `seance/media` regroupe la capture audio et l’import des médias.
-- `seance/processing` regroupe l’orchestration, la transcription, la diarisation et la génération des comptes rendus.
+- `seance/processing` regroupe l’orchestration, la transcription, la diarisation et la génération des comptes rendus. La diarisation native `sherpa-onnx` s’exécute dans un processus enfant (`diarization_process`) pour ne pas bloquer le GIL du serveur Web ; les callbacks de suivi et l’annulation restent pilotés par le processus parent.
 - `seance/providers` regroupe les contrats, fabriques, diagnostics et adaptateurs de moteurs.
 - Les modules restants à la racine de `seance` portent les services partagés (`layout`, `sessions`, `runtime`, `llm`, chemins et CLI).
 - Les imports utilisent directement ces sous-paquets ; aucun module de compatibilité ne duplique les anciens chemins.

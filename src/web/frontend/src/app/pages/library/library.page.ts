@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import { GlimioSettings, Job, JobsResponse, ProcessingInfo, ProviderStatus, SessionDetail, SessionPage, SessionSummary } from '../../core/api.models';
+import { GlimioSettings, Job, JobsResponse, ProcessingInfo, ProviderStatus, SessionArtifact, SessionDetail, SessionPage, SessionSummary } from '../../core/api.models';
 import { LibraryStateService } from '../../core/library-state.service';
 import { PreferencesService } from '../../core/preferences.service';
 import { ToastService } from '../../core/toast.service';
@@ -13,8 +13,12 @@ import { IconComponent } from '../../shared/icon.component';
 import { PaginationComponent } from '../../shared/pagination.component';
 import { ProviderOptionsComponent } from '../../shared/provider-options.component';
 import { renderMarkdownToHtml } from '../../shared/markdown';
+import { ProgressiveTextReveal, codePointLength, codePointTailHash, sliceCodePoints } from '../../shared/progressive-text';
 import { providerSupportsTranscriptionLanguage, transcriptionLanguageOptions } from '../../shared/transcription-languages';
 import { JobEventsService } from '../../core/job-events.service';
+
+const ARTIFACT_REFRESH_DEBOUNCE_MS = 100;
+const ARTIFACT_TAIL_CODE_POINTS = 64;
 
 @Component({
   standalone: true,
@@ -50,9 +54,23 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly artifactKind = signal<'summary' | 'transcript' | null>(null);
   readonly artifactLoading = signal(false);
   readonly artifactPending = signal(false);
-  readonly artifactHtml = computed(() => renderMarkdownToHtml(this.artifactContent()));
+  readonly revealedChars = signal(0);
+  readonly artifactVisibleContent = computed(() => sliceCodePoints(this.artifactContent(), this.revealedChars()));
+  readonly artifactHtml = computed(() => renderMarkdownToHtml(this.artifactVisibleContent()));
+  readonly artifactLive = signal(false);
   private artifactRequest = 0;
   private artifactRevision: string | null = null;
+  private readonly revealedByKind: Record<'summary' | 'transcript', number> = { summary: 0, transcript: 0 };
+  private readonly reveal = new ProgressiveTextReveal(count => {
+    this.revealedChars.set(count);
+    const kind = this.artifactKind();
+    if (kind) this.revealedByKind[kind] = count;
+  });
+  private artifactRefreshTimer?: number;
+  private artifactRefreshQueued = false;
+  private artifactRefreshRunning = false;
+  private pendingArtifactKind: 'summary' | 'transcript' | null = null;
+  private destroyed = false;
   private liveArtifactPhaseKey = '';
   private liveArtifactPhaseFollowed = false;
   private readonly seenSessionJobs = new Set<string>();
@@ -89,9 +107,13 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
+    this.artifactRefreshQueued = false;
     this.jobsSubscription?.unsubscribe();
     this.artifactSubscription?.unsubscribe();
+    this.reveal.destroy();
     window.clearTimeout(this.searchTimer);
+    window.clearTimeout(this.artifactRefreshTimer);
     void this.flushPendingSessionSettings().catch(() => undefined);
   }
 
@@ -177,6 +199,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
       this.sessionSettings.set(null);
       this.liveArtifactPhaseKey = '';
       this.liveArtifactPhaseFollowed = false;
+      this.pendingArtifactKind = null;
     }
     this.selectedId.set(id);
     if (showOnMobile) this.mobileDetailOpen.set(true);
@@ -184,18 +207,30 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     this.artifactRevision = null;
     this.artifactKind.set(null);
     this.artifactTitle.set('');
+    this.reveal.reset();
+    this.revealedByKind.summary = 0;
+    this.revealedByKind.transcript = 0;
+    this.revealedChars.set(0);
+    this.artifactLive.set(false);
+    window.clearTimeout(this.artifactRefreshTimer);
+    this.artifactRefreshTimer = undefined;
+    this.artifactRefreshQueued = false;
     this.artifactContent.set('');
     this.artifactLoading.set(false);
     this.artifactPending.set(false);
     this.api.session(id).subscribe({
       next: detail => {
-        if (this.selectedId() !== id) return;
+        if (this.destroyed || this.selectedId() !== id) return;
         this.selected.set(detail);
         const fallback = this.preferences.preferences()?.settings;
         const stored = detail.metadata?.['processing_settings'];
         const saved = stored && typeof stored === 'object' ? stored as Partial<GlimioSettings> : null;
         this.sessionSettings.set(fallback ? { ...fallback, ...(saved ?? {}) } : saved as GlimioSettings | null);
-        const firstArtifact = detail.summary ? 'summary' : detail.transcript ? 'transcript' : null;
+        const pendingKind = this.pendingArtifactKind;
+        this.pendingArtifactKind = null;
+        const firstArtifact = pendingKind && detail[pendingKind]
+          ? pendingKind
+          : detail.summary ? 'summary' : detail.transcript ? 'transcript' : null;
         if (firstArtifact) this.loadArtifact(firstArtifact);
         this.followProcessingArtifact(detail);
       },
@@ -297,6 +332,8 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     if (!session || !settings) { this.toast.show('Les paramètres ne sont pas encore disponibles.', 'error'); return; }
     this.liveArtifactPhaseKey = '';
     this.liveArtifactPhaseFollowed = false;
+    this.revealedByKind.summary = 0;
+    this.revealedByKind.transcript = 0;
     this.working.set(true);
     void this.flushPendingSessionSettings().catch(() => undefined)
       .then(() => this.persistSessionSettings(session.id, settings))
@@ -421,24 +458,30 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   loadArtifact(kind: 'summary' | 'transcript'): void {
     const session = this.selected();
-    if (!session || (kind === 'summary' && !session.summary) || (kind === 'transcript' && !session.transcript)) return;
+    if (!session || session.id !== this.selectedId()
+        || (kind === 'summary' && !session.summary)
+        || (kind === 'transcript' && !session.transcript)) return;
     const request = ++this.artifactRequest;
+    window.clearTimeout(this.artifactRefreshTimer);
+    this.artifactRefreshTimer = undefined;
+    this.artifactRefreshQueued = false;
     this.artifactRevision = null;
     this.artifactKind.set(kind);
     this.artifactTitle.set(kind === 'summary' ? 'Résumé' : 'Transcription');
+    const base = this.revealedByKind[kind];
+    this.reveal.reset(base);
+    this.revealedChars.set(base);
     this.artifactContent.set('');
     this.artifactLoading.set(true);
     this.artifactPending.set(false);
+    this.artifactLive.set(false);
     this.api.sessionArtifact(session.id, kind).subscribe({
       next: result => {
-        if (request !== this.artifactRequest || this.selectedId() !== session.id) return;
-        this.artifactRevision = result.revision;
-        this.artifactPending.set(Boolean(result.pending));
-        if (!result.pending) this.artifactContent.set(result.content ?? 'Contenu indisponible.');
-        this.artifactLoading.set(false);
+        if (this.destroyed || request !== this.artifactRequest || this.selectedId() !== session.id) return;
+        this.applyArtifactResult(result, true);
       },
       error: error => {
-        if (request !== this.artifactRequest || this.selectedId() !== session.id) return;
+        if (this.destroyed || request !== this.artifactRequest || this.selectedId() !== session.id) return;
         this.artifactLoading.set(false);
         this.artifactPending.set(false);
         this.toast.show(error.message, 'error');
@@ -446,31 +489,81 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  private handleArtifactUpdate(update: { session_id: string; kind: 'summary' | 'transcript' }): void {
+  private applyArtifactResult(result: SessionArtifact, initial: boolean): void {
+    this.artifactRevision = result.revision;
+    this.artifactPending.set(Boolean(result.pending));
+    this.artifactLive.set(Boolean(result.live));
+    if (!result.pending && !result.unchanged && result.content !== undefined) {
+      if (result.append && !initial) this.artifactContent.update(content => content + result.content!);
+      else if (!result.append) this.artifactContent.set(result.content);
+    }
+    const total = codePointLength(this.artifactContent());
+    const base = Math.min(this.revealedByKind[result.kind], total);
+    if (this.reveal.revealed !== base) this.reveal.reset(base);
+    this.revealedChars.set(base);
+    this.reveal.setTarget(total, Boolean(result.live) && !result.pending);
+    this.artifactLoading.set(false);
+  }
+
+  private handleArtifactUpdate(update: { session_id: string; kind: 'summary' | 'transcript'; revision?: string }): void {
     if (this.selectedId() !== update.session_id) return;
+    const selected = this.selected();
+    if (!selected || selected.id !== update.session_id) {
+      // The detail request is still in flight: remember the kind and load it
+      // as soon as the matching session detail is available.
+      this.pendingArtifactKind = update.kind;
+      return;
+    }
     if (!this.artifactKind()) {
       this.selected.update(current => current ? { ...current, [update.kind]: true } : current);
       this.loadArtifact(update.kind);
       return;
     }
     if (this.artifactKind() !== update.kind) return;
-    const request = ++this.artifactRequest;
-    const offset = Array.from(this.artifactContent()).length;
-    this.api.sessionArtifact(update.session_id, update.kind, this.artifactRevision, offset).subscribe({
-      next: result => {
-        if (request !== this.artifactRequest || this.selectedId() !== update.session_id || this.artifactKind() !== update.kind) return;
-        if (!result.unchanged) {
-          this.artifactRevision = result.revision;
-          if (!result.pending && result.content !== undefined) {
-            if (result.append) this.artifactContent.update(content => content + result.content);
-            else this.artifactContent.set(result.content);
-          }
-        }
-        this.artifactPending.set(Boolean(result.pending));
-        this.artifactLoading.set(false);
-      },
-      error: () => { /* The SSE job state remains authoritative if a preview is not ready yet. */ },
-    });
+    if (update.revision && update.revision === this.artifactRevision) return;
+    window.clearTimeout(this.artifactRefreshTimer);
+    this.artifactRefreshTimer = window.setTimeout(() => {
+      this.artifactRefreshTimer = undefined;
+      if (!this.destroyed) void this.refreshArtifact();
+    }, ARTIFACT_REFRESH_DEBOUNCE_MS);
+  }
+
+  private async refreshArtifact(): Promise<void> {
+    if (this.destroyed) return;
+    if (this.artifactRefreshRunning) {
+      this.artifactRefreshQueued = true;
+      return;
+    }
+    const sessionId = this.selectedId();
+    const kind = this.artifactKind();
+    if (!sessionId || !kind) return;
+    const request = this.artifactRequest;
+    const revision = this.artifactRevision;
+    const content = this.artifactContent();
+    const offset = codePointLength(content);
+    const tailHash = offset > 0 ? codePointTailHash(content, ARTIFACT_TAIL_CODE_POINTS) : null;
+    this.artifactRefreshRunning = true;
+    try {
+      const result = await firstValueFrom(this.api.sessionArtifact(sessionId, kind, revision, offset, tailHash));
+      if (this.destroyed || request !== this.artifactRequest
+          || this.selectedId() !== sessionId || this.artifactKind() !== kind) return;
+      this.applyArtifactResult(result, false);
+    } catch {
+      // The SSE job state remains authoritative if a preview is not ready yet.
+    } finally {
+      this.artifactRefreshRunning = false;
+      if (this.destroyed) {
+        this.artifactRefreshQueued = false;
+        return;
+      }
+      if (this.artifactRefreshQueued) {
+        this.artifactRefreshQueued = false;
+        this.artifactRefreshTimer = window.setTimeout(() => {
+          this.artifactRefreshTimer = undefined;
+          if (!this.destroyed) void this.refreshArtifact();
+        }, 0);
+      }
+    }
   }
 
   private handleJobUpdates(response: JobsResponse): void {
@@ -615,6 +708,11 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     this.artifactRevision = null;
     this.artifactKind.set(null);
     this.artifactTitle.set('');
+    this.reveal.reset();
+    this.revealedByKind.summary = 0;
+    this.revealedByKind.transcript = 0;
+    this.revealedChars.set(0);
+    this.artifactLive.set(false);
     this.artifactContent.set('');
     this.artifactLoading.set(false);
     this.artifactPending.set(false);

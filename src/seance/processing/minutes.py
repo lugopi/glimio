@@ -14,6 +14,7 @@ from ..layout import (
 )
 from ..media.audio_import import import_audio_file
 from ..sessions import resolve_session
+from .diarization_process import diarize_transcription_isolated
 from .transcription import transcribe as transcribe_audio
 # Shared LLM helpers used by this workflow.
 from ..llm import (
@@ -175,14 +176,18 @@ def _ensure_diarization(folder: Path, args: argparse.Namespace) -> None:
         except (OSError, UnicodeError, ValueError):
             pass
     if json_path.is_file():
-        from .diarization import diarize_transcription
         status_callback = getattr(args, "status_callback", None)
         if callable(status_callback):
             try:
                 status_callback("Détection des changements de voix…")
             except Exception:
                 pass
-        diarize_transcription(folder, args, backup_existing=True)
+        diarize_transcription_isolated(
+            folder,
+            args,
+            backup_existing=True,
+            cancel_event=getattr(args, "_cancel_event", None),
+        )
         if callable(status_callback):
             try:
                 status_callback("Diarisation terminée")
