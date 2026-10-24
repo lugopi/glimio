@@ -8,7 +8,7 @@ from typing import Callable
 from ..common import log
 from ..layout import get_transcript_path, has_audio
 from ..media.audio_import import import_audio_file
-from ..sessions import resolve_session
+from ..session_paths import resolve_session
 from ..project_paths import DEFAULT_LLAMA_COMPLETION_PATH, DEFAULT_WHISPER_CLI_PATH
 from .minutes import summarize
 from .transcription import transcribe

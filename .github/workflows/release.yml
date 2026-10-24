@@ -105,14 +105,19 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.12.15'
           cache: pip
           cache-dependency-path: pyproject.toml
 
       - name: Install release dependencies
+        shell: bash
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e '.[web,diarization,bundle]'
+          if [[ "${{ matrix.edition }}" == "web" ]]; then
+            python -m pip install -e '.[web,bundle]'
+          else
+            python -m pip install -e '.[cli,bundle]'
+          fi
 
       - name: Download Angular bundle
         if: matrix.edition == 'web'

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Nettoyage du packaging Python : suppression du relais `web.project_paths` et de son dossier vide `web.services`, accès direct au module partagé `seance.project_paths`, renommage du résolveur de dossiers en `seance.session_paths` pour le distinguer des services métier `seance.core.sessions`, et retrait des références de package-data vers l’ancienne UI statique absente du dépôt.
+
+- Correctif du traitement automatique après enregistrement : le job de capture est terminé de façon atomique lors du transfert vers la file de traitement, afin qu’il ne bloque pas lui-même le job de transcription ou de traitement complet. La protection contre les traitements concurrents reste active.
+
 ## 0.5.0 — recherche intelligente, providers audio et composants partagés — 2026-10-24
 
 - Recherche intelligente par séance : ajout du ciblage de séances existantes via `@` et le sélecteur de séances, pour limiter la recherche au périmètre souhaité.
@@ -12,7 +16,8 @@
 - États de sélection harmonisés : le highlight reste visible au survol et suit les coins arrondis du conteneur de liste, y compris aux extrémités ; les extraits exclus restent visibles mais sont distingués visuellement.
 - Lecteur audio : correction de l’emplacement du menu d’actions des pistes afin qu’il reste à droite et ne soit pas coupé par le conteneur du lecteur.
 - Styles Angular : extraction de styles réellement partagés et recours prioritaire aux utilitaires Tailwind avec `@apply`, y compris dans les media queries lorsque cela convient. Le budget d’avertissement des styles de composants reste à 12 kB (erreur à 20 kB).
-- Packaging et CI/CD : suppression de la variante séparée « Web avec diarisation » ; les éditions CLI et Web embarquent le runtime `sherpa-onnx`, tandis que les modèles restent séparés. Le pipeline publie des éditions Windows x64 (installateur et archive portable) et Linux x86_64 (`tar.gz`), après tests Python/Angular, validations de versions et contrôles des paquets.
+- Packaging et CI/CD : suppression de la variante séparée « Web avec diarisation » ; les éditions CLI et Web restent légères et installent les dépendances Python de chaque provider à la demande dans un runtime isolé. Les modèles restent séparés. Le pipeline publie des éditions Windows x64 (installateur et archive portable) et Linux x86_64 (`tar.gz`), après tests Python/Angular, validations de versions et contrôles des paquets.
+- CLI providers : ajout de `glimio providers list`, `info`, `install` et `doctor` pour utiliser, diagnostiquer et installer les dépendances des providers sans interface Web.
 
 - État des providers après installation : Glimio interroge à nouveau l’API de disponibilité après l’installation des dépendances Python. Si le provider est prêt, l’interface l’indique immédiatement ; si les paquets restent invisibles au processus courant, elle recommande un redémarrage ; si seuls des modèles ou chemins manquent, elle les présente comme éléments de configuration sans demander un redémarrage inutile.
 - Traductions des providers isolées dans leurs propres métadonnées (`ProviderInfo.translations`) et renvoyées par l’API. Les libellés, options, choix et ressources de chaque intégration sont localisés depuis son catalogue ; le dictionnaire général ne doit contenir que les textes propres à l’application et les termes réellement partagés.

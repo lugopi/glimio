@@ -4,9 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from web.services.job_store import JobStore
-from web.services.preferences_store import PreferencesStore
-from web.services.sqlite_db import SQLiteDatabase
+from seance.core.job_store import JobStore
+from seance.core.preferences_store import PreferencesStore
+from seance.core.sqlite_db import SQLiteDatabase
 
 
 class SQLitePersistenceTests(unittest.TestCase):

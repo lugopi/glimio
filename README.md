@@ -40,43 +40,43 @@ Les transcriptions et résumés issus de modèles peuvent être erronés. Vérif
 - Windows recommandé pour la capture de l’audio système ; les possibilités dépendent du système et des pilotes.
 - FFmpeg et ffprobe sur le `PATH` (ou côte à côte) pour l’import fidèle de tous les flux audio, les conversions et le débruitage. Glimio échoue explicitement si ffprobe manque plutôt que de silencieusement ignorer les pistes secondaires.
 - Facultatif : exécutable `deep-filter` et archive modèle DeepFilterNet téléchargés séparément pour une amélioration neuronale de la voix.
-- Facultatif : l’extra `separation` (SpeechBrain, PyTorch/Torchaudio) pour SepFormer et ECAPA ; installe d’abord le build PyTorch adapté à la plateforme, puis le modèle local de chaque provider.
+- Facultatif : SpeechBrain, PyTorch/Torchaudio pour SepFormer et ECAPA. Depuis les sources, installe l’extra `separation` ; dans les éditions précompilées, les dépendances sont installées à la demande dans un runtime Python isolé. Le modèle local de chaque provider reste à télécharger.
 - whisper.cpp et son modèle Whisper pour la transcription.
 - llama.cpp et un modèle GGUF pour les résumés/recherches.
-- Pour la diarisation, l’extra Python `diarization` (`sherpa-onnx`) et les deux modèles ONNX attendus. Le module d’intégration est fourni dans `src/seance/processing/diarization.py` ; la dépendance seule ne télécharge pas les poids des modèles.
+- Pour la diarisation, le provider Python `sherpa-onnx` et les deux modèles ONNX attendus. Depuis les sources, installe l’extra `diarization` ; dans les éditions précompilées, utilise `glimio providers install sherpa-onnx`. La dépendance seule ne télécharge pas les poids des modèles.
 
-Les poids IA et exécutables natifs sont volontairement exclus du dépôt Git. Les noms de fichiers, chemins et liens éditeurs sont documentés dans [`docs/MODELS.md`](docs/MODELS.md). Le fonctionnement des providers audio et leurs limites sont décrits dans [`docs/AUDIO_PIPELINE.md`](docs/AUDIO_PIPELINE.md). Les paramètres affichent aussi les liens de téléchargement fournis par chaque provider ; les extras Python compatibles peuvent être installés en un clic dans une exécution depuis les sources. Redémarre Glimio après une installation de dépendances. Les éditions empaquetées affichent les liens mais ne modifient pas leur runtime Python interne.
+Les poids IA et exécutables natifs sont volontairement exclus du dépôt Git. Les noms de fichiers, chemins et liens éditeurs sont documentés dans [`docs/MODELS.md`](docs/MODELS.md). Le fonctionnement des providers audio et leurs limites sont décrits dans [`docs/AUDIO_PIPELINE.md`](docs/AUDIO_PIPELINE.md). Les dépendances Python des providers compatibles peuvent être installées à la demande depuis Paramètres ou le CLI ; dans une édition précompilée, elles sont placées dans un runtime Python isolé sous les données utilisateur, sans modifier le binaire Glimio. Les modèles et exécutables natifs restent des téléchargements séparés. Consulte [`docs/PROVIDERS.md`](docs/PROVIDERS.md) pour les commandes et options du CLI.
 
 ## Installation
 
 ### Télécharger une édition précompilée
 
-Dans la page **Releases** du dépôt GitHub, choisis l’une des deux éditions : **CLI** pour travailler depuis la ligne de commande, ou **Web** pour l’interface dans le navigateur (qui inclut aussi le CLI). Il n’y a plus d’édition séparée « Web avec diarisation » : le runtime Python `sherpa-onnx` est inclus dans les deux éditions pour éviter de multiplier les variantes. Les deux modèles ONNX de diarisation restent à télécharger et configurer séparément.
+Dans la page **Releases** du dépôt GitHub, choisis l’une des deux éditions : **CLI** pour travailler depuis la ligne de commande, ou **Web** pour l’interface dans le navigateur (qui inclut aussi le CLI). Les dépendances Python optionnelles ne sont pas embarquées dans le téléchargement de base : installe-les à la demande avec `glimio providers install ID`. La première installation télécharge un runtime CPython autonome, vérifié par SHA-256, puis les paquets nécessaires au provider. Les téléchargements peuvent être importants pour SpeechBrain/PyTorch. Les modèles ONNX, SpeechBrain, GGUF et les exécutables natifs restent à télécharger séparément.
 
 - **Windows x64** : installateur `Setup.exe` ou archive `portable.zip` pour chaque édition.
 - **Linux x86_64** : archive `.tar.gz` pour chaque édition ; build basé sur Ubuntu 22.04 (glibc 2.35 ou plus récent). Extrait-la puis lance les exécutables indiqués dans `LISEZ-MOI.txt`.
 
-Les exécutables Whisper/llama.cpp, FFmpeg et les poids de modèles ne sont pas inclus. Configure leurs emplacements dans **Paramètres** après l’installation ; les modèles et leurs conditions restent documentés dans [`docs/MODELS.md`](docs/MODELS.md). Les données de l’application empaquetée sont conservées dans `%LOCALAPPDATA%\Glimio\Data` sous Windows et dans `$XDG_DATA_HOME/Glimio/Data` sous Linux si `XDG_DATA_HOME` est défini, sinon `~/.local/share/Glimio/Data`, séparées du dossier d’installation.
+Les exécutables Whisper/llama.cpp, FFmpeg et les poids de modèles ne sont pas inclus. Configure leurs emplacements dans **Paramètres** après l’installation ; les modèles et leurs conditions restent documentés dans [`docs/MODELS.md`](docs/MODELS.md). Les données de l’application et le runtime des providers optionnels sont conservés dans `%LOCALAPPDATA%\Glimio\Data` sous Windows et dans `$XDG_DATA_HOME/Glimio/Data` sous Linux si `XDG_DATA_HOME` est défini, sinon `~/.local/share/Glimio/Data`, séparés du dossier d’installation.
 
 ### Installer depuis les sources
 
 Depuis la racine du dépôt complet, avec Python 3.10 ou plus récent, choisis les extras nécessaires :
 
 ```bash
-# Web + diarisation
-python -m pip install -e ".[web,diarization]"
+# CLI autonome, sans dépendances Web
+python -m pip install -e ".[cli]"
 
-# Web sans le runtime de diarisation
+# Web + CLI
 python -m pip install -e ".[web]"
 
-# CLI avec diarisation
-python -m pip install -e ".[diarization]"
+# Web + diarisation depuis les sources
+python -m pip install -e ".[web,diarization]"
 
-# CLI sans diarisation
-python -m pip install -e .
+# CLI + diarisation depuis les sources
+python -m pip install -e ".[cli,diarization]"
 ```
 
-La diarisation reste donc un extra **optionnel depuis les sources**. Dans les paquets précompilés, `sherpa-onnx` est déjà embarqué dans les éditions CLI et Web, mais les deux fichiers modèle ONNX doivent toujours être téléchargés séparément.
+La diarisation reste donc un extra **optionnel depuis les sources**. Dans les paquets précompilés, `sherpa-onnx` s’installe à la demande avec `glimio providers install sherpa-onnx`, et les deux fichiers modèle ONNX doivent toujours être téléchargés séparément. Pour SpeechBrain, l’équivalent est `glimio providers install speechbrain-ecapa` ou `glimio providers install speechbrain-sepformer`.
 
 Télécharge manuellement les outils et modèles depuis les sources de [`docs/MODELS.md`](docs/MODELS.md). Place-les aux chemins par défaut ou configure-les dans **Paramètres**.
 
@@ -88,7 +88,7 @@ python -m web
 
 L’interface locale est normalement ouverte à `http://127.0.0.1:8765`. Le serveur écoute sur la boucle locale par défaut. Ne l’expose pas sur un réseau non fiable : Glimio n’implémente actuellement pas d’authentification.
 
-Le CLI peut enregistrer avec `glimio record` (Ctrl+C pour arrêter) et accepte aussi un fichier audio/vidéo ou un dossier de séance : `glimio process chemin\vers\fichier.wav`, `glimio transcribe chemin\vers\seance` ou `glimio summarize chemin\vers\seance`. Utilise `glimio --help` pour les options et chemins de modèles. Pour un débruitage conservateur, passe `--speech-enhancement ffmpeg`; pour DeepFilterNet configuré localement, `--speech-enhancement deepfilter --deep-filter-executable chemin/vers/deep-filter --deep-filter-model models/speech-enhancement/model.tar.gz`. La détection de silence utilise `--vad-mode auto|on|off` et le modèle Silero indiqué ci-dessus. Les options de séparation et d’identité vocale se configurent avec `--source-separation-provider`, `--speaker-embedding-provider` et les options du provider correspondantes ; SepFormer requiert explicitement ECAPA et les deux modèles locaux.
+Le CLI peut enregistrer avec `glimio record` (Ctrl+C pour arrêter), importer un fichier avec `glimio import`, traiter un dossier avec `glimio process`, gérer la bibliothèque (`glimio sessions`), lire/modifier les documents (`glimio artifacts`), consulter les jobs (`glimio jobs`) et effectuer la recherche intelligente (`glimio search`). Il sait aussi gérer les providers et les préférences sans lancer Web. Consulte [`docs/CLI.md`](docs/CLI.md) pour les commandes et exemples complets. Utilise `glimio --help` pour découvrir l’aide. Pour un débruitage conservateur, passe `--speech-enhancement ffmpeg`; pour DeepFilterNet configuré localement, `--speech-enhancement deepfilter --deep-filter-executable chemin/vers/deep-filter --deep-filter-model models/speech-enhancement/model.tar.gz`. La détection de silence utilise `--vad-mode auto|on|off` et le modèle Silero indiqué ci-dessus. Les options de séparation et d’identité vocale se configurent avec `--source-separation-provider`, `--speaker-embedding-provider` et les options du provider correspondantes ; SepFormer requiert explicitement ECAPA et les deux modèles locaux.
 
 ## Modèles et exécutables
 

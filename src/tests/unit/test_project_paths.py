@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-from web.project_paths import discover_project_root, resolve_session_root
+from seance.project_paths import discover_project_root, resolve_session_root
 
 
 class ProjectPathDiscoveryTests(unittest.TestCase):

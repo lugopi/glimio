@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from seance.layout import get_audio_path, list_audio_paths
-from web.services.library import _audio_duration_seconds, _session_record
+from seance.core.library import _audio_duration_seconds, _session_record
 
 
 class DynamicAudioTrackLayoutTests(unittest.TestCase):

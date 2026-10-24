@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import multiprocessing as mp
 import os
 from pathlib import Path
@@ -22,6 +23,8 @@ from .providers.selection import reset_text_provider, set_text_provider
 from .providers.audio_processing import (
     ENHANCEMENT_PROVIDER_FACTORIES, SEPARATION_PROVIDER_FACTORIES, EMBEDDING_PROVIDER_FACTORIES,
 )
+from .providers.cli import add_provider_cli_parser, run_provider_command
+from .cli_commands import add_application_cli_parsers, run_application_cli_command
 
 
 PROJECT_ROOT = discover_project_root(package_file=__file__)
@@ -51,6 +54,11 @@ def _add_processing_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--audio-enhancement-provider", choices=tuple(ENHANCEMENT_PROVIDER_FACTORIES), default="ffmpeg-denoise", help="Provider indépendant de prétraitement audio.")
     parser.add_argument("--source-separation-provider", choices=tuple(SEPARATION_PROVIDER_FACTORIES), default="no-separation", help="Provider facultatif de séparation des voix superposées.")
     parser.add_argument("--speaker-embedding-provider", choices=tuple(EMBEDDING_PROVIDER_FACTORIES), default="speechbrain-ecapa", help="Provider facultatif de rapprochement global des voix; SepFormer exige ECAPA.")
+    parser.add_argument("--provider-options-file", default=None, help="Fichier JSON contenant les options provider par identifiant (aide : glimio providers info ID).")
+    parser.add_argument("--ecapa-model-dir", default=None, help="Dossier local du modèle SpeechBrain ECAPA.")
+    parser.add_argument("--sepformer-model-dir", default=None, help="Dossier local du modèle SpeechBrain SepFormer.")
+    parser.add_argument("--provider-device", choices=("auto", "cpu", "cuda"), default=None, help="Périphérique pour les providers audio qui le déclarent (auto, cpu ou cuda).")
+    parser.add_argument("--sepformer-chunk-seconds", type=int, choices=(10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60), default=None, help="Longueur des blocs SepFormer en secondes.")
     parser.add_argument("--deep-filter-executable", default=None, help="Chemin vers le binaire DeepFilterNet installé séparément.")
     parser.add_argument("--deep-filter-model", default=None, help="Chemin vers l’archive modèle DeepFilterNet .tar.gz téléchargée séparément.")
     parser.add_argument("--vad-mode", choices=("auto", "on", "off"), default=None, help="Détection de parole Whisper.cpp : auto si le modèle est installé, on ou off.")
@@ -106,13 +114,55 @@ def build_parser() -> argparse.ArgumentParser:
             workflow.add_argument("--auto-process", dest="auto_pv", action="store_true",
                                   help="Transcrire puis créer un résumé après l’enregistrement.")
 
+    import_parser = commands.add_parser("import", help="Importer un fichier audio/vidéo dans la bibliothèque locale.")
+    _add_processing_options(import_parser)
+    import_parser.add_argument("--title", help="Titre de la séance importée.")
+    import_parser.add_argument("--normalize", action=argparse.BooleanOptionalAction, default=False,
+                               help="Normaliser le volume au maximum configuré (défaut : désactivé).")
+    import_parser.add_argument("--max-gain-db", type=float, default=30.0,
+                               help="Gain maximal de normalisation entre 0 et 30 dB.")
+    import_parser.add_argument("--split-channels", action=argparse.BooleanOptionalAction, default=True,
+                               help="Conserver les canaux séparés dans des pistes mono (défaut : oui).")
+    import_parser.add_argument("--import-action", choices=("none", "transcribe", "process"), default="none",
+                               help="Après import : ne rien lancer, transcrire, ou traiter complètement.")
+
+    add_provider_cli_parser(commands)
+    add_application_cli_parsers(commands)
     return parser
+
+
+def _read_provider_options_file(value: str | None) -> dict[str, dict[str, object]]:
+    if not value:
+        return {}
+    options_path = Path(_project_path(value))
+    try:
+        payload = json.loads(options_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"Impossible de lire le fichier d’options provider {options_path}: {exc}") from exc
+    if not isinstance(payload, dict) or any(not isinstance(key, str) or not isinstance(item, dict) for key, item in payload.items()):
+        raise SystemExit("Le fichier provider-options doit être un objet JSON dont chaque valeur est un objet d’options.")
+    return {str(key): dict(item) for key, item in payload.items()}
 
 
 def _args_namespace(args: argparse.Namespace) -> argparse.Namespace:
     values = vars(args).copy()
     values["folder"] = values.pop("target")
     values["directory"] = _project_path(values["directory"])
+    provider_options = _read_provider_options_file(values.pop("provider_options_file", None))
+    ecapa_model_dir = values.pop("ecapa_model_dir", None)
+    sepformer_model_dir = values.pop("sepformer_model_dir", None)
+    provider_device = values.pop("provider_device", None)
+    sepformer_chunk_seconds = values.pop("sepformer_chunk_seconds", None)
+    if ecapa_model_dir:
+        provider_options.setdefault("speechbrain-ecapa", {})["model_dir"] = ecapa_model_dir
+    if sepformer_model_dir:
+        provider_options.setdefault("speechbrain-sepformer", {})["model_dir"] = sepformer_model_dir
+    if provider_device:
+        for provider_id in ("speechbrain-ecapa", "speechbrain-sepformer"):
+            provider_options.setdefault(provider_id, {})["device"] = provider_device
+    if sepformer_chunk_seconds is not None:
+        provider_options.setdefault("speechbrain-sepformer", {})["chunk_seconds"] = sepformer_chunk_seconds
+    values["provider_options"] = provider_options
     path_fields = {
         "whisper_cli": "whisper_cli",
         "model": "model",
@@ -136,6 +186,12 @@ def main() -> None:
     # Required by the spawn-based diarization child in frozen (PyInstaller) builds.
     mp.freeze_support()
     args = build_parser().parse_args()
+    provider_result = run_provider_command(args, project_root=PROJECT_ROOT)
+    if provider_result is not None:
+        raise SystemExit(provider_result)
+    application_result = run_application_cli_command(args, project_root=PROJECT_ROOT)
+    if application_result is not None:
+        raise SystemExit(application_result)
     namespace = _args_namespace(args)
     event_token = set_provider_event_callback(
         lambda event: print(f"[{event.provider_id}] {event.message}", flush=True)
@@ -152,6 +208,30 @@ def main() -> None:
             audio.record(namespace)
         elif args.command == "transcribe":
             transcription.transcribe(namespace)
+        elif args.command == "import":
+            from .media.audio_import import import_audio_file
+            from .core.sessions import read_metadata, write_metadata
+            source = Path(str(args.target)).expanduser().resolve() if args.target else None
+            if source is None or not source.is_file():
+                raise SystemExit("Indiquez un fichier audio/vidéo existant à importer.")
+            if not 0 <= float(args.max_gain_db) <= 30:
+                raise SystemExit("--max-gain-db doit être compris entre 0 et 30.")
+            imported = import_audio_file(
+                source, namespace.directory, ffmpeg=namespace.ffmpeg,
+                normalize=bool(args.normalize), max_gain_db=float(args.max_gain_db),
+                split_channels=bool(args.split_channels),
+            )
+            if args.title and args.title.strip():
+                metadata = read_metadata(imported)
+                metadata["title"] = args.title.strip()[:120]
+                metadata["title_source"] = "user"
+                write_metadata(imported, metadata)
+            namespace.folder = str(imported)
+            print(f"Fichier importé dans la séance : {imported}", flush=True)
+            if args.import_action == "transcribe":
+                transcription.transcribe(namespace)
+            elif args.import_action == "process":
+                pipeline.process(namespace)
         elif args.command == "summarize":
             minutes.summarize(namespace)
         else:

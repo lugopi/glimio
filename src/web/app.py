@@ -38,16 +38,25 @@ from seance.providers import (
     get_provider_info, get_provider_statuses, normalize_provider_options,
 )
 
-from .project_paths import discover_project_root, resolve_session_root
-from .services.library import (
+from seance.project_paths import discover_project_root, resolve_session_root
+from seance.core.library import (
     describe_session, list_sessions, list_sessions_page,
     resolve_session_folder, retrieve_passages, summary_path, transcript_path,
 )
-from .services.sqlite_db import SQLiteDatabase, database_path
-from .services.job_store import JobStore
-from .services.preferences_store import PreferencesStore
-from .services.provider_installer import ProviderInstallManager
-from .services.search_synthesis import (
+from seance.core.sqlite_db import SQLiteDatabase, database_path
+from seance.core.job_store import JobStore
+from seance.core.preferences_store import PreferencesStore
+from seance.core.devices import list_audio_devices
+from seance.core.sessions import (
+    SessionServiceError, get_session as get_core_session,
+    rename_session as rename_core_session, delete_session as delete_core_session,
+    set_audio_track_disabled as set_core_audio_track_disabled,
+    delete_audio_track as delete_core_audio_track,
+    save_processing_settings as save_core_processing_settings,
+    save_summary as save_core_summary,
+)
+from seance.providers.installer import ProviderInstallManager, python_install_runtime_available
+from seance.core.search_synthesis import (
     _clean_search_answer,
     _has_unknown_citations,
     _looks_like_malformed_synthesis,
@@ -983,8 +992,15 @@ def _enqueue_job(
     *,
     session_id: str | None = None,
     payload: dict[str, Any] | None = None,
+    complete_recording_job_id: str | None = None,
 ) -> dict[str, Any]:
-    """Durably add one FIFO processing operation before notifying the worker."""
+    """Durably enqueue FIFO work, optionally handing off from a finished recording.
+
+    The completed recording and its follow-up processing job are transitioned under
+    the same lock. This prevents the capture job from conflicting with its own
+    processing job, while keeping other concurrent requests from slipping into the
+    hand-off window.
+    """
     _initialize_persistence()
     job_id = uuid.uuid4().hex[:12]
     job = {
@@ -995,15 +1011,24 @@ def _enqueue_job(
     }
     with STATE_LOCK:
         if session_id and any(
-            existing.get("session_id") == session_id
+            existing.get("id") != complete_recording_job_id
+            and existing.get("session_id") == session_id
             and existing.get("state") in {"queued", "running", "stopping"}
-            and not (
-                existing.get("kind") == "recording"
-                and existing.get("phase") == "finalizing"
-            )
             for existing in JOBS.values()
         ):
             raise HTTPException(status_code=409, detail="Un traitement est déjà en cours pour cette séance.")
+        recording_job = None
+        if complete_recording_job_id is not None:
+            recording_job = JOBS.get(complete_recording_job_id)
+            if (
+                recording_job is None
+                or recording_job.get("kind") != "recording"
+                or recording_job.get("session_id") != session_id
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="L’enregistrement est terminé, mais sa tâche ne permet pas de lancer le traitement automatique.",
+                )
         JOBS[job_id] = job
         CANCEL_EVENTS[job_id] = threading.Event()
         PROCESSING_QUEUE_IDS.append(job_id)
@@ -1014,6 +1039,16 @@ def _enqueue_job(
             CANCEL_EVENTS.pop(job_id, None)
             PROCESSING_QUEUE_IDS.remove(job_id)
             raise HTTPException(status_code=503, detail=f"Impossible de sauvegarder la tâche dans SQLite : {exc}") from exc
+        if recording_job is not None:
+            recording_job.update({
+                "state": "completed",
+                "phase": "completed",
+                "message": "Enregistrement terminé · ajout du traitement à la file…",
+                "finished_at": recording_job.get("finished_at") or _now(),
+                "updated_at": _now(),
+                "queue_position": None,
+            })
+            _persist_job_locked(recording_job)
         _refresh_queue_positions_locked()
         _prune_job_history_locked()
         # Persistence happens before queue.put(), so a process crash cannot lose accepted work.
@@ -1091,29 +1126,8 @@ def _get_job_or_404(job_id: str) -> dict[str, Any]:
 
 
 def _device_names() -> dict[str, Any]:
-    # Import before the scoped initialization: SoundCard initializes its module-level
-    # COM helper during import. In the normal Web path it was already warmed up at
-    # startup; doing this in the correct order also makes direct calls safe.
-    sc = _soundcard()
-    # FastAPI executes this synchronous endpoint in a worker thread. COM initialization
-    # on the event-loop thread does not carry over to this worker.
-    with audio_com_apartment():
-        microphone_objects = list(sc.all_microphones(include_loopback=False))
-        output_objects = list(sc.all_speakers())
-        microphones = [str(mic.name) for mic in microphone_objects]
-        outputs = [str(speaker.name) for speaker in output_objects]
-        def device_record(device: Any, index: int, kind: str) -> dict[str, str]:
-            device_id = str(getattr(device, "id", "") or "")
-            name = str(device.name)
-            return {"id": device_id, "key": device_id or f"{kind}:{index}:{name}", "name": name}
-        microphone_devices = [device_record(device, index, "microphone") for index, device in enumerate(microphone_objects)]
-        output_devices = [device_record(device, index, "output") for index, device in enumerate(output_objects)]
-    return {
-        "microphones": microphones,
-        "outputs": outputs,
-        "microphone_devices": microphone_devices,
-        "output_devices": output_devices,
-    }
+    """Web-facing wrapper around the shared audio-device use case."""
+    return list_audio_devices(soundcard_loader=_soundcard, com_scope=audio_com_apartment)
 
 
 def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
@@ -1338,7 +1352,7 @@ def providers() -> dict[str, Any]:
     settings = _get_preferences()["settings"]
     runtime_is_frozen = bool(getattr(sys, "frozen", False))
     pip_available = importlib.util.find_spec("pip") is not None
-    runtime_can_install_python = not runtime_is_frozen and pip_available
+    runtime_can_install_python = python_install_runtime_available(frozen=runtime_is_frozen)
     payloads = []
     for item in get_provider_statuses(Settings(**settings), project_root=PROJECT_ROOT):
         payload = item.to_dict()
@@ -1346,12 +1360,12 @@ def providers() -> dict[str, Any]:
             payload["python_install_available"] and runtime_can_install_python
         )
         payload["python_install_block_reason"] = ""
-        if payload["python_install_available"] and runtime_is_frozen:
+        if payload["python_install_available"] and runtime_is_frozen and not runtime_can_install_python:
             payload["python_install_block_reason"] = (
-                "Cette édition empaquetée ne peut pas ajouter de paquets à son environnement Python interne. "
-                "Utilisez une édition source adaptée ou une build qui inclut cette dépendance."
+                "L’installation des providers Python est actuellement prise en charge dans les éditions précompilées "
+                "Windows x64 et Linux x86_64 uniquement."
             )
-        elif payload["python_install_available"] and not pip_available:
+        elif payload["python_install_available"] and not runtime_is_frozen and not pip_available:
             payload["python_install_block_reason"] = (
                 "Le module pip n’est pas disponible dans l’environnement Python courant. "
                 "Installez/activez pip dans cet environnement puis relancez Glimio."
@@ -1669,37 +1683,15 @@ def rename_session(session_id: str, request: RenameSessionRequest) -> dict[str, 
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
     with STATE_LOCK:
-        active_jobs = [
-            job for job in JOBS.values()
-            if job.get("session_id") == folder.name and job.get("state") in {"running", "stopping", "queued"}
-        ]
+        active_jobs = [job for job in JOBS.values() if job.get("session_id") == folder.name and job.get("state") in {"running", "stopping", "queued"}]
     if active_jobs:
-        raise HTTPException(
-            status_code=409,
-            detail="Impossible de renommer une séance pendant son enregistrement ou son traitement.",
-        )
-    title = request.title.strip()
-    if not title:
-        raise HTTPException(status_code=422, detail="Le titre ne peut pas être vide.")
-    if len(title) > 120:
-        raise HTTPException(status_code=422, detail="Le titre doit contenir au maximum 120 caractères.")
-    metadata_path = _session_metadata_path(folder)
-    metadata: dict[str, Any] = {}
-    if metadata_path.is_file():
-        try:
-            value = json.loads(metadata_path.read_text(encoding="utf-8-sig"))
-            if not isinstance(value, dict):
-                raise ValueError("Les métadonnées ne sont pas un objet JSON.")
-            metadata = value
-        except (OSError, json.JSONDecodeError, UnicodeError, ValueError) as exc:
-            raise HTTPException(status_code=409, detail="Les métadonnées sont illisibles ; le titre n'a pas été modifié.") from exc
-    metadata["title"] = title
-    metadata["title_source"] = "user"
+        raise HTTPException(status_code=409, detail="Impossible de renommer une séance pendant son enregistrement ou son traitement.")
     try:
-        _write_metadata_atomically(metadata_path, metadata)
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Impossible d'enregistrer le titre : {exc}") from exc
-    return {"id": session_id, "title": title, "metadata": metadata}
+        return rename_core_session(PROJECT_ROOT, SESSION_ROOT, folder.name, request.title)
+    except SessionServiceError as exc:
+        message = str(exc)
+        status = 422 if "titre" in message else 409 if "cours" in message or "active" in message else 500
+        raise HTTPException(status_code=status, detail=message) from exc
 
 
 @app.put("/api/sessions/{session_id}/settings")
@@ -1711,16 +1703,16 @@ def save_session_settings(session_id: str, request: SessionSettingsRequest) -> d
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
     with STATE_LOCK:
-        active = any(
-            job.get("session_id") == folder.name
-            and job.get("state") in {"queued", "running", "stopping"}
-            for job in JOBS.values()
-        )
+        active = any(job.get("session_id") == folder.name and job.get("state") in {"queued", "running", "stopping"} for job in JOBS.values())
     if active:
         raise HTTPException(status_code=409, detail="Impossible de modifier les options pendant le traitement de cette séance.")
-    request.settings.namespace(folder=str(folder))  # validate the complete settings contract before persisting it
-    metadata = _save_session_processing_settings(folder, request.settings)
-    return {"id": session_id, "settings": _serialize_model(request.settings), "metadata": metadata}
+    request.settings.namespace(folder=str(folder))  # validate the shared settings contract before persistence
+    value = _serialize_model(request.settings)
+    try:
+        result = save_core_processing_settings(PROJECT_ROOT, SESSION_ROOT, folder.name, value)
+    except SessionServiceError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"id": session_id, "settings": value, "metadata": result["metadata"]}
 
 
 @app.delete("/api/sessions/{session_id}")
@@ -1732,23 +1724,17 @@ def delete_session(session_id: str) -> dict[str, Any]:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
     with STATE_LOCK:
-        active = [
-            job for job in JOBS.values()
-            if job.get("session_id") == folder.name and job.get("state") in {"running", "stopping", "queued"}
-        ]
+        active = [job for job in JOBS.values() if job.get("session_id") == folder.name and job.get("state") in {"running", "stopping", "queued"}]
     if active:
         raise HTTPException(status_code=409, detail="Impossible de supprimer une séance pendant son enregistrement ou son traitement.")
-    # resolve_session_folder validates that this is a direct child of SESSION_ROOT.
     try:
-        shutil.rmtree(folder)
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Impossible de supprimer la séance : {exc}") from exc
-    return {"deleted": True, "id": session_id}
+        return delete_core_session(PROJECT_ROOT, SESSION_ROOT, folder.name)
+    except SessionServiceError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.patch("/api/sessions/{session_id}/audio/{filename}")
 def set_session_audio_track_disabled(session_id: str, filename: str, request: AudioTrackToggleRequest) -> dict[str, Any]:
-    """Soft-disable an audio track for subsequent transcription and diarization."""
     if Path(filename).name != filename or not filename.lower().endswith(".wav"):
         raise HTTPException(status_code=404, detail="Piste audio inconnue.")
     try:
@@ -1758,31 +1744,16 @@ def set_session_audio_track_disabled(session_id: str, filename: str, request: Au
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
     _ensure_session_idle_for_audio_edit(folder)
-    if filename not in {path.name for path in list_audio_paths(folder)}:
-        raise HTTPException(status_code=404, detail="Fichier audio introuvable.")
-    metadata = _read_session_metadata(folder)
-    disabled = metadata.get("disabled_audio_tracks", [])
-    disabled_set = {item for item in disabled if isinstance(item, str)} if isinstance(disabled, list) else set()
-    if request.disabled:
-        candidate_disabled = disabled_set | {filename}
-        available_tracks = {path.name for path in list_audio_paths(folder)}
-        if not (available_tracks - candidate_disabled):
-            raise HTTPException(
-                status_code=422,
-                detail="Au moins une piste audio doit rester active pour permettre un nouveau traitement.",
-            )
-        disabled_set.add(filename)
-    else:
-        disabled_set.discard(filename)
-    metadata["disabled_audio_tracks"] = sorted(disabled_set)
-    _mark_audio_outputs_stale(folder, metadata)
-    _write_session_metadata(folder, metadata)
-    return {"id": folder.name, "filename": filename, "disabled_audio_tracks": sorted(disabled_set), "metadata": metadata}
+    try:
+        return set_core_audio_track_disabled(PROJECT_ROOT, SESSION_ROOT, folder.name, filename, disabled=request.disabled)
+    except SessionServiceError as exc:
+        message = str(exc)
+        status = 422 if "Au moins une piste" in message else 409 if "Impossible" in message else 404 if "introuvable" in message else 500
+        raise HTTPException(status_code=status, detail=message) from exc
 
 
 @app.delete("/api/sessions/{session_id}/audio/{filename}")
 def delete_session_audio_track(session_id: str, filename: str) -> dict[str, Any]:
-    """Hard-delete an audio file and its per-track SRT; combined artifacts are kept but marked stale."""
     if Path(filename).name != filename or not filename.lower().endswith(".wav"):
         raise HTTPException(status_code=404, detail="Piste audio inconnue.")
     try:
@@ -1792,37 +1763,12 @@ def delete_session_audio_track(session_id: str, filename: str) -> dict[str, Any]
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
     _ensure_session_idle_for_audio_edit(folder)
-    known_tracks = {path.name: path for path in list_audio_paths(folder)}
-    audio_path = known_tracks.get(filename)
-    if audio_path is None or not audio_path.is_file():
-        raise HTTPException(status_code=404, detail="Fichier audio introuvable.")
-    metadata = _read_session_metadata(folder)
     try:
-        audio_path.unlink()
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Impossible de supprimer la piste audio : {exc}") from exc
-
-    warnings: list[str] = []
-    stem = Path(filename).stem
-    for candidate in (folder / "transcript" / f"{stem}.srt", folder / f"{stem}.srt"):
-        try:
-            candidate.unlink(missing_ok=True)
-        except OSError as exc:
-            warnings.append(f"La transcription individuelle {candidate.name} n’a pas pu être supprimée : {exc}")
-
-    disabled = metadata.get("disabled_audio_tracks", [])
-    if isinstance(disabled, list):
-        metadata["disabled_audio_tracks"] = [item for item in disabled if item != filename]
-    sources = metadata.get("audio_sources", [])
-    if isinstance(sources, list):
-        metadata["audio_sources"] = [item for item in sources if not (isinstance(item, dict) and item.get("filename") == filename)]
-    captured = metadata.get("captured_tracks", [])
-    if isinstance(captured, list):
-        metadata["captured_tracks"] = [item for item in captured if item != stem]
-    _mark_audio_outputs_stale(folder, metadata)
-    _write_session_metadata(folder, metadata)
-    remaining = [path.name for path in list_audio_paths(folder)]
-    return {"id": folder.name, "filename": filename, "audio_tracks": remaining, "metadata": metadata, "warnings": warnings}
+        return delete_core_audio_track(PROJECT_ROOT, SESSION_ROOT, folder.name, filename)
+    except SessionServiceError as exc:
+        message = str(exc)
+        status = 409 if "Impossible" in message else 404 if "introuvable" in message else 500
+        raise HTTPException(status_code=status, detail=message) from exc
 
 
 @app.get("/api/sessions/{session_id}/audio/{filename}")
@@ -1898,62 +1844,23 @@ def session_audio(session_id: str, filename: str, request: Request):
 
 @app.put("/api/sessions/{session_id}/summary")
 def save_session_summary(session_id: str, request: SaveSummaryRequest) -> dict[str, Any]:
-    """Save a user-edited summary as Markdown, guarding against stale writes."""
-    if not request.content.strip():
-        raise HTTPException(status_code=422, detail="Le résumé ne peut pas être vide.")
+    """Save a user-edited summary through the same core operation as the CLI."""
     try:
         folder = resolve_session_folder(SESSION_ROOT, session_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
-
-    # Keep the active-job check, revision check and atomic replacement together so
-    # a new job cannot be queued between the check and the write.
     with STATE_LOCK:
-        active_jobs = [
-            job for job in JOBS.values()
-            if job.get("session_id") == folder.name
-            and job.get("state") in {"queued", "running", "stopping"}
-        ]
-        if active_jobs:
-            raise HTTPException(
-                status_code=409,
-                detail="Le résumé ne peut pas être modifié pendant un traitement.",
-            )
-
-        path = summary_path(folder)
-        if path is None:
-            raise HTTPException(status_code=404, detail="Aucun résumé à modifier pour cette séance.")
+        active = [job for job in JOBS.values() if job.get("session_id") == folder.name and job.get("state") in {"queued", "running", "stopping"}]
+        if active:
+            raise HTTPException(status_code=409, detail="Le résumé ne peut pas être modifié pendant un traitement.")
         try:
-            stat = path.stat()
-        except OSError as exc:
-            raise HTTPException(status_code=409, detail="Le résumé n’est plus disponible.") from exc
-        current_revision = f"{stat.st_mtime_ns}:{stat.st_size}"
-        if request.revision is not None and request.revision != current_revision:
-            raise HTTPException(
-                status_code=409,
-                detail="Le résumé a changé depuis son chargement. Rechargez-le avant de sauvegarder.",
-            )
-
-        temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-        try:
-            temporary.write_text(request.content, encoding="utf-8", newline="")
-            temporary.replace(path)
-            stat = path.stat()
-        except OSError as exc:
-            raise HTTPException(status_code=500, detail=f"Impossible d’enregistrer le résumé : {exc}") from exc
-        finally:
-            temporary.unlink(missing_ok=True)
-
-    return {
-        "session_id": session_id,
-        "kind": "summary",
-        "filename": path.name,
-        "revision": f"{stat.st_mtime_ns}:{stat.st_size}",
-        "content": request.content,
-        "live": False,
-    }
+            return save_core_summary(PROJECT_ROOT, SESSION_ROOT, folder.name, request.content, revision=request.revision)
+        except SessionServiceError as exc:
+            message = str(exc)
+            status = 409 if "changé" in message or "cours" in message or "disponible" in message else 422 if "vide" in message or "taille" in message else 500
+            raise HTTPException(status_code=status, detail=message) from exc
 
 
 def _artifact_tail_hash(value: str) -> str:
@@ -2285,11 +2192,15 @@ def start_recording(request: RecordRequest) -> dict[str, Any]:
                 session_id=folder.name,
                 payload={"type": "session", "action": action, "session_id": folder.name,
                          "settings": _serialize_model(request.settings), "checkpoint": None},
+                complete_recording_job_id=job_id,
             )
             final_message = f"Enregistrement terminé · traitement en file (position {queued.get('queue_position') or 1})"
         else:
             final_message = "Enregistrement terminé · pistes WAV disponibles"
-        _set_job(job_id, session_id=folder.name if folder else None, state="running", phase="completed", message=final_message)
+        _set_job(
+            job_id, session_id=folder.name if folder else None, state="completed",
+            phase="completed", message=final_message, finished_at=_now(), queue_position=None,
+        )
 
     result = _start_job("recording", "Préparation des périphériques audio…", worker, stop_event=stop_event)
     job_id_holder["id"] = result["id"]
@@ -2436,7 +2347,7 @@ def _generate_search_synthesis(
     on_process: Any = None,
     on_progress: Any = None,
 ) -> tuple[str, bool]:
-    """Compatibility entry point; search logic lives in services/search_synthesis.py."""
+    """Search-synthesis application adapter around the framework-independent core."""
     profiled_settings = Settings(**apply_processing_profile(
         settings.model_dump() if hasattr(settings, "model_dump") else settings.dict()
     ))

@@ -13,7 +13,7 @@ from ..layout import (
     has_audio, summary_output_path,
 )
 from ..media.audio_import import import_audio_file
-from ..sessions import resolve_session
+from ..session_paths import resolve_session
 from ..project_paths import DEFAULT_WHISPER_CLI_PATH
 from .diarization_process import diarize_transcription_isolated
 from .transcription import transcribe as transcribe_audio

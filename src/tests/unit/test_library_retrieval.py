@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from web.services.library import retrieve_passages
+from seance.core.library import retrieve_passages
 
 
 class PassageRetrievalTests(unittest.TestCase):
@@ -41,7 +41,7 @@ class PassageRetrievalTests(unittest.TestCase):
                     stream.write("Ordinary discussion without the target word.\n")
                 stream.write("\nAt the very end is endmarkerneedle.\n")
 
-            from web.services.library import list_sessions
+            from seance.core.library import list_sessions
 
             listed = list_sessions(root, query="endmarkerneedle")
             retrieved = retrieve_passages(root, "endmarkerneedle", top_k=8)
@@ -78,7 +78,7 @@ class PassageRetrievalTests(unittest.TestCase):
         self.assertEqual(passages, [])
 
     def test_long_paragraph_chunking_does_not_split_a_keyword_mid_word(self) -> None:
-        from web.services.library import _iter_text_chunks
+        from seance.core.library import _iter_text_chunks
 
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "long.md"

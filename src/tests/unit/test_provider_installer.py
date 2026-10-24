@@ -4,7 +4,7 @@ from dataclasses import replace
 import pytest
 
 from seance.providers.contracts import ProviderInfo, ProviderResourceLink, ProviderStatus
-from web.services.provider_installer import ProviderInstallManager
+from seance.providers.installer import ProviderInstallManager
 
 
 def provider(extra: str | None = "separation", packages: tuple[str, ...] = ("speechbrain>=1.0.0",)) -> ProviderInfo:
@@ -26,7 +26,10 @@ def test_python_provider_metadata_exposes_safe_install_and_setup_links() -> None
 
 
 def test_build_command_prefers_known_project_extra(tmp_path: Path) -> None:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='test'\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='glimio-notes'\n", encoding="utf-8")
+    package = tmp_path / "src" / "seance"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("__version__ = '0.5.0'\n", encoding="utf-8")
     manager = ProviderInstallManager()
     command, cwd = manager._build_command(provider(), tmp_path)
     assert command[-2:] == ["-e", ".[separation]"]
@@ -49,10 +52,19 @@ def test_install_rejects_unknown_extra_before_starting_thread(tmp_path: Path) ->
         manager.start(untrusted, project_root=tmp_path)
 
 
-def test_install_rejects_frozen_runtime_with_helpful_message(tmp_path: Path) -> None:
+def test_frozen_install_uses_managed_runtime_instead_of_pyinstaller_internals(tmp_path: Path) -> None:
+    from seance.providers.installer import _PACKAGE_PATTERN, python_install_runtime_available
+
     manager = ProviderInstallManager()
-    with pytest.raises(RuntimeError, match="version empaquetée"):
-        manager.start(provider(), project_root=tmp_path, frozen=True)
+    python = tmp_path / "provider-runtime" / "python" / "python.exe"
+    command, cwd = manager._build_managed_command(provider(), python)
+    assert command[:4] == [str(python), "-m", "pip", "install"]
+    assert command[-1] == "speechbrain>=1.0.0"
+    assert cwd == python.parent
+    assert _PACKAGE_PATTERN.fullmatch("speechbrain>=1.0.0")
+    # Runtime availability is OS-gated in frozen builds and doesn't require
+    # pip to be bundled in the PyInstaller executable itself.
+    assert isinstance(python_install_runtime_available(frozen=True), bool)
 
 
 def test_only_catalog_declared_package_strings_are_used(tmp_path: Path) -> None:
@@ -124,7 +136,7 @@ def test_install_api_only_accepts_catalogued_python_providers(tmp_path: Path) ->
 
 def test_background_install_streams_output_and_flags_restart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import time
-    import web.services.provider_installer as installer_module
+    import seance.providers.installer as installer_module
 
     class FakeProcess:
         stdout = iter(["Collecting speechbrain>=1.0.0\n", "Successfully installed speechbrain\n"])
@@ -176,3 +188,23 @@ def test_all_builtin_providers_expose_provider_owned_english_metadata() -> None:
     assert BUILTIN_PROVIDERS
     for info in BUILTIN_PROVIDERS:
         assert info.translations.get("en"), f"{info.id} should keep its own English metadata translations"
+
+
+def test_managed_runtime_bootstraps_pip_if_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+    import seance.provider_runtime as runtime_module
+
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append(list(command))
+        if command[-2:] == ["pip", "--version"] and len([item for item in calls if item[-2:] == ["pip", "--version"]]) == 1:
+            raise subprocess.CalledProcessError(1, command, stderr="No module named pip")
+        return subprocess.CompletedProcess(command, 0, stdout="pip 25.0 from test\n", stderr="")
+
+    monkeypatch.setattr(runtime_module.subprocess, "run", fake_run)
+    progress: list[str] = []
+    runtime_module._ensure_runtime_pip(tmp_path / "python", on_progress=progress.append)
+
+    assert any(call[-2:] == ["ensurepip", "--upgrade"] for call in calls)
+    assert progress and "pip" in progress[0]

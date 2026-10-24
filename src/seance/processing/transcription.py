@@ -21,7 +21,7 @@ from ..providers.audio_processing import (
 from ..providers.contracts import AudioEnhancementRequest, AudioSeparationRequest
 from ..providers.contracts import TranscriptionRequest
 from ..project_paths import discover_project_root
-from ..sessions import resolve_session
+from ..session_paths import resolve_session
 from .diarization_process import diarize_transcription_isolated
 
 TRANSCRIPTION_CHUNK_SECONDS = 15 * 60

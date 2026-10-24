@@ -1,8 +1,9 @@
 """Build portable Glimio CLI or Web release payloads on the current OS.
 
 The CLI-only edition contains only the CLI entry point. The Web edition contains
-both the CLI and the Web application. All frozen release payloads bundle the
-sherpa-onnx runtime; diarization model files remain a separate user download.
+both the CLI and the Web application. The base package stays light: optional Python
+provider runtimes and wheels are installed on demand into user data, while models
+and separately distributed native executables remain outside the app bundle.
 """
 
 from __future__ import annotations
@@ -70,18 +71,13 @@ def run_pyinstaller(
     include_web: bool,
     angular_dist: Path | None = None,
 ) -> Path:
-    if importlib.util.find_spec("sherpa_onnx") is None:
-        raise SystemExit(
-            "The release environment is missing sherpa-onnx. Install the project's [diarization] extra."
-        )
-
     output.mkdir(parents=True, exist_ok=True)
     work.mkdir(parents=True, exist_ok=True)
     command = [
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir",
         "--name", name, "--distpath", str(output), "--workpath", str(work / "build"),
         "--specpath", str(work), "--paths", str(ROOT / "src"),
-        "--collect-all", "numpy", "--collect-all", "sherpa_onnx",
+        "--collect-all", "numpy",
     ]
     # Audio capture via soundcard is installed on Windows only; don't ask
     # PyInstaller to collect a package which isn't part of the Linux runtime.
@@ -148,11 +144,18 @@ def write_readme(payload: Path, edition: str, platform_name: str) -> None:
     lines.extend([
         "",
         *( ["Compatibilité Linux", "  Paquet construit sur Ubuntu 22.04 x86_64 ; glibc 2.35 ou plus récent est requis.", ""] if platform_name == "linux" else [] ),
-        "Providers et modèles",
-        "  Le runtime sherpa-onnx est inclus dans cette édition. Les modèles ONNX de",
-        "  diarisation restent à télécharger et configurer séparément. Les exécutables",
-        "  Whisper/llama.cpp, FFmpeg et les autres poids de modèles ne sont pas inclus.",
-        "  Consultez MODELS.md et LICENSING.md pour les sources et les licences.",
+        "Providers Python optionnels",
+        "  Le paquet de base reste léger. Listez les providers avec :",
+        f"  CLI : {cli_command} providers list",
+        f"  Aide : {cli_command} providers --help",
+        f"  Détails/options : {cli_command} providers info sherpa-onnx",
+        "  Installez un provider Python à la demande, par exemple :",
+        f"  {cli_command} providers install sherpa-onnx",
+        "  Le premier provider téléchargera un runtime Python vérifié par SHA-256 ;",
+        "  ses dépendances peuvent être volumineuses. Utilisez `providers info ID`",
+        "  pour consulter l’aide propre à chaque provider. Les modèles ONNX de",
+        "  diarisation, les modèles SpeechBrain et les exécutables Whisper/llama.cpp/",
+        "  FFmpeg ne sont pas inclus. Consultez MODELS.md et LICENSING.md.",
         "",
         "Données utilisateur",
         f"  {data_path}",
@@ -186,7 +189,17 @@ def build_release(edition_name: str, platform_name: str, version: str) -> Path:
     )
     shutil.copytree(cli, payload / "GlimioCLI")
     cli_executable = executable_path(cli, "GlimioCLI")
-    subprocess.run([str(cli_executable), "--help"], cwd=payload, check=True, stdout=subprocess.DEVNULL)
+    cli_smoke_commands = (
+        ["--help"], ["import", "--help"], ["providers", "--help"],
+        ["providers", "list"], ["providers", "list", "--json"],
+        ["providers", "info", "sherpa-onnx"], ["providers", "info", "speechbrain-ecapa"],
+        ["providers", "install", "--help"], ["sessions", "--help"],
+        ["sessions", "settings", "--help"], ["sessions", "audio", "--help"],
+        ["artifacts", "--help"], ["preferences", "--help"], ["jobs", "--help"],
+        ["devices", "--help"], ["search", "--help"],
+    )
+    for cli_args in cli_smoke_commands:
+        subprocess.run([str(cli_executable), *cli_args], cwd=payload, check=True, stdout=subprocess.DEVNULL)
 
     if edition["web"]:
         web_app = run_pyinstaller(

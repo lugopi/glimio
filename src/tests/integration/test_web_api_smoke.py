@@ -12,6 +12,42 @@ from web.app import (AudioTrackToggleRequest, AudioDevicesResponse, SaveSummaryR
 
 
 class WebApiSmokeTests(unittest.TestCase):
+    def test_completed_recording_can_atomically_enqueue_automatic_processing(self) -> None:
+        from web.app import _enqueue_job
+
+        session_id = "2026-10-24_10-30-00"
+        recording_id = "recording-1"
+        jobs = {recording_id: {
+            "id": recording_id, "kind": "recording", "session_id": session_id,
+            "state": "running", "phase": "processing", "message": "Enregistrement terminé",
+            "created_at": "2026-10-24T10:30:00+00:00", "updated_at": "2026-10-24T10:30:01+00:00",
+            "started_at": "2026-10-24T10:30:00+00:00", "finished_at": None,
+            "error": None, "queue_position": None, "_payload": {},
+        }}
+
+        with patch("web.app._initialize_persistence"), \
+             patch("web.app.JOBS", jobs), \
+             patch("web.app.CANCEL_EVENTS", {}), \
+             patch("web.app.PROCESSING_QUEUE_IDS", []), \
+             patch("web.app.PROCESSING_QUEUE") as processing_queue, \
+             patch("web.app._persist_job_locked"), \
+             patch("web.app._refresh_queue_positions_locked"), \
+             patch("web.app._prune_job_history_locked"), \
+             patch("web.app._ensure_processing_worker"):
+            queued = _enqueue_job(
+                "process", "Traitement complet ajouté à la file", lambda _job_id: None,
+                session_id=session_id,
+                payload={"type": "session", "action": "process", "session_id": session_id},
+                complete_recording_job_id=recording_id,
+            )
+
+        self.assertEqual(jobs[recording_id]["state"], "completed")
+        self.assertEqual(jobs[recording_id]["phase"], "completed")
+        self.assertIn("ajout du traitement à la file", jobs[recording_id]["message"])
+        self.assertEqual(queued["state"], "queued")
+        self.assertEqual(queued["session_id"], session_id)
+        processing_queue.put.assert_called_once()
+
     def test_devices_response_schema_accepts_structured_device_records(self) -> None:
         payload = {
             "microphones": ["USB Microphone"],

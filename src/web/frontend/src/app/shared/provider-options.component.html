@@ -25,11 +25,11 @@
         <strong>Dépendances Python</strong>
         @if (provider().python_install_runtime_available) {
           <button class="btn btn--secondary btn--small" type="button" [disabled]="installingPython()" (click)="installPythonDependencies()">
-            @if (installingPython()) { Installation… } @else { Installer / mettre à jour }
+            @if (installingPython()) { Installation… } @else { Installer les dépendances }
           </button>
         }
       </div>
-      <small class="field-note">Installe les dépendances dans l’environnement Python qui exécute Glimio ; Internet est nécessaire. Ce bouton ne télécharge aucun modèle ni binaire natif.</small>
+      <small class="field-note">Installe les dépendances Python nécessaires au provider. Depuis les sources, elles rejoignent l’environnement Python actif ; dans une édition précompilée, elles s’installent dans un runtime Python isolé téléchargé à la première installation. Internet est nécessaire. Les modèles et binaires natifs restent séparés.</small>
       @if (provider().python_install_note) { <small class="field-note" data-no-translate>{{ providerText(provider().python_install_note) }}</small> }
       @if (!provider().python_install_runtime_available && provider().python_install_block_reason) {
         <p class="provider-install-unavailable">{{ provider().python_install_block_reason }} Les liens d’installation et de modèles ci-dessous restent disponibles.</p>
