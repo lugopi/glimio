@@ -1,0 +1,15 @@
+@reference '../../styles/tailwind-ref.scss';
+
+:host { @apply block min-w-0; }
+:host(.session-list) { @apply gap-0 p-0; }
+.selectable-list-content { @apply grid min-w-0 gap-0; }
+.selectable-list-content--surface { @apply overflow-hidden rounded-xl border border-border-soft bg-surface; }
+.selectable-list-content--scrollable { @apply max-h-72 overflow-y-auto; }
+.selectable-list-row { @apply relative min-w-0; }
+.selectable-list-row + .selectable-list-row { @apply border-t border-border-soft; }
+.selectable-list-row.is-highlighted { @apply bg-accent-soft; }
+.selectable-list-row.is-highlighted::before {
+  content: '';
+  @apply pointer-events-none absolute inset-y-0 left-0 z-10 w-[3px] bg-accent;
+}
+.selectable-list-row.is-muted { @apply opacity-70; }

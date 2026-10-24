@@ -1,0 +1,35 @@
+<div class="session-picker">
+  <div class="session-picker-heading"><strong>Limiter la recherche aux séances choisies</strong><span>{{ selectedCount + ' sélectionnée(s)' }}</span></div>
+  <label class="sr-only" for="search-session-filter">Rechercher une séance existante</label>
+  <input class="input session-filter-input" id="search-session-filter" type="search" [ngModel]="filter" (ngModelChange)="filterChange.emit($event)" placeholder="Rechercher une séance par titre…" />
+  <glimio-selectable-list
+    class="search-session-picker-list"
+    [items]="sessions"
+    [trackKey]="sessionTrackKey"
+    [highlighted]="sessionIsHighlighted"
+    [scrollable]="true"
+  >
+    <ng-template #row let-session>
+      <article class="session-card search-session-picker-card">
+        <label class="search-session-picker-option">
+          <input type="checkbox" [checked]="isSelected(session.id)" (change)="toggleSession.emit(session)" />
+          <span class="search-session-picker-copy">
+            <span class="session-card-top">
+              <span class="session-date">{{ dateLabel(session.started_at, session.id) }}</span>
+              <span class="session-markers">
+                @if (session.duration_seconds != null) { <span class="badge"><glimio-icon name="clock" size="fill" /> {{ durationLabel(session.duration_seconds) }}</span> }
+                @if (session.summary) { <span class="badge badge--success">Résumé</span> }
+                @if (session.transcript) { <span class="badge">Transcription</span> }
+                @if (session.audio) { <span class="badge">Audio</span> }
+              </span>
+            </span>
+            <strong data-no-translate="true">{{ session.title }}</strong>
+            <span class="session-card-description">{{ session.summary_excerpt || (session.transcript ? 'Transcription disponible' : session.audio ? 'Audio disponible' : 'Aucun document reconnu pour le moment.') }}</span>
+          </span>
+        </label>
+      </article>
+    </ng-template>
+    <ng-template #empty><p class="empty-session-options">Aucune séance correspondante.</p></ng-template>
+  </glimio-selectable-list>
+  <div class="session-picker-footer"><span>Sans sélection, toute la bibliothèque est recherchée.</span><button class="btn btn--secondary btn--small" type="button" (click)="close.emit()">Fermer</button></div>
+</div>

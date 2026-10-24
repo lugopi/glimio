@@ -3,32 +3,6 @@
 :host { @apply block min-w-0; }
 .control-grid > *, .device-grid > * { @apply min-w-0; }
 
-.common-processing-fields > div { @apply min-w-0; }
-.common-processing-fields > .processing-basics { @apply col-span-full grid min-w-0 gap-4; }
-.processing-quality { @apply grid min-w-0 grid-cols-1 gap-2; }
-.processing-quality .field-label { @apply mb-2; }
-.processing-quality .field-note { @apply m-0; }
-.processing-content-group { @apply grid min-w-0 gap-3 border-t border-border-soft pt-4; }
-.processing-content-group > .card-title { @apply m-0 text-sm; }
-.processing-content-fields { @apply grid min-w-0 grid-cols-2 items-start gap-[14px]; }
-.processing-content-fields:not(:has(> :nth-child(2))) { @apply grid-cols-1; }
-.processing-content-fields > * { @apply min-w-0; }
-.processing-content-fields .field-label { @apply mb-2; }
-.processing-content-fields .field-note { @apply mt-2; }
-.common-processing-fields > .processing-extras { @apply col-span-full min-w-0 border-t border-border-soft pt-4; }
-.processing-extras > .card-title { @apply mb-3; }
-.processing-extras-grid { @apply grid grid-cols-2 items-start gap-[14px]; }
-.common-processing-fields .field-label { @apply mb-2; }
-.common-processing-fields .field-note { @apply mt-2; }
-.common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-label,
-.common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-note { @apply m-0; }
-.common-processing-fields .diarization-option { @apply grid content-start gap-3; }
-.common-processing-fields .speaker-count-field { @apply grid gap-2; }
-.common-processing-fields .diarization-option .field-label,
-.common-processing-fields .diarization-option .field-note { @apply m-0; }
-.common-processing-fields .normalization-gain-control { @apply mt-3 grid gap-2 border-0 bg-transparent p-0; }
-.common-processing-fields .normalization-gain-control .field-label { @apply m-0 flex-wrap justify-between gap-2; }
-.common-processing-fields .normalization-gain-control .range-input { @apply m-0 block w-full; }
 .audio-source-builder { @apply mt-2 grid min-w-0 gap-3; }
 .source-add-row { @apply grid min-w-0 items-end gap-2.5; grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr) auto; }
 .source-add-row > * { @apply min-w-0; }

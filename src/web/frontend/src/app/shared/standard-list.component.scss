@@ -1,0 +1,10 @@
+@reference '../../styles/tailwind-ref.scss';
+
+:host { @apply block min-w-0; }
+.standard-list-content { @apply grid min-w-0 gap-0; }
+.standard-list-content--surface { @apply overflow-hidden rounded-xl border border-border-soft bg-surface py-1; }
+.standard-list-content--scrollable { @apply max-h-72 overflow-y-auto; }
+.standard-list-row { @apply min-w-0; }
+.standard-list-row + .standard-list-row { @apply border-t border-border-soft; }
+.standard-list-row.is-highlighted { @apply bg-accent-soft shadow-[inset_3px_0_0_var(--c-accent)]; }
+.standard-list-row.is-muted { @apply opacity-70; }

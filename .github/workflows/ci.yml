@@ -1,9 +1,8 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -11,52 +10,59 @@ permissions:
 
 jobs:
   python-tests:
-    name: Tests Python
-    runs-on: windows-latest
+    name: Python tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.12']
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Installer le projet et les dépendances de test
-        run: python -m pip install -e ".[web,dev]"
-      - name: Exécuter la suite Python
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install project and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[web,dev]'
+
+      - name: Check version consistency
+        run: python scripts/build_release.py --check-version
+
+      - name: Run Python tests
         run: python -m pytest -q src/tests
 
-  frontend-tests:
-    name: Vérifications Angular
-    runs-on: windows-latest
+  frontend:
+    name: Angular checks and production build
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: src/web/frontend
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version-file: src/web/frontend/.nvmrc
           cache: npm
           cache-dependency-path: src/web/frontend/package-lock.json
-      - name: Installer les dépendances Angular verrouillées
+
+      - name: Install dependencies
         run: npm ci
-      - name: Vérifier les types Angular
+
+      - name: Type-check
         run: npm run typecheck
-      - name: Tests Angular
+
+      - name: Run frontend tests
         run: npm test
 
-  frontend-build:
-    name: Build Angular de production
-    runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: src/web/frontend
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: src/web/frontend/.nvmrc
-          cache: npm
-          cache-dependency-path: src/web/frontend/package-lock.json
-      - name: Installer les dépendances Angular verrouillées
-        run: npm ci
-      - name: Compiler Angular en production
+      - name: Build Angular production bundle
         run: npm run build

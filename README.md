@@ -49,34 +49,41 @@ Les poids IA et exécutables natifs sont volontairement exclus du dépôt Git. L
 
 ## Installation
 
-### Télécharger une édition Windows
+### Télécharger une édition précompilée
 
-Dans la page **Releases** du dépôt GitHub, télécharge l’installateur `Setup.exe` pour une installation classique, ou l’archive `portable.zip` si tu préfères extraire et lancer l’application sans installateur. Les deux formats existent pour chacune des éditions : **CLI**, **Web** et **Web avec diarisation**. L’édition Web inclut aussi le CLI et son interface Angular précompilée ; Node.js n’est pas nécessaire pour l’utiliser.
+Dans la page **Releases** du dépôt GitHub, choisis l’une des deux éditions : **CLI** pour travailler depuis la ligne de commande, ou **Web** pour l’interface dans le navigateur (qui inclut aussi le CLI). Il n’y a plus d’édition séparée « Web avec diarisation » : le runtime Python `sherpa-onnx` est inclus dans les deux éditions pour éviter de multiplier les variantes. Les deux modèles ONNX de diarisation restent à télécharger et configurer séparément.
 
-Les exécutables Whisper/llama.cpp, FFmpeg et les poids de modèles ne sont pas inclus. Configure leurs emplacements dans **Paramètres** après l’installation ; les modèles et leurs conditions restent documentés dans [`docs/MODELS.md`](docs/MODELS.md). Les données de l’application empaquetée sont conservées dans `%LOCALAPPDATA%\Glimio\Data` et séparées du dossier d’installation.
+- **Windows x64** : installateur `Setup.exe` ou archive `portable.zip` pour chaque édition.
+- **Linux x86_64** : archive `.tar.gz` pour chaque édition ; build basé sur Ubuntu 22.04 (glibc 2.35 ou plus récent). Extrait-la puis lance les exécutables indiqués dans `LISEZ-MOI.txt`.
+
+Les exécutables Whisper/llama.cpp, FFmpeg et les poids de modèles ne sont pas inclus. Configure leurs emplacements dans **Paramètres** après l’installation ; les modèles et leurs conditions restent documentés dans [`docs/MODELS.md`](docs/MODELS.md). Les données de l’application empaquetée sont conservées dans `%LOCALAPPDATA%\Glimio\Data` sous Windows et dans `$XDG_DATA_HOME/Glimio/Data` sous Linux si `XDG_DATA_HOME` est défini, sinon `~/.local/share/Glimio/Data`, séparées du dossier d’installation.
 
 ### Installer depuis les sources
 
-Depuis la racine du dépôt complet, avec Python 3.10 ou plus récent :
+Depuis la racine du dépôt complet, avec Python 3.10 ou plus récent, choisis les extras nécessaires :
 
-```powershell
-py -3.10 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -e ".[web,diarization]"
+```bash
+# Web + diarisation
+python -m pip install -e ".[web,diarization]"
+
+# Web sans le runtime de diarisation
+python -m pip install -e ".[web]"
+
+# CLI avec diarisation
+python -m pip install -e ".[diarization]"
+
+# CLI sans diarisation
+python -m pip install -e .
 ```
 
-Sans diarisation :
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[web]"
-```
+La diarisation reste donc un extra **optionnel depuis les sources**. Dans les paquets précompilés, `sherpa-onnx` est déjà embarqué dans les éditions CLI et Web, mais les deux fichiers modèle ONNX doivent toujours être téléchargés séparément.
 
 Télécharge manuellement les outils et modèles depuis les sources de [`docs/MODELS.md`](docs/MODELS.md). Place-les aux chemins par défaut ou configure-les dans **Paramètres**.
 
 Démarre l’application :
 
-```powershell
-.\.venv\Scripts\python.exe -m web
+```bash
+python -m web
 ```
 
 L’interface locale est normalement ouverte à `http://127.0.0.1:8765`. Le serveur écoute sur la boucle locale par défaut. Ne l’expose pas sur un réseau non fiable : Glimio n’implémente actuellement pas d’authentification.
@@ -87,12 +94,12 @@ Le CLI peut enregistrer avec `glimio record` (Ctrl+C pour arrêter) et accepte a
 
 | Élément | Chemin attendu par défaut |
 |---|---|
-| Whisper CLI | `bin/asr/whisper-cli.exe` |
+| Whisper CLI | `bin/asr/whisper-cli` (Linux) / `bin/asr/whisper-cli.exe` (Windows) |
 | Modèle Whisper large-v3 | `models/asr/model.bin` |
 | Modèle VAD Silero (optionnel) | `models/asr/ggml-silero-v6.2.0.bin` |
-| Binaire DeepFilterNet (optionnel) | `bin/speech/deep-filter.exe` (adapter sur Linux/macOS) |
+| Binaire DeepFilterNet (optionnel) | `bin/speech/deep-filter` (Linux) / `bin/speech/deep-filter.exe` (Windows) |
 | Modèle DeepFilterNet (optionnel) | `models/speech-enhancement/model.tar.gz` |
-| llama.cpp | `bin/llm/llama-completion.exe` |
+| llama.cpp | `bin/llm/llama-completion` (Linux) / `bin/llm/llama-completion.exe` (Windows) |
 | Modèle LFM2.5 GGUF | `models/llm/model.gguf` |
 | Modèle de segmentation | `models/diarization/segmentation/segmentation.onnx` |
 | Modèle d’embedding Titanet | `models/diarization/embedding/embedding.onnx` |

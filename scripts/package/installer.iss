@@ -1,8 +1,8 @@
 #ifndef AppVersion
-  #error "AppVersion must be supplied as /DAppVersion=0.4.2"
+  #error "AppVersion must be supplied as /DAppVersion=0.5.0"
 #endif
 #ifndef Edition
-  #error "Edition must be supplied as /DEdition=cli|web|web-diarization"
+  #error "Edition must be supplied as /DEdition=cli|web"
 #endif
 #ifndef PayloadDir
   #error "PayloadDir must point to the prepared payload folder"
@@ -13,7 +13,7 @@
 #elif Edition == "web"
   #define ProductName "Glimio Web"
 #else
-  #define ProductName "Glimio Web avec diarisation"
+  #error "Edition must be cli or web"
 #endif
 
 [Setup]
@@ -50,13 +50,8 @@ Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 [Icons]
 #if Edition == "cli"
 Name: "{autoprograms}\{#ProductName} — aide"; Filename: "{app}\GlimioCLI\GlimioCLI.exe"; Parameters: "--help"; WorkingDir: "{localappdata}\Glimio\Data"
+Name: "{autodesktop}\{#ProductName}"; Filename: "{app}\GlimioCLI\GlimioCLI.exe"; Parameters: "--help"; WorkingDir: "{localappdata}\Glimio\Data"; Tasks: desktopicon
 #else
 Name: "{autoprograms}\{#ProductName}"; Filename: "{app}\GlimioWeb\GlimioWeb.exe"; WorkingDir: "{localappdata}\Glimio\Data"
+Name: "{autodesktop}\{#ProductName}"; Filename: "{app}\GlimioWeb\GlimioWeb.exe"; WorkingDir: "{localappdata}\Glimio\Data"; Tasks: desktopicon
 #endif
-Name: "{autodesktop}\{#ProductName}"; Filename: "{app}\GlimioWeb\GlimioWeb.exe"; WorkingDir: "{localappdata}\Glimio\Data"; Tasks: desktopicon; Check: IsWebEdition
-
-[Code]
-function IsWebEdition(): Boolean;
-begin
-  Result := '{#Edition}' <> 'cli';
-end;

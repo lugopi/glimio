@@ -30,19 +30,6 @@
 :host .source-item strong { @apply text-[0.8125rem]; }
 :host .source-meta { @apply mt-1 text-[0.75rem] text-subtle; overflow-wrap: anywhere; }
 :host .source-excerpt { @apply mt-[9px] text-[0.8125rem] leading-[1.65] text-muted; white-space: pre-wrap; }
-:host .search-source-results { @apply min-w-0; }
-:host .search-source-list { @apply mt-3 gap-2 p-0; }
-:host .search-source-card { @apply rounded-[11px] border border-border-soft bg-surface-raised px-4 py-[13px]; }
-:host .search-source-card > strong { @apply mb-2 block text-sm font-semibold; overflow-wrap: anywhere; }
-:host .search-source-excerpt { @apply mt-1 whitespace-pre-line; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
-:host .search-source-footer { @apply mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3; }
-:host .search-source-meta { @apply min-w-0 text-xs text-subtle; overflow-wrap: anywhere; }
-:host .source-open { @apply ml-auto mt-0 shrink-0; }
-:host .search-source-pagination-footer { @apply mt-3 flex min-w-0 flex-nowrap items-center justify-between gap-3 border-t border-border-soft pt-3; }
-:host .search-source-pagination-footer .page-size-control { @apply flex shrink-0 items-center gap-2; }
-:host .search-source-pagination-footer .field-label { @apply mb-0 whitespace-nowrap; }
-:host .search-source-pagination-footer .select { @apply min-h-9 min-w-[76px] w-[76px]; }
-:host .search-source-pagination-footer glimio-pagination { @apply min-w-0 flex-1; }
 :host .search-answer-markdown { @apply mt-0 rounded-none border-0 bg-transparent p-0; }
 :host .search-answer-markdown > :first-child { @apply mt-0; }
 @media (width < theme(--breakpoint-md)) {
@@ -55,10 +42,35 @@
   :host .ai-run-button { min-width: 118px; }
   :host .source-item { grid-template-columns: 24px minmax(0, 1fr); }
   :host .source-item .source-open { grid-column: 2; justify-self: start; }
-  :host .search-source-card { @apply px-3 py-3; }
-  :host .search-source-footer { @apply items-start; }
-  :host .source-open { @apply ml-auto; }
-  :host .search-source-pagination-footer { @apply flex-col items-stretch; }
-  :host .search-source-pagination-footer .page-size-control { @apply justify-between; }
-  :host .search-source-pagination-footer glimio-pagination { @apply w-full flex-none; }
 }
+
+:host .selected-session-list { @apply mb-3 flex flex-wrap items-center gap-2; }
+:host .selected-session-chip { @apply inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 text-xs text-muted; }
+:host .selected-session-chip > span { @apply max-w-[240px] truncate; }
+:host .selected-session-chip > glimio-icon { @apply size-3.5 shrink-0 text-accent; }
+:host .chip-remove { @apply inline-flex size-5 shrink-0 items-center justify-center rounded-full text-subtle; }
+:host .chip-remove:hover { background: var(--c-surface-hover); color: var(--c-text); }
+:host .chip-remove glimio-icon { @apply size-3; }
+:host .text-action { @apply px-1 py-1 text-xs text-accent underline underline-offset-2; }
+:host .ai-composer { position: relative; }
+:host .session-suggestions { @apply relative z-20 max-h-64 overflow-y-auto border-x border-t border-border-soft bg-surface p-2; box-shadow: 0 8px 18px rgb(0 0 0 / .12); }
+:host .session-suggestions-label { @apply px-2 py-1.5 text-[0.7rem] font-bold uppercase tracking-wide text-subtle; }
+:host .session-suggestion { @apply flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-left text-xs; }
+:host .session-suggestion:hover, :host .session-suggestion:focus-visible { background: var(--c-surface-hover); outline: none; }
+:host .session-suggestion > glimio-icon { @apply size-4 shrink-0 text-accent; }
+:host .session-suggestion-copy { @apply grid min-w-0 flex-1 gap-0.5; }
+:host .session-suggestion-copy strong { @apply truncate font-semibold text-text; }
+:host .session-suggestion-copy small { @apply truncate text-[0.7rem] text-subtle; }
+@media (width < theme(--breakpoint-sm)) {
+  :host .ai-search-actions { @apply w-full flex-wrap; }
+  :host .ai-search-actions .ai-run-button { @apply ml-auto; }
+}
+
+
+/* Match the session picker to the library's card list while retaining checkbox selection. */
+:host .search-answer-heading { @apply items-center; }
+:host .search-answer-heading h2 { @apply min-w-0 flex-1; }
+:host .search-summary-actions-menu { @apply relative shrink-0; }
+:host .search-summary-actions-menu .session-actions-toggle { @apply size-9 min-h-9 min-w-9; }
+:host .search-summary-actions-menu .session-actions-icon glimio-icon { @apply size-4; }
+:host .search-summary-actions-menu .session-actions-panel { @apply min-w-[12.5rem]; }

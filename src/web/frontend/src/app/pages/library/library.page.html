@@ -19,9 +19,14 @@
         </select>
       </div>
       <div class="library-stats"><strong>{{ total() }}</strong> séance(s) <span>·</span> <span>{{ sessionsWithSummary() }} résumé(s) sur cette page</span></div>
-      <div class="session-list">
-        @for (session of pageItems(); track session.id) {
-          <article class="session-card" [class.is-selected]="selectedId() === session.id">
+      <glimio-selectable-list
+        class="session-list"
+        [items]="pageItems()"
+        [trackKey]="sessionTrackKey"
+        [highlighted]="sessionIsHighlighted"
+      >
+        <ng-template #row let-session>
+          <article class="session-card">
             <button class="session-card-select" [attr.aria-pressed]="selectedId() === session.id" type="button" (click)="openSession(session.id, true)" [attr.aria-label]="'Ouvrir la séance ' + session.title">
               <span class="session-card-top">
                 <span class="session-date">{{ dateLabel(session.started_at, session.id) }}</span>
@@ -44,10 +49,11 @@
               </div>
             }
           </article>
-        } @empty {
+        </ng-template>
+        <ng-template #empty>
           <div class="library-empty">Aucune séance trouvée. Enregistrez une séance ou importez un fichier depuis le centre de pilotage.</div>
-        }
-      </div>
+        </ng-template>
+      </glimio-selectable-list>
       <div class="library-pagination-footer">
         <div class="page-size-control"><label class="field-label" for="session-page-size">Séances par page</label><select class="select" id="session-page-size" [ngModel]="pageSize()" (ngModelChange)="changePageSize($event)"><option [ngValue]="10">10</option><option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option></select></div>
         <glimio-pagination [page]="page()" [pageSize]="pageSize()" [totalItems]="total()" label="Pagination de la bibliothèque" (pageChange)="changePage($event)" />
@@ -165,17 +171,15 @@
             <h3 id="session-audio-title">Pistes audio</h3>
             <div class="audio-track-list">
               @for (track of session.audio_tracks; track track) {
-                <div class="audio-track" [class.is-audio-track-disabled]="isAudioTrackDisabled(track)">
-                  <div class="audio-track-title"><strong>{{ trackLabel(track) }}</strong><small>{{ track }}</small>@if (isAudioTrackDisabled(track)) { <span class="audio-track-disabled-label">Désactivée pour les prochains traitements</span> }</div>
-                  <audio controls preload="metadata" [src]="audioUrl(session.id, track)">Votre navigateur ne prend pas en charge la lecture audio.</audio>
-                  <details class="session-actions-menu audio-track-actions audio-track-actions-menu" #trackActionsMenu>
-                    <summary class="session-actions-toggle" [attr.aria-label]="'Actions pour la piste ' + track"><span class="session-actions-icon"><glimio-icon name="bars-3" size="fill" /></span></summary>
-                    <div class="session-actions-panel">
-                      <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled() || summaryEditing() || !canDisableAudioTrack(track)" [title]="!canDisableAudioTrack(track) ? 'Au moins une piste doit rester active' : ''" (click)="setAudioTrackDisabled(track, !isAudioTrackDisabled(track)); trackActionsMenu.open = false"><glimio-icon [name]="isAudioTrackDisabled(track) ? 'eye' : 'eye-slash'" /><span class="btn-label">{{ isAudioTrackDisabled(track) ? 'Réactiver' : 'Désactiver' }}</span></button>
-                      <button class="btn btn--ghost btn--small is-danger" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="deleteAudioTrack(track); trackActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer le fichier</span></button>
-                    </div>
-                  </details>
-                </div>
+                <glimio-audio-track-item
+                  [track]="track"
+                  [label]="trackLabel(track)"
+                  [src]="audioUrl(session.id, track)"
+                  [disabled]="isAudioTrackDisabled(track)"
+                  [canDisable]="canDisableAudioTrack(track)"
+                  [actionsDisabled]="processingActionDisabled() || summaryEditing()"
+                  (toggleDisabled)="setAudioTrackDisabled(track, !isAudioTrackDisabled(track))"
+                  (deleteTrack)="deleteAudioTrack(track)" />
               }
             </div>
           </section>

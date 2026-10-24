@@ -11,6 +11,8 @@ import tempfile
 import threading
 from pathlib import Path
 
+from ..project_paths import DEFAULT_DEEP_FILTER_EXECUTABLE_PATH
+
 
 VALID_MODES = {"auto", "off", "ffmpeg", "deepfilter"}
 
@@ -63,7 +65,7 @@ def enhance_for_transcription(
     *,
     mode: str = "auto",
     ffmpeg: str = "ffmpeg",
-    deep_filter_executable: str | Path = "bin/speech/deep-filter.exe",
+    deep_filter_executable: str | Path = DEFAULT_DEEP_FILTER_EXECUTABLE_PATH,
     deep_filter_model: str | Path = "models/speech-enhancement/model.tar.gz",
     cancel_event: threading.Event | None = None,
 ) -> tuple[Path, str]:

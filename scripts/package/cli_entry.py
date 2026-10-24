@@ -11,8 +11,11 @@ import sys
 def _configure_data_root() -> None:
     if not getattr(sys, "frozen", False):
         return
-    local_app_data = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-    os.environ.setdefault("GLIMIO_PROJECT_ROOT", str(local_app_data / "Glimio" / "Data"))
+    if os.name == "nt":
+        data_root = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local"))
+    else:
+        data_root = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+    os.environ.setdefault("GLIMIO_PROJECT_ROOT", str(data_root / "Glimio" / "Data"))
 
 
 _configure_data_root()

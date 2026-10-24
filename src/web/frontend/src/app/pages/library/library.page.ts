@@ -10,6 +10,8 @@ import { PreferencesService } from '../../core/preferences.service';
 import { ToastService } from '../../core/toast.service';
 import { CheckboxFieldComponent } from '../../shared/checkbox-field.component';
 import { IconComponent } from '../../shared/icon.component';
+import { SelectableListComponent } from '../../shared/selectable-list.component';
+import { AudioTrackItemComponent } from '../../shared/audio-track-item.component';
 import { PaginationComponent } from '../../shared/pagination.component';
 import { ProviderOptionsComponent } from '../../shared/provider-options.component';
 import { DocumentExportService } from '../../shared/document-export.service';
@@ -24,7 +26,7 @@ const ARTIFACT_TAIL_CODE_POINTS = 64;
 
 @Component({
   standalone: true,
-    imports: [FormsModule, DecimalPipe, RouterLink, CheckboxFieldComponent, IconComponent, PaginationComponent, ProviderOptionsComponent],
+    imports: [AudioTrackItemComponent, FormsModule, DecimalPipe, RouterLink, CheckboxFieldComponent, IconComponent, PaginationComponent, ProviderOptionsComponent, SelectableListComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './library.page.html',
   styleUrl: './library.page.scss',
@@ -94,6 +96,8 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   private jobsSubscription?: Subscription;
   private artifactSubscription?: Subscription;
   readonly pageItems = computed(() => this.sessions());
+  readonly sessionTrackKey = (session: SessionSummary, _index: number) => session.id;
+  readonly sessionIsHighlighted = (session: SessionSummary) => this.selectedId() === session.id;
   readonly sessionsWithSummary = computed(() => this.sessions().filter(session => session.summary).length);
 
   providerText(provider: ProviderStatus, value: string): string {
@@ -275,7 +279,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     this.mobileDetailOpen.set(false);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        document.querySelector<HTMLElement>('.session-card.is-selected')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.querySelector<HTMLElement>('.selectable-list-row.is-highlighted')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
     });
   }

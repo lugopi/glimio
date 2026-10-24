@@ -10,7 +10,9 @@ from pathlib import Path
 from . import __version__
 from .media import audio
 from .processing import minutes, pipeline, transcription
-from .project_paths import discover_project_root
+from .project_paths import (
+    DEFAULT_LLAMA_COMPLETION_PATH, DEFAULT_WHISPER_CLI_PATH, discover_project_root,
+)
 from .providers.events import reset_provider_event_callback, set_provider_event_callback
 from .providers import (
     DEFAULT_TEXT_PROVIDER, DEFAULT_TRANSCRIPTION_PROVIDER,
@@ -37,7 +39,7 @@ def _project_path(value: str) -> str:
 def _add_processing_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("target", nargs="?", help="Fichier audio/vidéo ou dossier d’une séance (par défaut : dernière séance admissible).")
     parser.add_argument("--directory", default=str(PROJECT_ROOT / "seances"), help="Dossier des séances (défaut : seances/).")
-    parser.add_argument("--whisper-cli", default="bin/asr/whisper-cli.exe", help="Chemin vers whisper-cli.")
+    parser.add_argument("--whisper-cli", default=DEFAULT_WHISPER_CLI_PATH, help="Chemin vers whisper-cli.")
     parser.add_argument("--model", default="models/asr/model.bin", help="Chemin vers le modèle Whisper.")
     parser.add_argument("--language", default="auto", help="Langue de transcription (ex. fr, en ou auto).")
     parser.add_argument("--threads", type=int, default=DEFAULT_THREADS, help="Nombre de threads CPU pour Whisper.")
@@ -54,12 +56,12 @@ def _add_processing_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--vad-mode", choices=("auto", "on", "off"), default=None, help="Détection de parole Whisper.cpp : auto si le modèle est installé, on ou off.")
     parser.add_argument("--vad-model", default=None, help="Chemin vers le modèle VAD Silero de whisper.cpp.")
     parser.add_argument("--vad-threshold", type=float, default=None, help="Seuil VAD entre 0.05 et 0.95 (défaut : 0.5).")
-    parser.add_argument("--diarize", action="store_true", help="Activer la diarisation (requiert l’édition avec diarisation et ses modèles).")
+    parser.add_argument("--diarize", action="store_true", help="Activer la diarisation (requiert sherpa-onnx et ses modèles ONNX).")
     parser.add_argument("--segmentation-model", default="models/diarization/segmentation/segmentation.onnx")
     parser.add_argument("--embedding-model", default="models/diarization/embedding/embedding.onnx")
     parser.add_argument("--speakers", type=int, default=-1, help="Nombre d’interlocuteurs, -1 pour automatique.")
     parser.add_argument("--diarization-threshold", type=float, default=0.5)
-    parser.add_argument("--llama-completion", default="bin/llm/llama-completion.exe", help="Chemin vers llama-completion.")
+    parser.add_argument("--llama-completion", default=DEFAULT_LLAMA_COMPLETION_PATH, help="Chemin vers llama-completion.")
     parser.add_argument("--text-provider", choices=TEXT_PROVIDER_IDS, default=DEFAULT_TEXT_PROVIDER, help="Provider de génération.")
     parser.add_argument("--transcription-provider", choices=TRANSCRIPTION_PROVIDER_IDS, default=DEFAULT_TRANSCRIPTION_PROVIDER, help="Provider de transcription.")
     parser.add_argument("--gguf", default="models/llm/model.gguf", help="Chemin vers le modèle GGUF.")

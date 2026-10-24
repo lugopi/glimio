@@ -1,14 +1,17 @@
 # Préparer une release Glimio
 
-## Formats publiés
+## Artefacts publiés
 
-Chaque release Windows x64 fournit six fichiers : un installateur et une archive portable pour chacune de ces éditions :
+Chaque release produit six artefacts applicatifs pour x64. Les archives Linux sont compilées sur Ubuntu 22.04 x86_64 et requièrent glibc 2.35 ou plus récent : ce ne sont pas des binaires universels pour toutes les distributions Linux.
 
-- **CLI** : capture et traitement audio depuis la ligne de commande.
-- **Web** : application locale dans le navigateur, avec le CLI.
-- **Web avec diarisation** : édition Web et CLI avec `sherpa-onnx` inclus.
+- **Windows CLI** : archive portable `zip` et installateur `Setup.exe`.
+- **Windows Web** : archive portable `zip` et installateur `Setup.exe`. Cette édition inclut aussi le CLI.
+- **Linux CLI** : archive portable `tar.gz`.
+- **Linux Web** : archive portable `tar.gz`. Cette édition inclut aussi le CLI.
 
-Les exécutables Whisper/llama.cpp, FFmpeg et les poids des modèles ne sont pas inclus. Ils ont des licences, variantes matérielles et conditions de téléchargement distinctes. Les chemins sont configurés dans Paramètres et les sources officielles sont décrites dans [`MODELS.md`](MODELS.md). Les données de l’édition empaquetée restent sous `%LOCALAPPDATA%\Glimio\Data`, séparées du dossier installé.
+Il n’existe plus d’édition séparée « Web avec diarisation ». Le runtime `sherpa-onnx` est embarqué dans les deux éditions afin que le catalogue de providers et la fonction de diarisation n’exigent pas une variante de téléchargement distincte. **La diarisation reste optionnelle dans une installation depuis les sources** (`.[diarization]`) ; les fichiers de modèles ONNX restent à télécharger et configurer séparément dans toutes les éditions. Les exécutables Whisper/llama.cpp, FFmpeg et leurs modèles ne sont pas redistribués. Les licences et sources officielles sont documentées dans [`MODELS.md`](MODELS.md) et [`LICENSING.md`](LICENSING.md).
+
+Les données des paquets Windows sont conservées sous `%LOCALAPPDATA%\Glimio\Data`. Sous Linux, elles sont stockées dans `$XDG_DATA_HOME/Glimio/Data` si `XDG_DATA_HOME` est défini, sinon `~/.local/share/Glimio/Data`. Les applications empaquetées utilisent le runtime Python inclus et n’ont pas besoin d’un environnement Python ni, pour l’édition Web, de Node.js installés sur la machine.
 
 ## Publier une version
 
@@ -17,21 +20,21 @@ Les exécutables Whisper/llama.cpp, FFmpeg et les poids des modèles ne sont pas
 3. Créer et pousser un tag annoté correspondant exactement à la version :
 
    ```powershell
-   git tag -a v0.4.3 -m "Glimio 0.4.3"
-   git push origin v0.4.3
+   git tag -a v0.5.0 -m "Glimio 0.5.0"
+   git push origin v0.5.0
    ```
 
-4. Le workflow `Build and release` vérifie les versions, exécute les tests Python et Angular, construit les éditions et produit les installateurs et archives portables. Les fichiers sont d’abord publiés dans une **release brouillon** avec leurs sommes SHA-256.
-5. Dans GitHub, vérifier les six fichiers, les notes générées et `SHA256SUMS.txt`, puis publier le brouillon.
+4. Le workflow `Build and release` valide la correspondance du tag, des versions du projet et du changelog, exécute les tests Python et Angular, puis construit les paquets Windows x64 et Linux x86_64. Chaque release est d’abord publiée dans une **release brouillon**, accompagnée de `SHA256SUMS.txt`.
+5. Dans GitHub, vérifier les six artefacts applicatifs, les notes issues de la section correspondante du changelog et les sommes SHA-256, puis publier le brouillon.
 
-Les workflows sont dans `.github/workflows/`. La CI sépare les tests Python, les vérifications Angular et le build Angular en jobs indépendants qui peuvent s’exécuter en parallèle. Sur une release, les tests Python, les vérifications Angular et le build Angular sont également séparés ; les trois paquets attendent leur réussite. Une poussée de tag `vX.Y.Z` seule déclenche la préparation de release ; le workflow ne crée pas ni ne pousse le tag à ta place.
+Les workflows sont dans `.github/workflows/`. La CI sépare les tests Python (Python 3.10 et 3.12) et les vérifications Angular en jobs indépendants. La préparation d’une release attend ces deux jobs avant de construire quatre variantes OS/édition : Windows CLI, Windows Web, Linux CLI et Linux Web. Le workflow compile Angular une fois et réutilise le build pour les deux paquets Web ; chaque paquet gelé est validé avec un test de démarrage ciblé. Une poussée de tag `vX.Y.Z` seule déclenche la préparation de release ; le workflow ne crée pas ni ne pousse le tag à ta place.
 
 ## Continuer le développement depuis les sources
 
-Le paquet Windows ne modifie pas le parcours de développement du dépôt. Depuis la racine, l’installation éditable reste :
+Les paquets Windows et Linux ne modifient pas le parcours de développement du dépôt. Depuis la racine, l’installation éditable Web avec diarisation reste :
 
 ```powershell
 python -m pip install -e ".[web,diarization]"
 ```
 
-Le frontend continue à être développé et testé dans `src/web/frontend` avec `npm ci`, `npm run typecheck`, `npm test` et `npm run build`. Le démarrage depuis les sources peut reconstruire Angular si ses fichiers ont changé ; les exécutables de release, eux, servent le frontend Angular inclus et n’ont pas besoin de Node.js.
+Le frontend continue à être développé et testé dans `src/web/frontend` avec `npm ci`, `npm run typecheck`, `npm test` et `npm run build`. Le démarrage depuis les sources peut reconstruire Angular si ses fichiers ont changé ; les exécutables de release servent le frontend Angular inclus et n’ont pas besoin de Node.js. Pour une installation source sans diarisation, retire simplement `diarization` de la liste d’extras (`python -m pip install -e ".[web]"`).

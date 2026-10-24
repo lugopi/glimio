@@ -244,6 +244,9 @@ export interface JobsResponse {
 
 export interface SearchSource {
   source_number: number | string;
+  source_id?: string;
+  included?: boolean;
+  citation_number?: number | null;
   title: string;
   session_id: string;
   filename: string;
@@ -262,4 +265,5 @@ export interface SearchResult {
   answer?: string;
   llm_error?: string;
   sources?: SearchSource[];
+  session_ids?: string[];
 }

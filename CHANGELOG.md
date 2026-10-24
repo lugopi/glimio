@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.5.0 — recherche intelligente, providers audio et composants partagés — 2026-10-24
+
+- Recherche intelligente par séance : ajout du ciblage de séances existantes via `@` et le sélecteur de séances, pour limiter la recherche au périmètre souhaité.
+- Sélection des extraits pertinents : possibilité d’inclure ou d’exclure des extraits, de conserver les extraits exclus pour les restaurer, puis de confirmer explicitement avant de régénérer le résumé.
+- Régénération ciblée des résumés : nouvel endpoint permettant de recalculer le résumé à partir des extraits retenus sans relancer la récupération documentaire ; renumérotation des références de sources selon les extraits conservés.
+- Actions de recherche : ajout des exports et d’un menu d’actions pour les résumés de la recherche intelligente.
+- Listes réutilisables : création de `SelectableListComponent` pour partager le conteneur de liste, les séparateurs, les états de sélection et le highlight vertical entre la bibliothèque, le sélecteur de séances et les extraits pertinents.
+- États de sélection harmonisés : le highlight reste visible au survol et suit les coins arrondis du conteneur de liste, y compris aux extrémités ; les extraits exclus restent visibles mais sont distingués visuellement.
+- Lecteur audio : correction de l’emplacement du menu d’actions des pistes afin qu’il reste à droite et ne soit pas coupé par le conteneur du lecteur.
+- Styles Angular : extraction de styles réellement partagés et recours prioritaire aux utilitaires Tailwind avec `@apply`, y compris dans les media queries lorsque cela convient. Le budget d’avertissement des styles de composants reste à 12 kB (erreur à 20 kB).
+- Packaging et CI/CD : suppression de la variante séparée « Web avec diarisation » ; les éditions CLI et Web embarquent le runtime `sherpa-onnx`, tandis que les modèles restent séparés. Le pipeline publie des éditions Windows x64 (installateur et archive portable) et Linux x86_64 (`tar.gz`), après tests Python/Angular, validations de versions et contrôles des paquets.
+
 - État des providers après installation : Glimio interroge à nouveau l’API de disponibilité après l’installation des dépendances Python. Si le provider est prêt, l’interface l’indique immédiatement ; si les paquets restent invisibles au processus courant, elle recommande un redémarrage ; si seuls des modèles ou chemins manquent, elle les présente comme éléments de configuration sans demander un redémarrage inutile.
 - Traductions des providers isolées dans leurs propres métadonnées (`ProviderInfo.translations`) et renvoyées par l’API. Les libellés, options, choix et ressources de chaque intégration sont localisés depuis son catalogue ; le dictionnaire général ne doit contenir que les textes propres à l’application et les termes réellement partagés.
 - Styles des options providers : retrait d’un sélecteur SCSS mort et vérification que les règles d’options, d’installation et de ressources restent dans la feuille de style du composant partagé, en réutilisant les classes de formulaire et tokens de thème existants.

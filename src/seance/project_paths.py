@@ -6,6 +6,12 @@ from collections.abc import Iterable
 from pathlib import Path
 
 
+_EXECUTABLE_SUFFIX = ".exe" if os.name == "nt" else ""
+DEFAULT_WHISPER_CLI_PATH = f"bin/asr/whisper-cli{_EXECUTABLE_SUFFIX}"
+DEFAULT_LLAMA_COMPLETION_PATH = f"bin/llm/llama-completion{_EXECUTABLE_SUFFIX}"
+DEFAULT_DEEP_FILTER_EXECUTABLE_PATH = f"bin/speech/deep-filter{_EXECUTABLE_SUFFIX}"
+
+
 def _unique_paths(paths: Iterable[Path]) -> list[Path]:
     seen: set[str] = set()
     result: list[Path] = []

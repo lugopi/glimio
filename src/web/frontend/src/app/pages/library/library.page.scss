@@ -91,33 +91,17 @@
 .audio-stale-notice > div { @apply min-w-0 flex-1; }
 .audio-stale-notice strong { color: var(--c-text); }
 .audio-stale-notice p { @apply mt-1 mb-0 leading-relaxed; }
-.audio-track-list { max-height: min(55vh, 32rem); overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; padding-right: .25rem; }
-.audio-track { @apply min-w-0; }
-.audio-track audio { @apply w-full max-w-full; }
-.audio-track-title { @apply min-w-0; overflow-wrap: anywhere; }
-.audio-track-disabled-label { @apply mt-[3px] block text-xs text-warning; }
-.audio-track.is-audio-track-disabled { @apply opacity-80; }
-.audio-track-actions { @apply flex flex-wrap items-center gap-2; }
+.audio-track-list { min-width: 0; }
 @media (width < theme(--breakpoint-sm)) {
   .audio-stale-notice { @apply flex-wrap; }
   .audio-stale-notice > .btn { @apply w-full; }
-  .audio-track-actions > .btn { flex: 1 1 auto; }
 }
 
 /* Library polish: tab panel and status icons remain centered. */
 .session-card-status { @apply items-start; }
 .session-card-status > glimio-icon { @apply mt-px size-4 shrink-0 self-start; flex: 0 0 16px; }
 .session-card-status > .spinner { @apply mt-px shrink-0; }
-.audio-track { grid-template-columns: minmax(115px, 145px) minmax(0, 1fr) auto; }
-.audio-track-actions { display: block; justify-self: end; align-self: center; }
-.audio-track-actions-menu { @apply relative; }
-.audio-track-actions-menu .session-actions-toggle { @apply size-9; }
-.audio-track-actions-menu .session-actions-icon glimio-icon { @apply text-xl; }
-.audio-track-actions-menu .session-actions-panel { @apply min-w-[12rem]; }
 @media (width < theme(--breakpoint-sm)) {
-  .audio-track { @apply grid-cols-1; }
-  .audio-track-title, .audio-track audio { grid-column: 1; }
-  .audio-track-actions { grid-column: 1; justify-self: end; }
 }
 
 /* Compact the page-size control when the list column is narrow, without wrapping the paginator. */

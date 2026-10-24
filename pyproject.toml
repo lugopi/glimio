@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "glimio-notes"
-version = "0.4.4"
+version = "0.5.0"
 description = "Glimio — local audio recording and import, speech transcription, speaker diarization, AI summaries, and searchable session notes"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -27,6 +27,7 @@ web = [
 dev = [
     "pytest>=9.0",
     "pytest-cov>=6.0",
+    "tomli>=2.0; python_version < '3.11'",
 ]
 bundle = [
     "pyinstaller>=6.0",

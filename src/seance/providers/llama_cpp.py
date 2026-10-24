@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..llm import run_completion_once, run_completion_resilient
+from ..project_paths import DEFAULT_LLAMA_COMPLETION_PATH
 from .contracts import GenerationRequest, GenerationResult, ProviderEvent, ProviderInfo, ProviderOption, ProviderOptionChoice, ProviderResourceLink
 from .events import emit_provider_event
 
@@ -66,7 +67,7 @@ LLAMA_CPP_INFO = ProviderInfo(
         ),
         ProviderOption(
             key="llama_completion", label="Moteur de résumé", type="path",
-            default="bin/llm/llama-completion.exe",
+            default=DEFAULT_LLAMA_COMPLETION_PATH,
             description="Exécutable llama.cpp fourni avec l’installation.",
             required=True, advanced=True,
         ),
