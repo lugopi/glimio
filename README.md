@@ -36,7 +36,7 @@ Les transcriptions et résumés issus de modèles peuvent être erronés. Vérif
 ## Prérequis
 
 - Python **3.10+** et `pip`.
-- Node.js **22.22.3+** (branche 22) ou une version compatible plus récente pour compiler l’interface Angular ; la version cible est définie dans `src/web/frontend/.nvmrc`.
+- Toolchain cible : Python **3.14.9** et Node.js **26.12.1**. Le projet déclare Python `>=3.10` ; Angular 22 accepte aussi Node.js `^22.22.3` et `^24.15.0` (voir `src/web/frontend/package.json`). Les versions exactes de développement sont épinglées dans `mise.toml` et `.nvmrc`.
 - Windows recommandé pour la capture de l’audio système ; les possibilités dépendent du système et des pilotes.
 - FFmpeg et ffprobe sur le `PATH` (ou côte à côte) pour l’import fidèle de tous les flux audio, les conversions et le débruitage. Glimio échoue explicitement si ffprobe manque plutôt que de silencieusement ignorer les pistes secondaires.
 - Facultatif : exécutable `deep-filter` et archive modèle DeepFilterNet téléchargés séparément pour une amélioration neuronale de la voix.
@@ -143,7 +143,7 @@ Les composants sont séparés en fichiers `*.ts`, `*.html` et `*.scss`. Les styl
 
 L’interface servie à `/` est l’application Angular 22 ; FastAPI fournit l’API `/api/*` et sert le build Angular depuis `dist/glimio-web-ui`. Lorsqu’on démarre le serveur via le point d’entrée du projet, le build de l’interface est vérifié et reconstruit si nécessaire. Un simple import de `web.app` n’installe toutefois pas les dépendances et ne lance pas npm : les tests API peuvent s’exécuter indépendamment du build frontend.
 
-Utilise Node.js `22.22.3+` dans la branche 22 (ou une version compatible de la branche 24/26 ; la version cible 22.22.3 est dans `.nvmrc`). Les versions plus anciennes peuvent produire des avertissements `EBADENGINE` et ne constituent pas un environnement pris en charge. Depuis `src/web/frontend`, installe les dépendances verrouillées et exécute les contrôles dans cet ordre :
+Utilise la version cible Node.js `26.12.1` indiquée dans `src/web/frontend/.nvmrc` (Angular 22 accepte également Node.js `^22.22.3` et `^24.15.0`, conformément à `package.json`). Les versions hors de ces plages peuvent produire des avertissements `EBADENGINE` et ne constituent pas un environnement pris en charge. Depuis `src/web/frontend`, installe les dépendances verrouillées et exécute les contrôles dans cet ordre :
 
 ```powershell
 npm ci

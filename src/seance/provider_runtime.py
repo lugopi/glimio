@@ -20,6 +20,8 @@ from pathlib import Path, PurePosixPath
 from typing import Callable
 from urllib.request import Request, urlopen
 
+# Runtime for optional provider wheels only. Release builds use the project toolchain
+# (CPython 3.14.9); this pinned standalone build keeps ML provider wheel compatibility.
 PYTHON_RUNTIME_VERSION = "3.12.15"
 PYTHON_RUNTIME_BUILD = "20261001"
 _RUNTIME_RELEASE_URL = (

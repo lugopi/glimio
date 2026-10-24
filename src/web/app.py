@@ -92,8 +92,8 @@ def _install_frontend_dependencies() -> None:
     """Install front-end dependencies before building (no manual npm step needed)."""
     if shutil.which("npm") is None:
         raise SystemExit(
-            "npm est introuvable sur le PATH. Installez Node.js 22.22.3+ "
-            "(ou une version compatible 24/26), puis relancez Glimio."
+            "npm est introuvable sur le PATH. Installez Node.js 26.12.1 ou une version compatible avec Angular 22 "
+            "(voir les plages de versions dans package.json), puis relancez Glimio."
         )
     node_modules = FRONTEND_DIR / "node_modules"
     lock = FRONTEND_DIR / "package-lock.json"
@@ -116,8 +116,8 @@ def _install_frontend_dependencies() -> None:
             return
         except FileNotFoundError as exc:
             raise SystemExit(
-                "npm est introuvable sur le PATH. Installez Node.js 22.22.3+ "
-                "(ou une version compatible 24/26), puis relancez Glimio."
+                "npm est introuvable sur le PATH. Installez Node.js 26.12.1 ou une version compatible avec Angular 22 "
+                "(voir les plages de versions dans package.json), puis relancez Glimio."
             ) from exc
         except (OSError, subprocess.CalledProcessError) as exc:
             last_error = exc
@@ -141,7 +141,7 @@ def _build_frontend() -> None:
     except (OSError, subprocess.CalledProcessError) as exc:
         raise SystemExit(
             f"Le build Angular a échoué : {exc}\n"
-            "Vérifiez que Node.js 22.22.3+ (ou une version compatible 24/26) et npm sont installés et sur le PATH."
+            "Vérifiez que Node.js 26.12.1 (ou une version compatible indiquée dans package.json) et npm sont installés et sur le PATH."
         ) from exc
 
 

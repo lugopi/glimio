@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- CI/CD : remplacement du Python `3.12.15` demandé directement sur le runner Windows (version de sécurité sans installateur Windows disponible via `setup-python`) par Python `3.14.9`, la toolchain Python corrective actuellement ciblée par le projet. La CI couvre Python `3.12` et `3.14.9`.
+- Outillage Angular : alignement de `.nvmrc` et `mise.toml` sur Node.js `26.12.1`, compatible avec Angular 22 ; mise à jour des actions GitHub vers les versions Node 24 récentes et restriction de `engines.node` aux branches explicitement supportées par Angular 22.
+- Le runtime CPython `3.12.15` vérifié par SHA-256 reste réservé à l’installation à la demande des providers : il provient de `python-build-standalone`, et n’est pas la version utilisée par `actions/setup-python` pour construire les exécutables.
+
 - Nettoyage du packaging Python : suppression du relais `web.project_paths` et de son dossier vide `web.services`, accès direct au module partagé `seance.project_paths`, renommage du résolveur de dossiers en `seance.session_paths` pour le distinguer des services métier `seance.core.sessions`, et retrait des références de package-data vers l’ancienne UI statique absente du dépôt.
 
 - Correctif du traitement automatique après enregistrement : le job de capture est terminé de façon atomique lors du transfert vers la file de traitement, afin qu’il ne bloque pas lui-même le job de transcription ou de traitement complet. La protection contre les traitements concurrents reste active.

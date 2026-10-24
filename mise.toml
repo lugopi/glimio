@@ -1,6 +1,6 @@
 [tools]
-python = "3.14"
-node = "26"
+python = "3.14.9"
+node = "26.12.1"
 "npm:@angular/cli" = "22"
 
 [env]
