@@ -7,9 +7,82 @@
 .provider-status[data-ready='true'] { @apply border-emerald-700/40 text-emerald-700; }
 .provider-status[data-ready='false'] { @apply border-amber-700/40 text-amber-700; }
 .provider-missing { @apply break-all text-sm text-amber-700; }
+.provider-readiness-help { @apply flex min-w-0 flex-wrap items-center gap-2; }
+.provider-readiness-help .text-link-button { @apply inline-flex min-h-8 items-center gap-1.5 text-left text-xs; }
+.provider-readiness-help glimio-icon { @apply size-3.5; }
+.provider-readiness-error { @apply text-sm text-danger; }
 .provider-option { @apply grid min-w-0 gap-2; }
 .provider-option .field-note { @apply m-0; }
 .provider-advanced { @apply mt-1 rounded-lg border border-border-soft p-3; }
 .provider-advanced > summary { @apply flex min-h-10 cursor-pointer list-none items-center justify-between font-medium; }
 .provider-advanced > summary::-webkit-details-marker { @apply hidden; }
 .provider-option-list { @apply mt-4 grid gap-4; }
+
+.provider-install {
+  @apply grid gap-2 rounded-lg border border-border-soft p-3;
+}
+
+.provider-setup-heading {
+  @apply flex flex-wrap items-center justify-between gap-2;
+}
+
+.provider-install-status {
+  @apply grid gap-2 rounded-md border border-border-soft p-3 text-sm;
+}
+
+.provider-install-status[data-state='succeeded'] {
+  @apply border-emerald-700/40;
+}
+
+.provider-install-status[data-state='failed'] {
+  @apply border-amber-700/40;
+}
+
+.provider-install-status > p {
+  @apply m-0 text-sm;
+}
+
+.provider-install-status > p:not(.provider-ready-note):not(.provider-install-help) {
+  @apply text-amber-700;
+}
+
+.provider-ready-note {
+  @apply text-emerald-700;
+}
+
+.provider-install-help {
+  @apply text-muted;
+}
+
+.provider-install-log {
+  @apply grid gap-2;
+}
+
+.provider-install-log > summary {
+  @apply cursor-pointer font-medium;
+}
+
+.provider-install-log pre {
+  @apply max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-surface-raised p-2 text-xs;
+}
+
+.provider-setup-links__list {
+  @apply grid gap-3;
+}
+
+.provider-setup-link {
+  @apply grid gap-1;
+}
+
+.provider-setup-link .text-link-button {
+  @apply w-fit text-left;
+}
+
+.provider-install-unavailable {
+  @apply m-0 rounded-md border border-border-soft p-3 text-sm text-amber-700;
+}
+
+.provider-resources { @apply rounded-lg border border-border-soft px-3 py-2; }
+.provider-resources > summary { @apply min-h-9 cursor-pointer text-sm font-medium text-muted; }
+.provider-resources[open] > summary { @apply mb-3 border-b border-border-soft pb-2 text-text; }
+.provider-resources .provider-setup-links__list { @apply grid gap-3; }

@@ -19,6 +19,9 @@ _DIARIZATION_KEYS = (
     "diarization_embedding_model",
     "diarization_num_speakers",
     "diarization_threshold",
+    "speaker_embedding_provider",
+    "speaker_embedding_threshold",
+    "provider_options",
 )
 
 

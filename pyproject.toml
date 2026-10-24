@@ -16,6 +16,9 @@ dependencies = [
 
 [project.optional-dependencies]
 diarization = ["sherpa-onnx>=1.10.28"]
+# Optional source separation / voice-identity backend. Install a PyTorch build
+# compatible with the target CPU/CUDA platform before adding this extra.
+separation = ["speechbrain>=1.0.0"]
 web = [
     "fastapi>=0.143.4",
     "uvicorn>=0.27",

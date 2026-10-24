@@ -42,8 +42,7 @@
 }
 
 .settings-grid > div,
-.settings-grid > label,
-.provider-summary {
+.settings-grid > label {
   @apply min-w-0;
 }
 
@@ -51,65 +50,15 @@
   @apply mb-2;
 }
 
-.provider-settings { @apply grid min-w-0 content-start gap-3 border-t border-border-soft pt-4; }
-.provider-settings__heading { @apply flex flex-wrap items-center justify-between gap-2; }
-
-.provider-status {
-  @apply rounded-full border border-border-soft px-2 py-1 text-xs;
-}
-
-.provider-status[data-ready='true'] {
-  @apply border-emerald-700/40 text-emerald-700;
-}
-
-.provider-status[data-ready='false'] {
-  @apply border-amber-700/40 text-amber-700;
-}
-
-.provider-missing,
-.settings-error {
-  @apply break-all text-sm text-amber-700;
-}
-
-.provider-option {
-  @apply grid min-w-0 gap-2;
-}
-
-.provider-option .field-note {
-  @apply m-0;
-}
-
-.provider-advanced,
 .settings-advanced {
-  @apply rounded-lg border border-border-soft;
-}
-
-.provider-advanced {
-  @apply mt-1 rounded-lg border border-border-soft p-3;
-}
-
-.provider-advanced > summary,
-.settings-advanced > summary {
-  @apply flex min-h-10 cursor-pointer list-none items-center justify-between font-medium;
-}
-
-.provider-advanced > summary::-webkit-details-marker,
-.settings-advanced > summary::-webkit-details-marker {
-  @apply hidden;
-}
-
-.provider-option-list {
-  @apply mt-4 grid gap-4;
-}
-
-.settings-advanced {
-  @apply px-5;
+  @apply rounded-lg border border-border-soft px-5;
 }
 
 .settings-advanced > summary {
-  @apply text-base;
+  @apply flex min-h-10 cursor-pointer list-none items-center justify-between text-base font-medium;
 }
 
+.settings-advanced > summary::-webkit-details-marker { @apply hidden; }
 .settings-advanced[open] > summary {
   @apply mb-5 border-b border-border-soft;
 }
@@ -141,3 +90,8 @@
 .settings-autosave-copy small {
   @apply text-muted;
 }
+
+.voice-provider-block { @apply mt-4 grid min-w-0 gap-3 rounded-lg border border-border-soft p-4; }
+.voice-provider-block > .card-title { @apply m-0 text-sm; }
+.voice-provider-block > .field-note { @apply m-0; }
+.voice-disabled-note { @apply mt-3 rounded-md bg-surface-raised p-3; }

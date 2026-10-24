@@ -11,6 +11,8 @@ export class PreferencesService {
   private readonly toast = inject(ToastService);
   private readonly interfaceLanguage = inject(InterfaceLanguageService);
   private readonly changes = new Subject<PreferencesPayload>();
+  private readonly saved = new Subject<void>();
+  readonly preferencesSaved$ = this.saved.asObservable();
   readonly config = signal<AppConfig | null>(null);
   readonly preferences = signal<PreferencesPayload | null>(null);
   readonly sessionRoot = computed(() => this.preferences()?.ui.session_root || this.config()?.session_root || '—');
@@ -23,7 +25,10 @@ export class PreferencesService {
       distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
       tap(() => this.isSaving.set(true)),
       switchMap(payload => this.api.savePreferences(payload).pipe(
-        tap(saved => this.preferences.set(saved)),
+        tap(saved => {
+          this.preferences.set(saved);
+          this.saved.next();
+        }),
         catchError(error => {
           this.toast.show(`La sauvegarde automatique a échoué : ${error.message}`, 'error');
           return EMPTY;

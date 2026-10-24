@@ -7,6 +7,9 @@ export interface GlimioSettings {
   processing_profile: 'turbo' | 'balanced' | 'quality' | 'pixel-perfect' | 'custom';
   model: string;
   transcription_provider: string;
+  audio_enhancement_provider: string;
+  source_separation_provider: string;
+  speaker_embedding_provider: string;
   provider_options: Record<string, Record<string, unknown>>;
   whisper_cli: string;
   language: string;
@@ -65,11 +68,22 @@ export interface AppConfig {
 export interface ProviderStatus {
   id: string;
   name: string;
-  task: 'transcription' | 'generation' | 'diarization' | 'media';
+  task: 'transcription' | 'generation' | 'diarization' | 'media' | 'enhancement' | 'separation' | 'speaker_embedding';
   description: string;
+  /** Provider-owned locale map; provider metadata must not require app-wide dictionary changes. */
+  translations: Record<string, Record<string, string>>;
   execution: 'embedded' | 'bundled_executable' | 'system_executable' | 'remote';
   capabilities: string[];
   options: ProviderOption[];
+  requires: string[];
+  python_install_extra: string | null;
+  python_install_packages: string[];
+  python_install_note: string;
+  restart_after_python_install: boolean;
+  python_install_available: boolean;
+  python_install_runtime_available: boolean;
+  python_install_block_reason: string;
+  setup_links: ProviderSetupLink[];
   ready: boolean;
   message: string;
   version: string | null;
@@ -97,6 +111,31 @@ export interface ProviderOption {
 export interface ProvidersResponse {
   providers: ProviderStatus[];
 }
+
+export interface ProviderSetupLink {
+  label: string;
+  url: string;
+  kind: 'documentation' | 'binary' | 'model' | 'package' | 'license';
+  description: string;
+}
+
+export interface ProviderInstallStatus {
+  id: string;
+  provider_id: string;
+  state: 'queued' | 'running' | 'succeeded' | 'failed';
+  message: string;
+  output: string;
+  returncode: number | null;
+  restart_required: boolean;
+  created_at?: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+}
+
+export interface ProviderInstallResponse {
+  install: ProviderInstallStatus;
+}
+
 
 export type AudioSourceKind = 'microphone' | 'output';
 
@@ -190,7 +229,7 @@ export interface Job {
 
 export interface ProviderEvent {
   provider_id: string;
-  task: 'transcription' | 'generation' | 'diarization' | 'media';
+  task: 'transcription' | 'generation' | 'diarization' | 'media' | 'enhancement' | 'separation' | 'speaker_embedding';
   stage: string;
   message: string;
   progress: number | null;

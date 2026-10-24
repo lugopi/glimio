@@ -17,6 +17,9 @@ from .providers import (
     TEXT_PROVIDER_IDS, TRANSCRIPTION_PROVIDER_IDS,
 )
 from .providers.selection import reset_text_provider, set_text_provider
+from .providers.audio_processing import (
+    ENHANCEMENT_PROVIDER_FACTORIES, SEPARATION_PROVIDER_FACTORIES, EMBEDDING_PROVIDER_FACTORIES,
+)
 
 
 PROJECT_ROOT = discover_project_root(package_file=__file__)
@@ -39,6 +42,18 @@ def _add_processing_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--language", default="auto", help="Langue de transcription (ex. fr, en ou auto).")
     parser.add_argument("--threads", type=int, default=DEFAULT_THREADS, help="Nombre de threads CPU pour Whisper.")
     parser.add_argument("--ffmpeg", default="ffmpeg", help="Commande ou chemin vers FFmpeg.")
+    parser.add_argument(
+        "--speech-enhancement", choices=("auto", "off", "ffmpeg", "deepfilter"), default=None,
+        help="Alias historique du provider d’amélioration audio.",
+    )
+    parser.add_argument("--audio-enhancement-provider", choices=tuple(ENHANCEMENT_PROVIDER_FACTORIES), default="ffmpeg-denoise", help="Provider indépendant de prétraitement audio.")
+    parser.add_argument("--source-separation-provider", choices=tuple(SEPARATION_PROVIDER_FACTORIES), default="no-separation", help="Provider facultatif de séparation des voix superposées.")
+    parser.add_argument("--speaker-embedding-provider", choices=tuple(EMBEDDING_PROVIDER_FACTORIES), default="speechbrain-ecapa", help="Provider facultatif de rapprochement global des voix; SepFormer exige ECAPA.")
+    parser.add_argument("--deep-filter-executable", default=None, help="Chemin vers le binaire DeepFilterNet installé séparément.")
+    parser.add_argument("--deep-filter-model", default=None, help="Chemin vers l’archive modèle DeepFilterNet .tar.gz téléchargée séparément.")
+    parser.add_argument("--vad-mode", choices=("auto", "on", "off"), default=None, help="Détection de parole Whisper.cpp : auto si le modèle est installé, on ou off.")
+    parser.add_argument("--vad-model", default=None, help="Chemin vers le modèle VAD Silero de whisper.cpp.")
+    parser.add_argument("--vad-threshold", type=float, default=None, help="Seuil VAD entre 0.05 et 0.95 (défaut : 0.5).")
     parser.add_argument("--diarize", action="store_true", help="Activer la diarisation (requiert l’édition avec diarisation et ses modèles).")
     parser.add_argument("--segmentation-model", default="models/diarization/segmentation/segmentation.onnx")
     parser.add_argument("--embedding-model", default="models/diarization/embedding/embedding.onnx")
@@ -103,9 +118,13 @@ def _args_namespace(args: argparse.Namespace) -> argparse.Namespace:
         "embedding_model": "diarization_embedding_model",
         "llama_completion": "llama_completion",
         "gguf": "gguf",
+        "deep_filter_executable": "deep_filter_executable",
+        "deep_filter_model": "deep_filter_model",
+        "vad_model": "vad_model",
     }
     for source, target in path_fields.items():
-        values[target] = _project_path(values.pop(source))
+        raw_value = values.pop(source)
+        values[target] = _project_path(raw_value) if raw_value else None
     values["ffmpeg"] = _project_path(values["ffmpeg"]) if "/" in values["ffmpeg"] or "\\" in values["ffmpeg"] else values["ffmpeg"]
     values["diarization_num_speakers"] = values.pop("speakers")
     return argparse.Namespace(**values)

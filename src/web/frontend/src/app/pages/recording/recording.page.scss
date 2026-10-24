@@ -90,3 +90,11 @@
   .jobs-footer > .btn { @apply w-full justify-center; }
   .jobs-footer > glimio-pagination { flex: 1 1 100%; }
 }
+
+.provider-setup-notice { @apply mb-4 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-700/30 bg-amber-700/5 p-3; }
+.provider-setup-notice__copy { @apply grid min-w-0 flex-1 gap-1; }
+.provider-setup-notice__copy strong { @apply text-sm font-semibold; }
+.provider-setup-notice__copy p { @apply m-0 text-sm text-muted; }
+.provider-setup-notice__copy small { @apply break-words text-xs text-muted; }
+.provider-setup-notice > a { @apply shrink-0; }
+@media (width < theme(--breakpoint-sm)) { .provider-setup-notice > a { @apply w-full justify-center; } }

@@ -6,8 +6,43 @@ from pathlib import Path
 from typing import Any
 
 from ..llm import run_completion_once, run_completion_resilient
-from .contracts import GenerationRequest, GenerationResult, ProviderEvent, ProviderInfo, ProviderOption, ProviderOptionChoice
+from .contracts import GenerationRequest, GenerationResult, ProviderEvent, ProviderInfo, ProviderOption, ProviderOptionChoice, ProviderResourceLink
 from .events import emit_provider_event
+
+
+LLAMA_CPP_TRANSLATIONS_EN = {'en': {'Génération locale de résumés et réponses à partir de modèles GGUF.': 'Local generation of summaries '
+                                                                              'and answers using GGUF '
+                                                                              'models.',
+        'Modèle de résumé': 'Summary model',
+        'Fichier GGUF utilisé pour les résumés et les réponses de recherche.': 'GGUF file used for summaries '
+                                                                               'and search answers.',
+        'Moteur de résumé': 'Summary engine',
+        'Exécutable llama.cpp fourni avec l’installation.': 'llama.cpp executable included with the '
+                                                            'installation.',
+        'Utiliser OpenVINO': 'Use OpenVINO',
+        'Facultatif. Demande un llama.cpp compilé avec le backend OpenVINO.': 'Optional. Requires llama.cpp '
+                                                                              'built with the OpenVINO '
+                                                                              'backend.',
+        'Périphérique OpenVINO': 'OpenVINO device',
+        'Choisissez le périphérique Intel pris en charge par votre installation.': 'Choose an Intel device '
+                                                                                   'supported by your '
+                                                                                   'installation.',
+        'Binaires llama.cpp': 'llama.cpp binaries',
+        'Téléchargez une archive adaptée à votre système et configurez l’exécutable ci-dessous.': 'Download '
+                                                                                                  'an '
+                                                                                                  'archive '
+                                                                                                  'for your '
+                                                                                                  'system '
+                                                                                                  'and '
+                                                                                                  'configure '
+                                                                                                  'the '
+                                                                                                  'executable '
+                                                                                                  'below.',
+        'Modèles GGUF': 'GGUF models',
+        'Choisissez un modèle GGUF adapté à votre RAM/VRAM et à sa licence.': 'Choose a GGUF model suited to '
+                                                                              'your RAM/VRAM and check its '
+                                                                              'license.',
+        'Documentation llama.cpp': 'llama.cpp documentation'}}
 
 
 LLAMA_CPP_INFO = ProviderInfo(
@@ -17,6 +52,11 @@ LLAMA_CPP_INFO = ProviderInfo(
     description="Génération locale de résumés et réponses à partir de modèles GGUF.",
     execution="system_executable",
     capabilities=("local", "gguf", "cancellation", "retry"),
+    setup_links=(
+        ProviderResourceLink("Binaires llama.cpp", "https://github.com/ggml-org/llama.cpp/releases", "binary", "Téléchargez une archive adaptée à votre système et configurez l’exécutable ci-dessous."),
+        ProviderResourceLink("Modèles GGUF", "https://huggingface.co/models?library=gguf&sort=trending", "model", "Choisissez un modèle GGUF adapté à votre RAM/VRAM et à sa licence."),
+        ProviderResourceLink("Documentation llama.cpp", "https://github.com/ggml-org/llama.cpp", "documentation"),
+    ),
     options=(
         ProviderOption(
             key="gguf", label="Modèle de résumé", type="path",
@@ -43,6 +83,8 @@ LLAMA_CPP_INFO = ProviderInfo(
             advanced=True, depends_on="openvino_enabled",
         ),
     ),
+
+    translations=LLAMA_CPP_TRANSLATIONS_EN,
 )
 
 

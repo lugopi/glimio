@@ -61,6 +61,15 @@
       </div>
 
       <section class="card shared-processing-panel" aria-labelledby="processing-options-title">
+        @if (setupIssues().length) {
+          <div class="provider-setup-notice" role="status">
+            <div class="provider-setup-notice__copy">
+              <strong>Configuration requise</strong>
+              <p>Un ou plusieurs composants sélectionnés ne sont pas prêts. Ouvrez les paramètres pour consulter leur état et installer ou configurer les ressources manquantes.</p>
+            </div>
+            <a class="btn btn--secondary btn--small" routerLink="/settings">Ouvrir les paramètres</a>
+          </div>
+        }
         <div class="card-header"><div><div class="eyebrow">OPTIONS COMMUNES</div><h2 class="card-title" id="processing-options-title">Options communes de traitement</h2><p class="card-description">Ces choix s’appliquent aux nouveaux enregistrements, aux imports et servent de valeurs initiales dans la bibliothèque.</p></div></div>
         @if (settings(); as value) {
           <div class="shared-processing-content common-processing-fields">
@@ -87,7 +96,7 @@
                   }
                 </div>
                 <div class="diarization-option">
-                  <glimio-checkbox-field fieldId="recording-diarization" title="Diarisation vocale" description="Détecter les différentes voix et associer les segments de transcription aux interlocuteurs." [checked]="value.diarize" (checkedChange)="patchSetting('diarize', $event)" />
+                  <glimio-checkbox-field fieldId="recording-diarization" title="Activer la diarisation vocale" description="Détecter qui parle et quand, puis associer les segments transcrits aux interlocuteurs." [checked]="value.diarize" (checkedChange)="patchSetting('diarize', $event)" />
                   @if (value.diarize) {
                     <div class="speaker-count-field"><label class="field-label" for="recording-speakers">Nombre d’interlocuteurs</label><select class="select" id="recording-speakers" [ngModel]="value.diarization_num_speakers" (ngModelChange)="patchSetting('diarization_num_speakers', numberValue($event))"><option [ngValue]="-1">Automatique</option>@for (count of speakerCounts; track count) { <option [ngValue]="count">{{ count }}</option> }</select><small class="field-note">Choisissez un nombre connu (1–20, puis des valeurs courantes jusqu’à 100) ; sinon laissez Automatique.</small></div>
                     <div><label class="field-label" for="recording-diarization-threshold">Séparation des voix <output>{{ value.diarization_threshold | number:'1.2-2' }}</output></label><input class="range-input" id="recording-diarization-threshold" type="range" min="0" max="1" step="0.01" [ngModel]="value.diarization_threshold" (ngModelChange)="patchSetting('diarization_threshold', numberValue($event))"><small class="field-note">Une valeur plus élevée regroupe les voix de façon plus stricte.</small></div>
@@ -96,7 +105,7 @@
               </div>
             </div>
             @if (activeTranscriptionProvider(); as provider) {
-              @if (hasPerJobOptions(provider)) { <div class="col-span-full mt-1 border-t border-border-soft pt-4"><h3 class="card-title">{{ provider.name }}</h3><p class="field-note mb-3">Options pour ce traitement. Ces réglages s’appliquent à ce nouvel enregistrement ou import uniquement.</p><glimio-provider-options [provider]="provider" [values]="perJobValues(provider)" [showAllOptions]="true" [perJobOnly]="true" (optionChange)="patchPerJobProviderOption(provider, $event.option.key, $event.value)" /></div> }
+              @if (hasPerJobOptions(provider)) { <div class="col-span-full mt-1 border-t border-border-soft pt-4"><h3 class="card-title" data-no-translate>{{ providerText(provider, provider.name) }}</h3><p class="field-note mb-3">Options pour ce traitement. Ces réglages s’appliquent à ce nouvel enregistrement ou import uniquement.</p><glimio-provider-options [provider]="provider" [values]="perJobValues(provider)" [showAllOptions]="true" [perJobOnly]="true" [showSetupLinks]="false" (optionChange)="patchPerJobProviderOption(provider, $event.option.key, $event.value)" /></div> }
             }
           </div>
         }

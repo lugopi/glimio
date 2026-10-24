@@ -54,3 +54,16 @@ class DynamicAudioTrackLayoutTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_numbered_import_tracks_are_discoverable(tmp_path):
+    from seance.layout import list_audio_paths
+
+    audio_dir = tmp_path / "audio"
+    audio_dir.mkdir()
+    for name in ("audio_import-3.wav", "audio_import.wav", "audio_import-2.wav"):
+        (audio_dir / name).write_bytes(b"wav")
+
+    assert [path.name for path in list_audio_paths(tmp_path)] == [
+        "audio_import.wav", "audio_import-2.wav", "audio_import-3.wav",
+    ]

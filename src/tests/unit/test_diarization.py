@@ -110,3 +110,24 @@ def test_diarization_fails_with_actionable_error_when_model_missing(tmp_path: Pa
             diarization_segmentation_model=str(tmp_path / "missing-segmentation.onnx"),
             diarization_embedding_model=str(tmp_path / "missing-embedding.onnx"),
         ))
+
+
+def test_segment_speaker_does_not_assign_a_distant_voice_during_silence() -> None:
+    from seance.processing.diarization import _segment_speaker
+
+    diarized = [{"start": 10.0, "end": 11.0, "speaker": 3}]
+    assert _segment_speaker(2.0, 3.0, diarized) is None
+    assert _segment_speaker(9.8, 10.1, diarized) == 3
+
+
+def test_diarization_reads_only_requested_audio_window(tmp_path: Path) -> None:
+    from seance.processing.diarization import _read_wav_range
+
+    samples = np.arange(16000 * 4, dtype=np.int16)
+    path = tmp_path / "long-track.wav"
+    _write_wav(path, samples.tolist())
+    window = _read_wav_range(path, 1.0, 2.0, 16000)
+    assert window.dtype == np.float32
+    assert window.size == 16000
+    assert window[0] == pytest.approx(samples[16000] / 32768.0, abs=1e-5)
+    assert window[-1] == pytest.approx(samples[31999] / 32768.0, abs=1e-5)

@@ -8,7 +8,7 @@ from unittest.mock import patch
 from fastapi import HTTPException, Response
 from starlette.requests import Request
 
-from web.app import (AudioTrackToggleRequest, AudioDevicesResponse, _artifact_tail_hash, clear_job_history, delete_job_history_item, devices, health, session_audio, session_artifact, sessions, set_session_audio_track_disabled, delete_session_audio_track)
+from web.app import (AudioTrackToggleRequest, AudioDevicesResponse, SaveSummaryRequest, _artifact_tail_hash, clear_job_history, delete_job_history_item, devices, health, save_session_summary, session_audio, session_artifact, sessions, set_session_audio_track_disabled, delete_session_audio_track)
 
 
 class WebApiSmokeTests(unittest.TestCase):
@@ -179,6 +179,59 @@ class WebApiSmokeTests(unittest.TestCase):
         live.parent.mkdir(parents=True)
         live.write_text(content, encoding="utf-8")
         return root, live
+
+    def test_save_session_summary_persists_markdown_and_returns_new_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "seances"
+            session = root / "2026-10-17_10-30-00"
+            summary = session / "summary" / "resume_audio.md"
+            summary.parent.mkdir(parents=True)
+            summary.write_text("# Avant\n", encoding="utf-8")
+            stat = summary.stat()
+            revision = f"{stat.st_mtime_ns}:{stat.st_size}"
+            content = "# Après\n\n- Décision\n- Action"
+
+            with patch("web.app.SESSION_ROOT", root), patch("web.app.JOBS", {}):
+                result = save_session_summary(session.name, SaveSummaryRequest(content=content, revision=revision))
+
+            self.assertEqual(summary.read_text(encoding="utf-8"), content)
+            self.assertEqual(result["content"], content)
+            self.assertEqual(result["kind"], "summary")
+            self.assertEqual(result["filename"], "resume_audio.md")
+            self.assertEqual(result["revision"], f"{summary.stat().st_mtime_ns}:{summary.stat().st_size}")
+
+    def test_save_session_summary_rejects_stale_revision_without_overwriting(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "seances"
+            session = root / "2026-10-17_10-30-00"
+            summary = session / "summary" / "resume_audio.md"
+            summary.parent.mkdir(parents=True)
+            summary.write_text("# Version initiale", encoding="utf-8")
+            stat = summary.stat()
+            stale_revision = f"{stat.st_mtime_ns}:{stat.st_size}"
+            summary.write_text("# Modification externe plus longue", encoding="utf-8")
+
+            with patch("web.app.SESSION_ROOT", root), patch("web.app.JOBS", {}):
+                with self.assertRaises(HTTPException) as raised:
+                    save_session_summary(session.name, SaveSummaryRequest(content="# Mon édition", revision=stale_revision))
+
+            self.assertEqual(raised.exception.status_code, 409)
+            self.assertEqual(summary.read_text(encoding="utf-8"), "# Modification externe plus longue")
+
+    def test_save_session_summary_rejects_active_processing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "seances"
+            session = root / "2026-10-17_10-30-00"
+            summary = session / "summary" / "resume_audio.md"
+            summary.parent.mkdir(parents=True)
+            summary.write_text("# Résumé", encoding="utf-8")
+            with patch("web.app.SESSION_ROOT", root), patch("web.app.JOBS", {
+                "job-1": {"id": "job-1", "session_id": session.name, "state": "running", "kind": "process"}
+            }):
+                with self.assertRaises(HTTPException) as raised:
+                    save_session_summary(session.name, SaveSummaryRequest(content="# Édition"))
+            self.assertEqual(raised.exception.status_code, 409)
+            self.assertEqual(summary.read_text(encoding="utf-8"), "# Résumé")
 
     def test_session_artifact_returns_live_content_and_full_document_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

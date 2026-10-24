@@ -540,6 +540,21 @@ rubriques vides.
 """.strip()
 
 
+_MARKDOWN_RENDERING_CONTRACT = """
+Le document sera affiché dans Glimio avec un rendu Markdown volontairement simple. Utilise uniquement :
+- des titres Markdown de niveaux # à #### ;
+- des paragraphes séparés par une ligne vide ;
+- des listes simples à puces (-) ou numérotées, sans imbrication ;
+- **gras**, *italique*, ~~barré~~, `code` en ligne et des liens HTTP/HTTPS classiques ;
+- des citations avec >, des blocs de code clôturés par trois accents graves et des tableaux Markdown
+  simples avec une ligne de séparation (| --- | --- |) lorsque le tableau améliore vraiment la lecture.
+N'écris pas de HTML brut, de listes de tâches, de notes de bas de page, de formules mathématiques,
+ni de syntaxe Markdown avancée ou imbriquée : ces éléments ne sont pas rendus de façon fiable dans l'interface.
+Évite les paragraphes démesurément longs ; conserve une structure lisible, avec des titres précis et des
+paragraphes complets. Le résultat doit être un document Markdown valide, pas une explication du format.
+""".strip()
+
+
 def _draft_user_prompt(notes: str, report_format: str, partial: bool) -> str:
     instructions = _format_instructions(report_format, partial)
     scope = (
@@ -554,6 +569,9 @@ FORMAT À APPLIQUER : {report_format}
 
 CONSIGNES DE SORTIE PROPRES À CE FORMAT :
 {instructions}
+
+CONTRAT DE MISE EN FORME MARKDOWN COMPATIBLE AVEC GLIMIO :
+{_MARKDOWN_RENDERING_CONTRACT}
 
 Règles communes : conserve les informations utiles, les détails, les nuances et les repères temporels.
 N'invente aucun fait, nom, lien de causalité ou point de vue. Les étiquettes « Micro » et « Audio Windows »
@@ -576,7 +594,9 @@ explication technique, conversation, podcast, cours, interview, daily, brainstor
 Applique strictement le format demandé par l'utilisateur. Chaque format possède sa propre structure et ses
 propres priorités ; n'importe pas automatiquement les rubriques d'un autre format. Écris en français naturel,
 avec une profondeur proportionnelle à la richesse des notes. Préserve les détails utiles plutôt que de
-compresser chaque sujet en quelques mots. N'invente rien et réponds uniquement avec le document Markdown.
+compresser chaque sujet en quelques mots. Respecte le contrat Markdown compatible avec Glimio fourni dans
+les consignes utilisateur : titres # à ####, paragraphes, listes simples, citations, code et tableaux simples ;
+évite le HTML brut et toute syntaxe avancée non prise en charge. N'invente rien et réponds uniquement avec le document Markdown.
 """.strip()
 
 
@@ -611,6 +631,7 @@ def _generate_global_overview(
     system_prompt = f"""
 Tu rédiges une courte vue d'ensemble fidèle pour un document au format « {report_format} ».
 Respecte ce format. Ne rajoute aucune information et ne répète pas les titres techniques internes.
+Respecte le contrat Markdown compatible avec Glimio : mise en forme simple, sans HTML brut ni syntaxe avancée.
 Réponds en français en deux ou trois paragraphes au maximum et garde le style propre au format demandé.
 """.strip()
     format_hint = {
@@ -981,10 +1002,14 @@ Tu relis un document audio au format « {report_format} ». Préserve strictemen
 N'ajoute pas de rubrique de procès-verbal à un résumé narratif, à une explication technique, à un daily ou à un
 brainstorming si ce format ne la demande pas. Ne réduis pas les explications ni les exemples. Corrige la clarté,
 les répétitions manifestes, les phrases coupées et les erreurs de langue ; n'ajoute aucun fait non étayé.
+Respecte le contrat Markdown compatible avec Glimio : titres # à ####, paragraphes, listes simples, citations,
+code et tableaux simples ; évite le HTML brut et la syntaxe avancée non prise en charge.
 Réponds uniquement avec le document corrigé en Markdown.
 """.strip()
         review_prompt = f"""
 Relis le document en respectant le format « {report_format} ». Préserve les sections, détails et exemples utiles.
+Conserve une mise en forme Markdown simple, compatible avec le rendu de Glimio ; n'introduis pas de HTML brut
+ni de syntaxe avancée non prise en charge.
 N'ajoute pas de rubriques « Décisions », « Actions » ou « Participants » au format summary ; ce format doit rester
 un résumé narratif organisé par sujets. Pour les autres formats, conserve uniquement les rubriques pertinentes.
 N'invente rien. Si une phrase est incertaine dans le brouillon, garde cette incertitude plutôt que de deviner.
