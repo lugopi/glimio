@@ -1024,7 +1024,7 @@
 .artifact-rendered th { background: var(--c-surface); color: var(--c-text); font-weight: 700; }
 .artifact-rendered tbody tr:last-child td { border-bottom: 0; }
   .artifact-rendered img, .artifact-rendered video, .artifact-rendered svg { max-width: 100%; height: auto; }
-  .available-documents .artifact-content-pane { @apply min-w-0 rounded-b-xl border border-border-soft bg-surface-raised p-4; overflow-wrap: anywhere; }
+  .available-documents .artifact-content-pane { @apply min-w-0 rounded-b-xl border border-border-soft bg-surface-raised p-4; max-height: min(72vh, 56rem); overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; overflow-wrap: anywhere; }
   .available-documents .artifact-content-pane > .artifact-rendered { @apply m-0 rounded-none border-0 bg-transparent p-0; }
   .available-documents .artifact-content-pane > .artifact-loading { @apply py-1; }
 }

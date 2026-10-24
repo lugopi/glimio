@@ -2,7 +2,7 @@ from pathlib import Path
 import re
 
 AUDIO_NAMES = ('micro.wav', 'windows.wav', 'audio_import.wav')
-_DYNAMIC_AUDIO_NAME = re.compile(r'^(?:micro|windows)(?:-\d+)?\.wav$', re.IGNORECASE)
+_DYNAMIC_AUDIO_NAME = re.compile(r'^(?:micro|windows|audio_import)(?:-\d+)?(?:-ch\d+)?\.wav$', re.IGNORECASE)
 TRANSCRIPT_NAMES = ('micro.srt','windows.srt','audio_import.srt','transcription.json','transcription.md','speaker_diarization.json','transcription_before_diarization.json','transcription_before_diarization.md')
 
 
@@ -12,9 +12,13 @@ def ensure_session_layout(folder):
     for k,v in paths.items():
         if k!='root': v.mkdir(parents=True,exist_ok=True)
     (paths['analysis']/'parts').mkdir(parents=True,exist_ok=True); (paths['analysis']/'diagnostics').mkdir(parents=True,exist_ok=True); (paths['summary']/'compatibility').mkdir(parents=True,exist_ok=True)
-    for name in AUDIO_NAMES:
-        s=root/name; d=paths['audio']/name
-        if s.is_file() and not d.exists(): d.parent.mkdir(parents=True,exist_ok=True); s.replace(d)
+    # Migrate familiar tracks plus numbered/imported tracks created by newer versions.
+    for s in root.glob("*.wav"):
+        if _valid_audio_name(s.name):
+            d = paths["audio"] / s.name
+            if s.is_file() and not d.exists():
+                d.parent.mkdir(parents=True, exist_ok=True)
+                s.replace(d)
     for name in TRANSCRIPT_NAMES:
         s=root/name; d=paths['transcript']/name
         if s.is_file() and not d.exists(): d.parent.mkdir(parents=True,exist_ok=True); s.replace(d)
@@ -56,14 +60,17 @@ def list_audio_paths(folder):
     if not candidates:
         return []
     def sort_key(name: str):
-        if name == 'micro.wav': return (0, 0)
-        if name == 'windows.wav': return (1, 0)
-        if _DYNAMIC_AUDIO_NAME.fullmatch(name):
-            stem=name[:-4]
-            base, _, suffix=stem.partition('-')
-            kind=0 if base == 'micro' else 1
-            return (kind, int(suffix or 1))
-        return (2, name)
+        stem = name[:-4]
+        base, _, suffix = stem.partition('-')
+        channel = 0
+        if "-ch" in suffix:
+            suffix, channel_suffix = suffix.split("-ch", 1)
+            channel = int(channel_suffix or 0)
+        number = int(suffix) if suffix.isdigit() else 0
+        if base == "micro": return (0, number, channel)
+        if base == "windows": return (1, number, channel)
+        if base == "audio_import": return (2, number, channel)
+        return (3, name)
     return [candidates[name] for name in sorted(candidates, key=sort_key)]
 
 

@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { GlimioSettings, PreferencesPayload, ProviderOption, ProviderStatus } from '../../core/api.models';
 import { PreferencesService } from '../../core/preferences.service';
@@ -14,13 +15,20 @@ import { ProviderOptionsComponent } from '../../shared/provider-options.componen
   templateUrl: './settings.page.html',
   styleUrl: './settings.page.scss',
 })
-export class SettingsPageComponent implements OnInit {
+export class SettingsPageComponent implements OnInit, OnDestroy {
   readonly preferences = inject(PreferencesService);
   private readonly api = inject(ApiService);
   readonly providers = signal<ProviderStatus[]>([]);
   readonly providersError = signal<string | null>(null);
+  private providerReadinessDirty = false;
+  private preferencesSavedSubscription?: Subscription;
   readonly settings = computed(() => this.preferences.preferences()?.settings ?? null);
   readonly ui = computed(() => this.preferences.preferences()?.ui ?? null);
+
+  providerText(provider: ProviderStatus, value: string): string {
+    const language = this.preferences.preferences()?.ui.language ?? 'fr';
+    return provider.translations?.[language]?.[value] ?? value;
+  }
 
   providersFor(task: ProviderStatus['task']): ProviderStatus[] {
     return this.providers().filter(provider => provider.task === task);
@@ -36,6 +44,7 @@ export class SettingsPageComponent implements OnInit {
     const allProviderOptions = current.settings.provider_options ?? {};
     const providerValues = allProviderOptions[provider.id] ?? {};
     const typedValue = option.type === 'number' ? Number(value) : value;
+    if (option.type === 'path') this.providerReadinessDirty = true;
     this.preferences.updatePreferences({
       ...current,
       settings: {
@@ -49,10 +58,30 @@ export class SettingsPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.preferencesSavedSubscription = this.preferences.preferencesSaved$.subscribe(() => {
+      if (!this.providerReadinessDirty) return;
+      this.providerReadinessDirty = false;
+      this.refreshProviders();
+    });
+    this.refreshProviders();
+  }
+
+  ngOnDestroy(): void {
+    this.preferencesSavedSubscription?.unsubscribe();
+  }
+
+  refreshProviders(): void {
     this.api.providers().subscribe({
-      next: result => this.providers.set(result.providers),
+      next: result => {
+        this.providers.set(result.providers);
+        this.providersError.set(null);
+      },
       error: () => this.providersError.set('État des providers indisponible.'),
     });
+  }
+
+  updateProviderStatus(status: ProviderStatus): void {
+    this.providers.update(current => current.map(provider => provider.id === status.id ? status : provider));
   }
   patch<K extends keyof GlimioSettings>(key: K, value: GlimioSettings[K]): void {
     const current = this.preferences.preferences();

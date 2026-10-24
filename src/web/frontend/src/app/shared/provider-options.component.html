@@ -1,13 +1,82 @@
 <div class="provider-settings">
   @if (!perJobOnly()) {
     <div class="provider-settings__heading">
-      <strong>{{ provider().name }}</strong>
+      <strong data-no-translate>{{ providerText(provider().name) }}</strong>
       <span class="provider-status" [attr.data-ready]="provider().ready">{{ provider().ready ? 'Prêt' : provider().message }}</span>
     </div>
-    <small class="field-note">{{ provider().description }}</small>
+    <small class="field-note" data-no-translate>{{ providerText(provider().description) }}</small>
     @if (provider().missing.length) {
-      <small class="provider-missing">À configurer : {{ provider().missing.join(', ') }}</small>
+      <div class="provider-readiness-help">
+        <small class="provider-missing">À configurer : <span data-no-translate>{{ missingDetails() }}</span></small>
+        @if (showSetupLinks()) {
+          <button class="text-link-button" type="button" [disabled]="checkingReadiness()" (click)="checkReadiness()">
+            <glimio-icon name="arrow-path" />
+            {{ checkingReadiness() ? 'Vérification…' : 'Vérifier les ressources' }}
+          </button>
+        }
+      </div>
     }
+    @if (readinessError(); as error) { <small class="provider-readiness-error" role="status">{{ error }}</small> }
+  }
+
+  @if (!perJobOnly() && provider().python_install_available) {
+    <section class="provider-install" aria-label="Installer les dépendances Python">
+      <div class="provider-setup-heading">
+        <strong>Dépendances Python</strong>
+        @if (provider().python_install_runtime_available) {
+          <button class="btn btn--secondary btn--small" type="button" [disabled]="installingPython()" (click)="installPythonDependencies()">
+            @if (installingPython()) { Installation… } @else { Installer / mettre à jour }
+          </button>
+        }
+      </div>
+      <small class="field-note">Installe les dépendances dans l’environnement Python qui exécute Glimio ; Internet est nécessaire. Ce bouton ne télécharge aucun modèle ni binaire natif.</small>
+      @if (provider().python_install_note) { <small class="field-note" data-no-translate>{{ providerText(provider().python_install_note) }}</small> }
+      @if (!provider().python_install_runtime_available && provider().python_install_block_reason) {
+        <p class="provider-install-unavailable">{{ provider().python_install_block_reason }} Les liens d’installation et de modèles ci-dessous restent disponibles.</p>
+      }
+      @if (installation(); as state) {
+        <div class="provider-install-status" [attr.data-state]="state.state" role="status" aria-live="polite">
+          <strong>{{ state.message }}</strong>
+          @if (state.state === 'succeeded') {
+            @if (checkingReadiness()) {
+              <p class="provider-install-help">Vérification des dépendances et ressources…</p>
+            } @else {
+              @if (postInstallStatus(); as verified) {
+                @if (verified.ready) {
+                  <p class="provider-ready-note">Le provider a été détecté comme prêt après l’installation. Aucun redémarrage n’est nécessaire.</p>
+                } @else if (missingPythonPackages(verified).length) {
+                  <p>Les dépendances ont été installées, mais Glimio ne les détecte pas encore toutes. Redémarrez l’application puis vérifiez à nouveau.</p>
+                } @else {
+                  <p class="provider-install-help">Les dépendances Python sont détectées. Il reste des ressources à configurer, comme les modèles ou chemins indiqués ci-dessus ; un redémarrage n’est pas nécessaire pour ces ressources.</p>
+                }
+              } @else if (state.restart_required) {
+                <p>Installation terminée, mais l’état du provider n’a pas pu être re-vérifié. Redémarrez Glimio puis contrôlez son état dans les paramètres.</p>
+              }
+            }
+          }
+          @if (state.output) {
+            <details class="provider-install-log">
+              <summary>Journal d’installation</summary>
+              <pre>{{ state.output }}</pre>
+            </details>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  @if (!perJobOnly() && showSetupLinks() && provider().setup_links.length) {
+    <details class="provider-resources" [open]="!provider().ready">
+      <summary>Aide à l’installation · modèles, binaires et documentation</summary>
+      <div class="provider-setup-links__list">
+        @for (resource of provider().setup_links; track resource.url) {
+          <div class="provider-setup-link" data-no-translate>
+            <a class="text-link-button" [href]="resource.url" target="_blank" rel="noopener noreferrer" data-no-translate>{{ providerText(resource.label) }}</a>
+            @if (resource.description) { <small class="field-note" data-no-translate>{{ providerText(resource.description) }}</small> }
+          </div>
+        }
+      </div>
+    </details>
   }
 
   @for (option of options(false); track option.key) {
@@ -28,14 +97,14 @@
 
 <ng-template #optionField let-option>
   @if (option.type === 'boolean') {
-    <glimio-checkbox-field [fieldId]="fieldId(option)" [title]="option.label + (option.required ? ' *' : '')" [description]="option.description" [checked]="!!value(option)" (checkedChange)="update(option, $event)" />
+    <glimio-checkbox-field [attr.data-no-translate]="''" [fieldId]="fieldId(option)" [title]="providerText(option.label) + (option.required ? ' *' : '')" [description]="providerText(option.description)" [checked]="!!value(option)" (checkedChange)="update(option, $event)" />
   } @else {
-    <label class="provider-option">
-      <span class="field-label">{{ option.label }}{{ option.required ? ' *' : '' }}</span>
+    <label class="provider-option" data-no-translate>
+      <span class="field-label">{{ providerText(option.label) }}{{ option.required ? ' *' : '' }}</span>
       @switch (option.type) {
         @case ('select') {
-          <select class="select" [ngModel]="value(option)" (ngModelChange)="update(option, $event)">
-            @for (choice of option.choices; track choice.value) { <option [value]="choice.value">{{ choice.label }}</option> }
+          <select class="select" data-no-translate [ngModel]="value(option)" (ngModelChange)="update(option, $event)">
+            @for (choice of option.choices; track choice.value) { <option [value]="choice.value">{{ providerText(choice.label) }}</option> }
           </select>
         }
         @case ('number') {
@@ -48,7 +117,7 @@
           <input class="input" type="text" [ngModel]="value(option)" (ngModelChange)="update(option, $event)">
         }
       }
-      @if (option.description) { <small class="field-note">{{ option.description }}</small> }
+      @if (option.description) { <small class="field-note" data-no-translate>{{ providerText(option.description) }}</small> }
     </label>
   }
 </ng-template>

@@ -1,5 +1,6 @@
 import { ChangeDetectorRef, ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { DecimalPipe } from '@angular/common';
 import { Subscription, interval } from 'rxjs';
 import { ApiService } from '../../core/api.service';
@@ -15,7 +16,7 @@ import { providerSupportsTranscriptionLanguage, transcriptionLanguageOptions } f
 
 @Component({
   standalone: true,
-  imports: [FormsModule, DecimalPipe, CheckboxFieldComponent, IconComponent, PaginationComponent, ProviderOptionsComponent],
+  imports: [FormsModule, DecimalPipe, RouterLink, CheckboxFieldComponent, IconComponent, PaginationComponent, ProviderOptionsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './recording.page.html',
   styleUrl: './recording.page.scss',
@@ -226,7 +227,60 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
     return this.providers()?.find(provider => provider.id === id);
   }
 
+  providerText(provider: ProviderStatus, value: string): string {
+    const language = this.preferences.preferences()?.ui.language ?? 'fr';
+    return provider.translations?.[language]?.[value] ?? value;
+  }
+
   hasPerJobOptions(provider: ProviderStatus): boolean { return provider.options.some(option => option.per_job); }
+
+
+  /** Only route to settings when a provider required by the chosen workflow is not ready. */
+  setupIssues(): string[] {
+    const settings = this.settings();
+    const providers = this.providers();
+    if (!settings || providers === null) return [];
+    const hasSelectedFile = this.selectedFile() !== null;
+    // Recording without post-processing must not require transcription/model resources.
+    const processingRequested = hasSelectedFile || this.workflow !== 'none';
+    if (!processingRequested) return [];
+    const required: Array<{ task: ProviderStatus['task']; id?: string; label: string }> = [
+      { task: 'transcription', id: settings.transcription_provider, label: 'transcription' },
+    ];
+    const needsSummary = hasSelectedFile ? this.importAction === 'process' : this.workflow === 'summary';
+    if (needsSummary) required.push({ task: 'generation', id: settings.text_provider, label: 'résumés' });
+    if (hasSelectedFile) required.push({ task: 'media', label: 'import audio/vidéo' });
+    if (settings.audio_enhancement_provider && settings.audio_enhancement_provider !== 'no-enhancement') {
+      required.push({ task: 'enhancement', id: settings.audio_enhancement_provider, label: 'amélioration audio' });
+    }
+    if (settings.source_separation_provider && settings.source_separation_provider !== 'no-separation') {
+      required.push({ task: 'separation', id: settings.source_separation_provider, label: 'séparation des voix' });
+    }
+    if (settings.diarize) {
+      required.push({ task: 'diarization', label: 'diarisation' });
+      // Global speaker linking is optional for diarization; only show a hard
+      // setup warning when SepFormer explicitly requires a compatible linker.
+    }
+    let uniqueConfigurationNotice = false;
+    if (settings.source_separation_provider === 'speechbrain-sepformer'
+      && settings.speaker_embedding_provider !== 'speechbrain-ecapa') {
+      uniqueConfigurationNotice = true;
+    }
+    if (settings.source_separation_provider === 'speechbrain-sepformer') {
+      required.push({ task: 'speaker_embedding', id: 'speechbrain-ecapa', label: 'SpeechBrain ECAPA' });
+    }
+    const unique = new Map<string, string>();
+    for (const item of required) {
+      const provider = providers.find(candidate => candidate.task === item.task && (!item.id || candidate.id === item.id));
+      if (!provider) {
+        unique.set(`${item.task}:${item.id ?? 'default'}`, `${item.label} : provider indisponible`);
+      } else if (!provider.ready) {
+        unique.set(`${provider.task}:${provider.id}`, `${item.label} : ${provider.missing.length ? provider.missing.join(', ') : provider.message}`);
+      }
+    }
+    if (uniqueConfigurationNotice) unique.set('sepformer-identity-config', 'SepFormer nécessite SpeechBrain ECAPA dans les paramètres.');
+    return [...unique.values()];
+  }
 
   perJobValues(provider: ProviderStatus): Record<string, unknown> {
     return { ...(this.settings()?.provider_options[provider.id] ?? {}), ...(this.perJobOverrides()[provider.id] ?? {}) };

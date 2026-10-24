@@ -67,18 +67,18 @@
               <p class="field-note detail-meta">{{ dateLabel(session.started_at, session.id) }}@if (session.duration_seconds != null) { <span aria-hidden="true"> · </span><span>Durée {{ durationLabel(session.duration_seconds) }}</span> }</p>
             </div>
             <div class="detail-actions">
-              <button class="btn btn--primary btn--small detail-process-button" type="button" [disabled]="processingActionDisabled()" (click)="runJob('process', true)"><glimio-icon name="play" /> Traiter complètement</button>
+              <button class="btn btn--primary btn--small detail-process-button" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="runJob('process', true)"><glimio-icon name="play" /> Traiter complètement</button>
               <details class="session-actions-menu" #sessionActionsMenu>
                 <summary class="session-actions-toggle" aria-label="Autres actions sur la séance"><span class="session-actions-icon"><glimio-icon name="bars-3" size="fill" /></span></summary>
                 <div class="session-actions-panel">
-                  <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled()" (click)="renameSession(); sessionActionsMenu.open = false"><glimio-icon name="pencil-square" /><span class="btn-label">Renommer</span></button>
-                  <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled()" (click)="runJob('transcribe'); sessionActionsMenu.open = false"><glimio-icon name="document-text" /><span class="btn-label">Transcrire</span></button>
+                  <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="renameSession(); sessionActionsMenu.open = false"><glimio-icon name="pencil-square" /><span class="btn-label">Renommer</span></button>
+                  <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="runJob('transcribe'); sessionActionsMenu.open = false"><glimio-icon name="document-text" /><span class="btn-label">Transcrire</span></button>
                   @if (session.summary) {
-                    <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled()" (click)="runJob('summarize', true); sessionActionsMenu.open = false"><glimio-icon name="arrow-path" /><span class="btn-label">Refaire le résumé</span></button>
+                    <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="runJob('summarize', true); sessionActionsMenu.open = false"><glimio-icon name="arrow-path" /><span class="btn-label">Refaire le résumé</span></button>
                   } @else {
-                    <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled()" (click)="runJob('summarize'); sessionActionsMenu.open = false"><glimio-icon name="sparkles" /><span class="btn-label">Créer un résumé</span></button>
+                    <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="runJob('summarize'); sessionActionsMenu.open = false"><glimio-icon name="sparkles" /><span class="btn-label">Créer un résumé</span></button>
                   }
-                  <button class="btn btn--ghost btn--small is-danger" type="button" [disabled]="processingActionDisabled()" (click)="deleteSession(); sessionActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer</span></button>
+                  <button class="btn btn--ghost btn--small is-danger" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="deleteSession(); sessionActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer</span></button>
                 </div>
               </details>
             </div>
@@ -98,19 +98,58 @@
           <div class="audio-stale-notice" role="status">
             <glimio-icon name="information-circle" />
             <div><strong>Les documents ne correspondent peut-être plus aux pistes actives.</strong>@if (session.audio_tracks?.length) { <p>Une piste a été désactivée ou supprimée. Relancez le traitement complet pour actualiser la transcription et le résumé.</p> } @else { <p>Aucune piste audio n’est conservée. Les documents actuels restent consultables, mais pour les recalculer il faudra réimporter une source audio.</p> }</div>
-            @if (session.audio_tracks?.length) { <button class="btn btn--secondary btn--small" type="button" [disabled]="processingActionDisabled()" (click)="runJob('process', true)">Actualiser les documents</button> }
+            @if (session.audio_tracks?.length) { <button class="btn btn--secondary btn--small" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="runJob('process', true)">Actualiser les documents</button> }
           </div>
         }
 
         <section class="detail-section available-documents" aria-labelledby="available-documents-title">
-            <div class="detail-section-heading"><div><h3 id="available-documents-title">Contenus de la séance</h3><p class="field-note">Les documents générés apparaissent ici directement.</p></div></div>
-          @if (session.summary || session.transcript) {
-            <div class="artifact-tabs" role="tablist" aria-label="Contenu à afficher">
-              @if (session.summary) { <button id="artifact-tab-summary" class="artifact-tab" role="tab" type="button" aria-controls="artifact-content-pane" [attr.tabindex]="artifactKind() === 'summary' ? 0 : -1" [attr.aria-selected]="artifactKind() === 'summary'" [class.is-active]="artifactKind() === 'summary'" (keydown)="onArtifactTabKeydown($event, 'summary')" (click)="loadArtifact('summary')"><glimio-icon name="sparkles" /> Résumé</button> }
-              @if (session.transcript) { <button id="artifact-tab-transcript" class="artifact-tab" role="tab" type="button" aria-controls="artifact-content-pane" [attr.tabindex]="artifactKind() === 'transcript' ? 0 : -1" [attr.aria-selected]="artifactKind() === 'transcript'" [class.is-active]="artifactKind() === 'transcript'" (keydown)="onArtifactTabKeydown($event, 'transcript')" (click)="loadArtifact('transcript')"><glimio-icon name="document-text" /> Transcription</button> }
+          <div class="detail-section-heading"><div><h3 id="available-documents-title">Contenus de la séance</h3></div></div>
+          @if (session.summary || session.transcript || isFullProcessActive()) {
+            <div class="artifact-tabs" role="tablist" aria-label="Contenu à afficher" [attr.aria-disabled]="artifactTabsDisabled() ? 'true' : null" [class.is-disabled]="artifactTabsDisabled()">
+              @if (session.summary || isFullProcessActive()) {
+                <button id="artifact-tab-summary" class="artifact-tab" role="tab" type="button" aria-controls="artifact-content-pane" [disabled]="artifactTabsDisabled() || !session.summary" [attr.tabindex]="!artifactTabsDisabled() && artifactKind() === 'summary' ? 0 : -1" [attr.aria-selected]="artifactKind() === 'summary'" [class.is-active]="artifactKind() === 'summary'" (keydown)="onArtifactTabKeydown($event, 'summary')" (click)="loadArtifact('summary')"><glimio-icon name="sparkles" /> Résumé</button>
+              }
+              @if (session.transcript || isFullProcessActive()) {
+                <button id="artifact-tab-transcript" class="artifact-tab" role="tab" type="button" aria-controls="artifact-content-pane" [disabled]="artifactTabsDisabled() || !session.transcript" [attr.tabindex]="!artifactTabsDisabled() && artifactKind() === 'transcript' ? 0 : -1" [attr.aria-selected]="artifactKind() === 'transcript'" [class.is-active]="artifactKind() === 'transcript'" (keydown)="onArtifactTabKeydown($event, 'transcript')" (click)="loadArtifact('transcript')"><glimio-icon name="document-text" /> Transcription</button>
+              }
             </div>
+          }
+
+          @if (artifactKind() === 'summary' && session.summary && !sessionProcessingActive() && !isFullProcessActive() && !artifactLoading() && !artifactPending() && artifactContent()) {
+            <div class="artifact-toolbar" aria-label="Actions sur le résumé">
+              @if (summaryEditing()) {
+                <span class="artifact-format-label">Édition Markdown</span>
+                <div class="artifact-toolbar-actions">
+                  <button class="btn btn--primary btn--small" type="button" [disabled]="summarySaving() || !summaryDraft().trim()" (click)="saveSummaryEdit()"><glimio-icon name="check-circle" /> {{ summarySaving() ? 'Enregistrement…' : 'Enregistrer' }}</button>
+                  <button class="btn btn--ghost btn--small" type="button" [disabled]="summarySaving()" (click)="cancelSummaryEdit()">Annuler</button>
+                </div>
+              } @else {
+                <span class="artifact-format-label">Résumé en Markdown</span>
+                <div class="artifact-toolbar-actions">
+                  <button class="btn btn--secondary btn--small" type="button" (click)="startSummaryEdit()"><glimio-icon name="pencil-square" /> Modifier</button>
+                  <button class="btn btn--ghost btn--small" type="button" (click)="exportSummaryMarkdown()"><glimio-icon name="arrow-down-tray" /> Exporter .md</button>
+                  <button class="btn btn--ghost btn--small" type="button" (click)="printSummaryPdf()"><glimio-icon name="document-text" /> Imprimer / PDF</button>
+                </div>
+              }
+            </div>
+          }
+
+          @if (isFullProcessActive()) {
+            <div class="artifact-content-pane" id="artifact-content-pane" role="tabpanel" [attr.aria-labelledby]="artifactKind() === 'transcript' ? 'artifact-tab-transcript' : 'artifact-tab-summary'" tabindex="0">
+              @if (artifactLoading() || artifactPending()) { <div class="artifact-loading" role="status"><span class="spinner" aria-hidden="true"></span> {{ artifactPending() ? 'Préparation du document…' : 'Chargement du contenu…' }}</div> }
+              @else if (artifactContent()) { <article class="artifact-rendered" [attr.aria-busy]="artifactLive()" [innerHTML]="artifactHtml()"></article> }
+              @else { <div class="artifact-loading" role="status"><span class="spinner" aria-hidden="true"></span> Préparation du document…</div> }
+              @if (isArtifactLive() && (artifactPending() || artifactContent())) {
+                <div class="mt-4 flex min-h-2.5 w-full items-center justify-center gap-1.5 text-accent" role="status"><span class="sr-only">Contenu en cours de génération…</span><span class="size-1.5 animate-bounce rounded-full bg-current" aria-hidden="true"></span><span class="size-1.5 animate-bounce rounded-full bg-current [animation-delay:120ms]" aria-hidden="true"></span><span class="size-1.5 animate-bounce rounded-full bg-current [animation-delay:240ms]" aria-hidden="true"></span></div>
+              }
+            </div>
+          } @else if (session.summary || session.transcript) {
             <div class="artifact-content-pane" id="artifact-content-pane" role="tabpanel" tabindex="0" [attr.aria-labelledby]="artifactKind() === 'transcript' ? 'artifact-tab-transcript' : 'artifact-tab-summary'">
               @if (artifactLoading() || artifactPending()) { <div class="artifact-loading" role="status"><span class="spinner" aria-hidden="true"></span> {{ artifactPending() ? 'Préparation du document…' : 'Chargement du contenu…' }}</div> }
+              @else if (artifactKind() === 'summary' && summaryEditing()) {
+                <textarea class="textarea summary-markdown-editor" id="summary-markdown-editor" aria-label="Modifier le résumé en Markdown" rows="20" maxlength="2000000" spellcheck="true" [ngModel]="summaryDraft()" (ngModelChange)="summaryDraft.set($event)"></textarea>
+                <p class="field-note summary-editor-note">Le résumé est enregistré au format Markdown. Les titres, listes, tableaux et liens sont rendus dans l’aperçu après l’enregistrement.</p>
+              }
               @else if (artifactContent()) { <article class="artifact-rendered" [attr.aria-busy]="artifactLive()" [innerHTML]="artifactHtml()"></article> }
               @if (isArtifactLive() && (artifactPending() || artifactContent())) {
                 <div class="mt-4 flex min-h-2.5 w-full items-center justify-center gap-1.5 text-accent" role="status"><span class="sr-only">Contenu en cours de génération…</span><span class="size-1.5 animate-bounce rounded-full bg-current" aria-hidden="true"></span><span class="size-1.5 animate-bounce rounded-full bg-current [animation-delay:120ms]" aria-hidden="true"></span><span class="size-1.5 animate-bounce rounded-full bg-current [animation-delay:240ms]" aria-hidden="true"></span></div>
@@ -132,8 +171,8 @@
                   <details class="session-actions-menu audio-track-actions audio-track-actions-menu" #trackActionsMenu>
                     <summary class="session-actions-toggle" [attr.aria-label]="'Actions pour la piste ' + track"><span class="session-actions-icon"><glimio-icon name="bars-3" size="fill" /></span></summary>
                     <div class="session-actions-panel">
-                      <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled() || !canDisableAudioTrack(track)" [title]="!canDisableAudioTrack(track) ? 'Au moins une piste doit rester active' : ''" (click)="setAudioTrackDisabled(track, !isAudioTrackDisabled(track)); trackActionsMenu.open = false"><glimio-icon [name]="isAudioTrackDisabled(track) ? 'eye' : 'eye-slash'" /><span class="btn-label">{{ isAudioTrackDisabled(track) ? 'Réactiver' : 'Désactiver' }}</span></button>
-                      <button class="btn btn--ghost btn--small is-danger" type="button" [disabled]="processingActionDisabled()" (click)="deleteAudioTrack(track); trackActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer le fichier</span></button>
+                      <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled() || summaryEditing() || !canDisableAudioTrack(track)" [title]="!canDisableAudioTrack(track) ? 'Au moins une piste doit rester active' : ''" (click)="setAudioTrackDisabled(track, !isAudioTrackDisabled(track)); trackActionsMenu.open = false"><glimio-icon [name]="isAudioTrackDisabled(track) ? 'eye' : 'eye-slash'" /><span class="btn-label">{{ isAudioTrackDisabled(track) ? 'Réactiver' : 'Désactiver' }}</span></button>
+                      <button class="btn btn--ghost btn--small is-danger" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="deleteAudioTrack(track); trackActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer le fichier</span></button>
                     </div>
                   </details>
                 </div>
@@ -159,7 +198,7 @@
                 }
               </div>
               @if (sessionTranscriptionProvider(); as provider) {
-                @if (hasPerJobOptions(provider)) { <div class="col-span-full mt-1 border-t border-border-soft pt-4"><h4>{{ provider.name }}</h4><p class="field-note mb-3">Options de cette séance. Ces réglages sont enregistrés avec la séance et utilisés lors de ses prochains traitements.</p><glimio-provider-options [provider]="provider" [values]="options.provider_options[provider.id] ?? {}" [showAllOptions]="true" [perJobOnly]="true" (optionChange)="patchSessionProviderOption(provider, $event.option.key, $event.value)" /></div> }
+                @if (hasPerJobOptions(provider)) { <div class="col-span-full mt-1 border-t border-border-soft pt-4"><h4 data-no-translate>{{ providerText(provider, provider.name) }}</h4><p class="field-note mb-3">Options de cette séance. Ces réglages sont enregistrés avec la séance et utilisés lors de ses prochains traitements.</p><glimio-provider-options [provider]="provider" [values]="options.provider_options[provider.id] ?? {}" [showAllOptions]="true" [perJobOnly]="true" (optionChange)="patchSessionProviderOption(provider, $event.option.key, $event.value)" /></div> }
               }
             </div>
           </section>

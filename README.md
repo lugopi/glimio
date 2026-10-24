@@ -17,9 +17,13 @@ Glimio est une application de bureau locale avec une interface web qui aide à e
 ## Fonctionnalités
 
 - **Capture audio** : microphone et audio système Windows, avec normalisation optionnelle.
-- **Import audio/vidéo** : les formats décodables par FFmpeg peuvent être importés.
-- **Transcription locale** : moteur whisper.cpp configuré localement, avec langue de transcription sélectionnable, suivi de la langue FR/EN de l’interface ou détection de la langue parlée.
-- **Diarisation facultative** : segmentation et regroupement de voix avec des modèles ONNX configurables.
+- **Import audio/vidéo multipiste** : chaque flux audio et, par défaut, chaque canal de chaque flux sont conservés comme pistes indépendantes ; le gain source est préservé par défaut pour éviter d’amplifier le bruit de fond.
+- **Transcription locale** : moteur whisper.cpp configurable, avec traitement par blocs de 15 minutes et chevauchement pour les longs enregistrements, langue sélectionnable ou automatique.
+- **Providers audio modulaires** : amélioration de la voix, séparation des sources, transcription et embeddings de locuteurs sont des briques distinctes, remplaçables via le catalogue de providers. Les dépendances fortes sont déclarées (`requires`) et vérifiées.
+- **Amélioration audio avant ASR** : débruitage spectral FFmpeg par défaut, DeepFilterNet local en option ; la VAD Silero de whisper.cpp peut ignorer les silences prolongés lorsque son modèle local est installé. L’original n’est pas altéré.
+- **Séparation de sources facultative** : un provider SpeechBrain SepFormer peut essayer de démêler deux voix superposées, avec un provider ECAPA séparé pour rapprocher les identités d’une fenêtre à l’autre. Le modèle public est entraîné sur des mélanges propres de deux voix anglaises et ne doit pas être supposé fiable sur toute réunion française ou bruitée.
+- **Longues séances** : transcription en blocs avec chevauchement, checkpoints atomiques par bloc et reprise après interruption ; diarisation fenêtre par fenêtre et rapprochement d’identités vocales optionnel.
+- **Diarisation facultative** : segmentation et regroupement des tours de parole avec des modèles ONNX configurables. L’amélioration audio supprime du bruit, mais ne sépare pas deux personnes qui parlent simultanément.
 - **Résumés et notes** : génération locale par llama.cpp et un modèle GGUF.
 - **Bibliothèque** : recherche, filtres, pagination, audio, résumés, transcriptions, options de traitement par séance, renommage et suppression.
 - **Interface cohérente** : les icônes fonctionnelles utilisent `glimio-icon` et `@ng-icons/heroicons` ; les commandes partagées conservent un focus clavier visible et des libellés accessibles.
@@ -34,12 +38,14 @@ Les transcriptions et résumés issus de modèles peuvent être erronés. Vérif
 - Python **3.10+** et `pip`.
 - Node.js **22.22.3+** (branche 22) ou une version compatible plus récente pour compiler l’interface Angular ; la version cible est définie dans `src/web/frontend/.nvmrc`.
 - Windows recommandé pour la capture de l’audio système ; les possibilités dépendent du système et des pilotes.
-- FFmpeg sur le `PATH` pour les imports nécessitant une conversion.
+- FFmpeg et ffprobe sur le `PATH` (ou côte à côte) pour l’import fidèle de tous les flux audio, les conversions et le débruitage. Glimio échoue explicitement si ffprobe manque plutôt que de silencieusement ignorer les pistes secondaires.
+- Facultatif : exécutable `deep-filter` et archive modèle DeepFilterNet téléchargés séparément pour une amélioration neuronale de la voix.
+- Facultatif : l’extra `separation` (SpeechBrain, PyTorch/Torchaudio) pour SepFormer et ECAPA ; installe d’abord le build PyTorch adapté à la plateforme, puis le modèle local de chaque provider.
 - whisper.cpp et son modèle Whisper pour la transcription.
 - llama.cpp et un modèle GGUF pour les résumés/recherches.
 - Pour la diarisation, l’extra Python `diarization` (`sherpa-onnx`) et les deux modèles ONNX attendus. Le module d’intégration est fourni dans `src/seance/processing/diarization.py` ; la dépendance seule ne télécharge pas les poids des modèles.
 
-Les poids IA et exécutables natifs sont volontairement exclus du dépôt Git. Les noms de fichiers, chemins et liens éditeurs sont documentés dans [`docs/MODELS.md`](docs/MODELS.md).
+Les poids IA et exécutables natifs sont volontairement exclus du dépôt Git. Les noms de fichiers, chemins et liens éditeurs sont documentés dans [`docs/MODELS.md`](docs/MODELS.md). Le fonctionnement des providers audio et leurs limites sont décrits dans [`docs/AUDIO_PIPELINE.md`](docs/AUDIO_PIPELINE.md). Les paramètres affichent aussi les liens de téléchargement fournis par chaque provider ; les extras Python compatibles peuvent être installés en un clic dans une exécution depuis les sources. Redémarre Glimio après une installation de dépendances. Les éditions empaquetées affichent les liens mais ne modifient pas leur runtime Python interne.
 
 ## Installation
 
@@ -75,7 +81,7 @@ Démarre l’application :
 
 L’interface locale est normalement ouverte à `http://127.0.0.1:8765`. Le serveur écoute sur la boucle locale par défaut. Ne l’expose pas sur un réseau non fiable : Glimio n’implémente actuellement pas d’authentification.
 
-Le CLI peut enregistrer avec `glimio record` (Ctrl+C pour arrêter) et accepte aussi un fichier audio/vidéo ou un dossier de séance : `glimio process chemin\vers\fichier.wav`, `glimio transcribe chemin\vers\seance` ou `glimio summarize chemin\vers\seance`. Utilise `glimio --help` pour les options et chemins de modèles.
+Le CLI peut enregistrer avec `glimio record` (Ctrl+C pour arrêter) et accepte aussi un fichier audio/vidéo ou un dossier de séance : `glimio process chemin\vers\fichier.wav`, `glimio transcribe chemin\vers\seance` ou `glimio summarize chemin\vers\seance`. Utilise `glimio --help` pour les options et chemins de modèles. Pour un débruitage conservateur, passe `--speech-enhancement ffmpeg`; pour DeepFilterNet configuré localement, `--speech-enhancement deepfilter --deep-filter-executable chemin/vers/deep-filter --deep-filter-model models/speech-enhancement/model.tar.gz`. La détection de silence utilise `--vad-mode auto|on|off` et le modèle Silero indiqué ci-dessus. Les options de séparation et d’identité vocale se configurent avec `--source-separation-provider`, `--speaker-embedding-provider` et les options du provider correspondantes ; SepFormer requiert explicitement ECAPA et les deux modèles locaux.
 
 ## Modèles et exécutables
 
@@ -83,6 +89,9 @@ Le CLI peut enregistrer avec `glimio record` (Ctrl+C pour arrêter) et accepte a
 |---|---|
 | Whisper CLI | `bin/asr/whisper-cli.exe` |
 | Modèle Whisper large-v3 | `models/asr/model.bin` |
+| Modèle VAD Silero (optionnel) | `models/asr/ggml-silero-v6.2.0.bin` |
+| Binaire DeepFilterNet (optionnel) | `bin/speech/deep-filter.exe` (adapter sur Linux/macOS) |
+| Modèle DeepFilterNet (optionnel) | `models/speech-enhancement/model.tar.gz` |
 | llama.cpp | `bin/llm/llama-completion.exe` |
 | Modèle LFM2.5 GGUF | `models/llm/model.gguf` |
 | Modèle de segmentation | `models/diarization/segmentation/segmentation.onnx` |

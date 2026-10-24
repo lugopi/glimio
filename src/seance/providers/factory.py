@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from .llama_cpp import LlamaCppTextProvider
 from .whisper_cpp import WhisperCppTranscriptionProvider
 from .contracts import TextGenerationProvider, TranscriptionProvider
+from .audio_processing import audio_processing_provider_infos
 
 
 DEFAULT_TEXT_PROVIDER = "llama.cpp"
@@ -22,7 +23,7 @@ TRANSCRIPTION_PROVIDER_IDS = tuple(_TRANSCRIPTION_PROVIDER_FACTORIES)
 def registered_provider_infos():
     """Return the UI-neutral metadata declared by all active provider adapters."""
     factories = (*_TEXT_PROVIDER_FACTORIES.values(), *_TRANSCRIPTION_PROVIDER_FACTORIES.values())
-    return tuple(factory.info for factory in factories)
+    return tuple(factory.info for factory in factories) + audio_processing_provider_infos()
 
 
 def create_text_provider(

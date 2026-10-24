@@ -12,7 +12,9 @@ import { CheckboxFieldComponent } from '../../shared/checkbox-field.component';
 import { IconComponent } from '../../shared/icon.component';
 import { PaginationComponent } from '../../shared/pagination.component';
 import { ProviderOptionsComponent } from '../../shared/provider-options.component';
+import { DocumentExportService } from '../../shared/document-export.service';
 import { renderMarkdownToHtml } from '../../shared/markdown';
+import { estimateRemainingProcessingSeconds, type ProcessingDurationSample } from '../../shared/processing-eta';
 import { ProgressiveTextReveal, codePointLength, codePointTailHash, sliceCodePoints } from '../../shared/progressive-text';
 import { providerSupportsTranscriptionLanguage, transcriptionLanguageOptions } from '../../shared/transcription-languages';
 import { JobEventsService } from '../../core/job-events.service';
@@ -34,17 +36,21 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   private readonly preferences = inject(PreferencesService);
   private readonly libraryState = inject(LibraryStateService);
   private readonly toast = inject(ToastService);
+  private readonly documentExport = inject(DocumentExportService);
   readonly sessions = signal<SessionSummary[]>([]);
   readonly total = signal(0);
   readonly page = signal(1);
   readonly pageSize = signal(25);
   readonly selectedId = signal<string | null>(null);
   readonly selected = signal<SessionDetail | null>(null);
+  readonly fullProcessStartingSessionId = signal<string | null>(null);
   readonly mobileDetailOpen = signal(false);
   readonly working = signal(false);
   readonly sessionSettingsSaving = signal(false);
   readonly sessionSettings = signal<GlimioSettings | null>(null);
   private readonly jobHistory = signal<Job[]>([]);
+  readonly etaNow = signal(Date.now());
+  private etaRefreshTimer?: number;
   readonly providers = signal<ProviderStatus[] | null>(null);
   readonly transcriptionLanguages = computed(() => transcriptionLanguageOptions(this.preferences.preferences()?.ui.language ?? 'fr'));
   readonly formats = ['auto', 'summary', 'daily', 'technical', 'formal', 'brainstorm'];
@@ -54,6 +60,9 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly artifactKind = signal<'summary' | 'transcript' | null>(null);
   readonly artifactLoading = signal(false);
   readonly artifactPending = signal(false);
+  readonly summaryEditing = signal(false);
+  readonly summaryDraft = signal('');
+  readonly summarySaving = signal(false);
   readonly revealedChars = signal(0);
   readonly artifactVisibleContent = computed(() => sliceCodePoints(this.artifactContent(), this.revealedChars()));
   readonly artifactHtml = computed(() => renderMarkdownToHtml(this.artifactVisibleContent()));
@@ -87,7 +96,13 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly pageItems = computed(() => this.sessions());
   readonly sessionsWithSummary = computed(() => this.sessions().filter(session => session.summary).length);
 
+  providerText(provider: ProviderStatus, value: string): string {
+    const language = this.preferences.preferences()?.ui.language ?? 'fr';
+    return provider.translations?.[language]?.[value] ?? value;
+  }
+
   ngOnInit(): void {
+    this.etaRefreshTimer = window.setInterval(() => this.etaNow.set(Date.now()), 30_000);
     this.api.providers().subscribe({ next: response => this.providers.set(response.providers), error: () => this.providers.set([]) });
     this.route.queryParamMap.subscribe(params => {
       const requestedId = params.get('session');
@@ -114,6 +129,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     this.reveal.destroy();
     window.clearTimeout(this.searchTimer);
     window.clearTimeout(this.artifactRefreshTimer);
+    if (this.etaRefreshTimer !== undefined) window.clearInterval(this.etaRefreshTimer);
     void this.flushPendingSessionSettings().catch(() => undefined);
   }
 
@@ -161,6 +177,13 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     return this.working() || this.sessionProcessingActive();
   }
 
+  isFullProcessActive(): boolean {
+    const sessionId = this.selectedId();
+    const processing = this.selected()?.processing;
+    return Boolean(sessionId && this.fullProcessStartingSessionId() === sessionId)
+      || Boolean(processing?.kind === 'process' && processing.active);
+  }
+
   searchChanged(): void {
     window.clearTimeout(this.searchTimer);
     this.searchTimer = window.setTimeout(() => this.loadSessions(true), 250);
@@ -193,6 +216,16 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   changePageSize(value: number): void { this.pageSize.set(Number(value)); this.page.set(1); this.loadSessions(); }
 
   openSession(id: string, showOnMobile = false): void {
+    if (this.summarySaving()) {
+      this.toast.show('Enregistrement du résumé en cours. Attendez sa fin avant de changer de séance.', 'info');
+      return;
+    }
+    if (this.summaryEditing()) {
+      this.toast.show('Enregistrez ou annulez les modifications du résumé avant de changer de séance ou de recharger son détail.', 'info');
+      return;
+    }
+    this.summaryEditing.set(false);
+    this.summaryDraft.set('');
     const changingSession = this.selectedId() !== id;
     if (changingSession) {
       void this.flushPendingSessionSettings().catch(error => this.toast.show(`Impossible d’enregistrer les options : ${error.message}`, 'error'));
@@ -328,33 +361,44 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   runJob(action: 'transcribe' | 'summarize' | 'process', force = false): void {
     if (this.sessionProcessingActive()) return;
+    if (this.summaryEditing()) { this.toast.show('Enregistrez ou annulez les modifications du résumé avant de lancer un traitement.', 'info'); return; }
     const session = this.selected(); const settings = this.sessionSettings() ?? this.preferences.preferences()?.settings;
     if (!session || !settings) { this.toast.show('Les paramètres ne sont pas encore disponibles.', 'error'); return; }
     this.liveArtifactPhaseKey = '';
     this.liveArtifactPhaseFollowed = false;
+    if (action === 'process') this.fullProcessStartingSessionId.set(session.id);
     this.revealedByKind.summary = 0;
     this.revealedByKind.transcript = 0;
     this.working.set(true);
     void this.flushPendingSessionSettings().catch(() => undefined)
       .then(() => this.persistSessionSettings(session.id, settings))
       .then(() => firstValueFrom(this.api.startSessionJob(action, session.id, this.settingsForJob(settings), force)))
-      .then(() => { this.toast.show('Traitement ajouté à la file avec les options de cette séance.', 'success'); this.working.set(false); this.openSession(session.id); })
+      .then(job => {
+        if (this.selectedId() === session.id) {
+          this.selected.update(current => current ? { ...current, processing: this.processingInfo(job) } : current);
+          this.openSession(session.id);
+        }
+        if (this.fullProcessStartingSessionId() === session.id) this.fullProcessStartingSessionId.set(null);
+        this.toast.show('Traitement ajouté à la file avec les options de cette séance.', 'success');
+        this.working.set(false);
+      })
       .catch(error => {
         const message = error?.message ?? String(error);
         this.toast.show(message.startsWith('Impossible d’enregistrer les options') ? message : `Impossible d’enregistrer les options : ${message}`, 'error');
+        if (this.fullProcessStartingSessionId() === session.id) this.fullProcessStartingSessionId.set(null);
         this.working.set(false);
       });
   }
 
   renameSession(): void {
-    const session = this.selected(); if (!session || this.sessionProcessingActive()) return;
+    const session = this.selected(); if (!session || this.sessionProcessingActive() || this.summaryEditing()) return;
     const title = window.prompt('Nouveau titre de la séance', session.title)?.trim();
     if (!title || title === session.title) return;
     this.api.renameSession(session.id, title).subscribe({ next: () => { this.toast.show('Séance renommée.', 'success'); this.loadSessions(); }, error: error => this.toast.show(error.message, 'error') });
   }
 
   deleteSession(): void {
-    const session = this.selected(); if (!session || this.sessionProcessingActive()) return;
+    const session = this.selected(); if (!session || this.sessionProcessingActive() || this.summaryEditing()) return;
     if (!window.confirm(`Supprimer définitivement la séance « ${session.title} » et ses fichiers ?`)) return;
     this.api.deleteSession(session.id).subscribe({ next: () => { this.toast.show('Séance supprimée.', 'success'); this.selected.set(null); this.selectedId.set(null); this.loadSessions(true); }, error: error => this.toast.show(error.message, 'error') });
   }
@@ -391,7 +435,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   setAudioTrackDisabled(filename: string, disabled: boolean): void {
     const session = this.selected();
-    if (!session || this.sessionProcessingActive()) return;
+    if (!session || this.sessionProcessingActive() || this.summaryEditing()) return;
     this.working.set(true);
     this.api.setAudioTrackDisabled(session.id, filename, disabled).subscribe({
       next: result => {
@@ -407,7 +451,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   deleteAudioTrack(filename: string): void {
     const session = this.selected();
-    if (!session || this.sessionProcessingActive()) return;
+    if (!session || this.sessionProcessingActive() || this.summaryEditing()) return;
     const isLastTrack = (session.audio_tracks ?? []).length <= 1;
     const lastTrackWarning = isLastTrack
       ? '\n\nC’est la dernière piste audio. Après suppression, il sera impossible de régénérer la transcription ou le résumé à partir de cette séance, sauf si vous réimportez une source audio.'
@@ -436,8 +480,17 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  artifactTabsDisabled(): boolean {
+    if (this.summaryEditing()) return true;
+    if (!this.isFullProcessActive()) return false;
+    const processing = this.selected()?.processing;
+    // Once transcription is complete, let the user inspect the finished transcript
+    // and follow the live summary instead of leaving both tabs inert.
+    return !(processing?.active && processing.phase === 'summarizing');
+  }
+
   onArtifactTabKeydown(event: KeyboardEvent, current: 'summary' | 'transcript'): void {
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    if (this.artifactTabsDisabled() || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     const session = this.selected();
     if (!session) return;
     const available: Array<'summary' | 'transcript'> = [];
@@ -456,7 +509,69 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     document.getElementById(`artifact-tab-${target}`)?.focus();
   }
 
+  startSummaryEdit(): void {
+    const session = this.selected();
+    if (!session || !session.summary || this.artifactKind() !== 'summary'
+        || this.sessionProcessingActive() || this.isFullProcessActive() || this.artifactLoading() || this.artifactPending()
+        || !this.artifactContent().trim()) return;
+    this.summaryDraft.set(this.artifactContent());
+    this.summaryEditing.set(true);
+  }
+
+  cancelSummaryEdit(): void {
+    if (this.summarySaving()) return;
+    this.summaryEditing.set(false);
+    this.summaryDraft.set('');
+  }
+
+  saveSummaryEdit(): void {
+    const session = this.selected();
+    const content = this.summaryDraft();
+    if (!session || this.artifactKind() !== 'summary' || this.sessionProcessingActive() || this.isFullProcessActive()
+        || this.summarySaving() || !content.trim() || !this.artifactRevision) return;
+    this.summarySaving.set(true);
+    this.api.saveSessionSummary(session.id, content, this.artifactRevision).subscribe({
+      next: result => {
+        this.summarySaving.set(false);
+        if (this.selectedId() !== session.id) return;
+        const savedContent = result.content ?? content;
+        const length = codePointLength(savedContent);
+        this.artifactContent.set(savedContent);
+        this.artifactRevision = result.revision;
+        this.artifactLive.set(false);
+        this.revealedByKind.summary = length;
+        this.reveal.reset(length);
+        this.revealedChars.set(length);
+        this.summaryEditing.set(false);
+        this.summaryDraft.set('');
+        this.selected.update(current => current ? { ...current, summary: true } : current);
+        this.toast.show('Résumé enregistré.', 'success');
+        this.loadSessions();
+      },
+      error: error => {
+        this.summarySaving.set(false);
+        this.toast.show(`Impossible d’enregistrer le résumé : ${error.message}`, 'error');
+      },
+    });
+  }
+
+  exportSummaryMarkdown(): void {
+    const session = this.selected();
+    if (!session || this.artifactKind() !== 'summary' || this.summaryEditing()) return;
+    this.documentExport.downloadMarkdown(this.artifactContent(), session.title, session.id);
+    this.toast.show('Résumé exporté au format Markdown.', 'success');
+  }
+
+  printSummaryPdf(): void {
+    const session = this.selected();
+    if (!session || this.artifactKind() !== 'summary' || this.summaryEditing()) return;
+    if (!this.documentExport.openPrintView(this.artifactContent(), session.title)) {
+      this.toast.show('Autorisez les fenêtres contextuelles pour imprimer ou enregistrer le résumé en PDF.', 'info');
+    }
+  }
+
   loadArtifact(kind: 'summary' | 'transcript'): void {
+    if (this.summaryEditing() && this.artifactKind() !== kind) return;
     const session = this.selected();
     if (!session || session.id !== this.selectedId()
         || (kind === 'summary' && !session.summary)
@@ -637,25 +752,47 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   processingEtaLabel(processing: ProcessingInfo): string | null {
     if (!processing.active || !processing.started_at) return null;
-    const now = Date.now();
     const startedAt = Date.parse(processing.started_at);
-    if (!Number.isFinite(startedAt)) return null;
-    const previousDurations = this.jobHistory()
-      .filter(job => job.id !== processing.job_id && job.kind === processing.kind && job.state === 'completed' && job.started_at && job.finished_at)
-      .map(job => (Date.parse(job.finished_at!) - Date.parse(job.started_at!)) / 1000)
-      .filter(duration => Number.isFinite(duration) && duration > 0)
-      .slice(0, 7)
-      .sort((left, right) => left - right);
-    if (!previousDurations.length) return null;
-    const middle = Math.floor(previousDurations.length / 2);
-    const typicalDuration = previousDurations.length % 2
-      ? previousDurations[middle]
-      : (previousDurations[middle - 1] + previousDurations[middle]) / 2;
-    const remaining = Math.max(0, typicalDuration - (now - startedAt) / 1000);
+    const now = this.etaNow();
+    if (!Number.isFinite(startedAt) || startedAt > now) return null;
+
+    const session = this.selected();
+    const sessionId = this.selectedId();
+    if (!session || !sessionId) return null;
+
+    // The current session's duration is authoritative even when it is not on the current page.
+    const audioDurations = new Map<string, number>();
+    for (const item of this.sessions()) {
+      if (Number.isFinite(item.duration_seconds) && (item.duration_seconds ?? 0) > 0) {
+        audioDurations.set(item.id, item.duration_seconds!);
+      }
+    }
+    if (Number.isFinite(session.duration_seconds) && (session.duration_seconds ?? 0) > 0) {
+      audioDurations.set(sessionId, session.duration_seconds!);
+    }
+
+    const samples: ProcessingDurationSample[] = this.jobHistory()
+      .filter(job => job.id !== processing.job_id && job.kind === processing.kind && job.state === 'completed'
+        && job.started_at && job.finished_at)
+      .map(job => {
+        const start = Date.parse(job.started_at!);
+        const finish = Date.parse(job.finished_at!);
+        return {
+          sessionId: job.session_id ?? null,
+          durationSeconds: (finish - start) / 1000,
+          audioDurationSeconds: job.session_id ? audioDurations.get(job.session_id) ?? null : null,
+          completedAt: finish,
+        };
+      });
+
+    const remaining = estimateRemainingProcessingSeconds(
+      samples, sessionId, session.duration_seconds, (now - startedAt) / 1000,
+    );
+    if (remaining === null) return null;
+
     const estimate = new Date(now + remaining * 1000);
     const locale = document.documentElement.lang === 'en' ? 'en-CH' : 'fr-CH';
-    const time = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(estimate);
-    return time;
+    return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(estimate);
   }
 
   isArtifactLive(): boolean {

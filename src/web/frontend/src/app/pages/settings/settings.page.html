@@ -33,16 +33,16 @@
         <div class="settings-body">
           <h2 class="card-title" id="transcription-title">Transcription</h2>
           <p class="field-note">Le moteur transforme vos fichiers audio en texte. L’accélération matérielle dépend du moteur et de votre installation.</p>
-          @if (providersError(); as error) { <p class="settings-error" role="status">{{ error }}</p> }
+          @if (providersError(); as error) { <p class="break-all text-sm text-amber-700" role="status">{{ error }}</p> }
           <div class="settings-grid">
             <div>
               <label class="field-label" for="transcription-provider">Moteur de transcription</label>
-              <select class="select" id="transcription-provider" [ngModel]="value.transcription_provider" (ngModelChange)="patch('transcription_provider', $event)">
-                @for (provider of providersFor('transcription'); track provider.id) { <option [value]="provider.id">{{ provider.name }}</option> }
+              <select class="select" data-no-translate id="transcription-provider" [ngModel]="value.transcription_provider" (ngModelChange)="patch('transcription_provider', $event)">
+                @for (provider of providersFor('transcription'); track provider.id) { <option [value]="provider.id">{{ providerText(provider, provider.name) }}</option> }
               </select>
             </div>
             @if (activeProvider('transcription', value.transcription_provider); as provider) {
-              <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" />
+              <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" (installFinished)="refreshProviders()" (readinessChecked)="updateProviderStatus($event)" />
             } @else {
               <p class="field-note">Aucun moteur de transcription n’est disponible.</p>
             }
@@ -57,12 +57,12 @@
           <div class="settings-grid">
             <div>
               <label class="field-label" for="text-provider">Moteur de rédaction</label>
-              <select class="select" id="text-provider" [ngModel]="value.text_provider" (ngModelChange)="patch('text_provider', $event)">
-                @for (provider of providersFor('generation'); track provider.id) { <option [value]="provider.id">{{ provider.name }}</option> }
+              <select class="select" data-no-translate id="text-provider" [ngModel]="value.text_provider" (ngModelChange)="patch('text_provider', $event)">
+                @for (provider of providersFor('generation'); track provider.id) { <option [value]="provider.id">{{ providerText(provider, provider.name) }}</option> }
               </select>
             </div>
             @if (activeProvider('generation', value.text_provider); as provider) {
-              <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" />
+              <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" (installFinished)="refreshProviders()" (readinessChecked)="updateProviderStatus($event)" />
             } @else {
               <p class="field-note">Aucun moteur de rédaction n’est disponible.</p>
             }
@@ -82,13 +82,102 @@
       <details class="card settings-panel settings-advanced">
         <summary>Plus de paramètres</summary>
         <div class="settings-body">
-          <section class="settings-section" aria-labelledby="diarization-title">
-            <h2 class="card-title" id="diarization-title">Reconnaissance des voix</h2>
+          <section class="settings-section" aria-labelledby="enhancement-title">
+            <h2 class="card-title" id="enhancement-title">Prétraitement de la voix</h2>
+            <p class="field-note">Cette étape est indépendante du moteur ASR. Le débruitage traite le bruit de fond mais ne démêle pas deux personnes qui parlent en même temps. Les pistes originales ne sont jamais modifiées.</p>
             <div class="settings-grid">
-              @for (provider of providersFor('diarization'); track provider.id) {
-                <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" [showAllOptions]="true" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" />
+              <div>
+                <label class="field-label" for="audio-enhancement-provider">Provider d’amélioration audio</label>
+                <select class="select" data-no-translate id="audio-enhancement-provider" [ngModel]="value.audio_enhancement_provider" (ngModelChange)="patch('audio_enhancement_provider', $event)">
+                  @for (provider of providersFor('enhancement'); track provider.id) { <option [value]="provider.id">{{ providerText(provider, provider.name) }}</option> }
+                </select>
+              </div>
+              @if (activeProvider('enhancement', value.audio_enhancement_provider); as provider) {
+                @if (provider.id === 'no-enhancement') {
+                  <p class="field-note col-span-full">Prétraitement audio désactivé. L’audio source est utilisé tel quel.</p>
+                } @else {
+                  <div class="col-span-full">
+                    @if (provider.requires.length) { <p class="field-note">Dépendances obligatoires : {{ provider.requires.join(', ') }}.</p> }
+                    <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" [showAllOptions]="true" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" (installFinished)="refreshProviders()" (readinessChecked)="updateProviderStatus($event)" />
+                  </div>
+                }
               }
             </div>
+          </section>
+
+          <section class="settings-section" aria-labelledby="separation-title">
+            <h2 class="card-title" id="separation-title">Séparer les voix qui parlent en même temps</h2>
+            <p class="field-note">La séparation de sources essaie d’isoler les voix qui se chevauchent dans un même signal. Elle est différente de la diarisation, qui identifie qui parle et quand. Cette étape est facultative et peut dégrader certains enregistrements ; testez-la avant de l’utiliser régulièrement.</p>
+            <div class="settings-grid">
+              <div>
+                <label class="field-label" for="source-separation-provider">Méthode de séparation des sources</label>
+                <select class="select" data-no-translate id="source-separation-provider" [ngModel]="value.source_separation_provider" (ngModelChange)="patch('source_separation_provider', $event)">
+                  @for (provider of providersFor('separation'); track provider.id) { <option [value]="provider.id">{{ providerText(provider, provider.name) }}</option> }
+                </select>
+              </div>
+              @if (activeProvider('separation', value.source_separation_provider); as provider) {
+                @if (provider.id === 'no-separation') {
+                  <p class="field-note col-span-full">Séparation des sources désactivée. Glimio conserve les pistes d’origine et ne tente pas de démêler les voix superposées.</p>
+                } @else {
+                  <div class="col-span-full">
+                    @if (provider.requires.length) { <p class="field-note">Dépendances obligatoires : {{ provider.requires.join(', ') }}.</p> }
+                    <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" [showAllOptions]="true" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" (installFinished)="refreshProviders()" (readinessChecked)="updateProviderStatus($event)" />
+                  </div>
+                }
+              }
+            </div>
+          </section>
+
+          <section class="settings-section" aria-labelledby="diarization-title">
+            <h2 class="card-title" id="diarization-title">Diarisation · identifier qui parle et quand</h2>
+            <p class="field-note">La diarisation détecte les tours de parole et attribue un identifiant à chaque interlocuteur. Elle est facultative : activez-la ici ou dans les options de traitement de la page Enregistrement. Les deux endroits modifient le même réglage.</p>
+            <glimio-checkbox-field fieldId="settings-diarization" title="Activer la diarisation vocale" description="Associer les segments transcrits aux interlocuteurs détectés." [checked]="value.diarize" (checkedChange)="patch('diarize', $event)" />
+
+            @if (value.diarize) {
+              <div class="voice-provider-block">
+                <h3 class="card-title">Moteur de diarisation</h3>
+                <p class="field-note">Ce moteur détecte les tours de parole. Ses modèles de segmentation et de représentation vocale sont configurés séparément ci-dessous.</p>
+                @for (provider of providersFor('diarization'); track provider.id) {
+                  <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" [showAllOptions]="true" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" (installFinished)="refreshProviders()" (readinessChecked)="updateProviderStatus($event)" />
+                } @empty {
+                  <p class="break-all text-sm text-amber-700" role="status">Aucun moteur de diarisation n’est disponible.</p>
+                }
+              </div>
+            } @else {
+              <p class="field-note voice-disabled-note">Diarisation désactivée. Aucun modèle de diarisation ne sera lancé pour les prochains traitements.</p>
+            }
+
+            @if (value.diarize || value.source_separation_provider === 'speechbrain-sepformer') {
+              <div class="voice-provider-block">
+                @if (value.source_separation_provider === 'speechbrain-sepformer') {
+                  <h3 class="card-title">Identité des sources séparées</h3>
+                  <p class="field-note">SepFormer a besoin de SpeechBrain ECAPA pour tenter de conserver l’identité de chaque source d’un bloc à l’autre. Ce prérequis reste nécessaire même si la diarisation est désactivée.</p>
+                } @else {
+                  <h3 class="card-title">Rapprocher les mêmes voix entre pistes et blocs (facultatif)</h3>
+                  <p class="field-note">Cette fonction tente de reconnaître une même personne sur plusieurs pistes ou blocs. Sans elle, la diarisation peut fonctionner, mais ses identifiants restent locaux à chaque piste ou bloc.</p>
+                }
+                <div class="settings-grid">
+                  <div>
+                    <label class="field-label" for="speaker-embedding-provider">Méthode de rapprochement des voix</label>
+                    <select class="select" data-no-translate id="speaker-embedding-provider" [ngModel]="value.speaker_embedding_provider" (ngModelChange)="patch('speaker_embedding_provider', $event)">
+                      @for (provider of providersFor('speaker_embedding'); track provider.id) { <option [value]="provider.id">{{ providerText(provider, provider.name) }}</option> }
+                    </select>
+                  </div>
+                  @if (activeProvider('speaker_embedding', value.speaker_embedding_provider); as embedding) {
+                    @if (embedding.id !== 'none-speaker-embedding') {
+                      <div class="col-span-full">
+                        <glimio-provider-options [provider]="embedding" [values]="value.provider_options[embedding.id] ?? {}" [showAllOptions]="true" (optionChange)="patchProviderOption(embedding, $event.option, $event.value)" (installFinished)="refreshProviders()" (readinessChecked)="updateProviderStatus($event)" />
+                      </div>
+                    } @else {
+                      <p class="field-note col-span-full">Rapprochement global désactivé. La diarisation conserve les identifiants locaux.</p>
+                    }
+                  }
+                </div>
+                @if (value.source_separation_provider === 'speechbrain-sepformer' && value.speaker_embedding_provider !== 'speechbrain-ecapa') {
+                  <p class="break-all text-sm text-amber-700" role="alert">SepFormer nécessite SpeechBrain ECAPA pour le rapprochement des sources. Sélectionnez « SpeechBrain ECAPA » avant de lancer le traitement.</p>
+                }
+              </div>
+            }
           </section>
 
           <section class="settings-section" aria-labelledby="transcription-advanced-title">
@@ -118,7 +207,7 @@
           @for (provider of providersFor('media'); track provider.id) {
             <section class="settings-section" aria-labelledby="media-provider-title">
               <h2 class="card-title" id="media-provider-title">Importation des fichiers</h2>
-              <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" [showAllOptions]="true" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" />
+              <glimio-provider-options [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" [showAllOptions]="true" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" (installFinished)="refreshProviders()" (readinessChecked)="updateProviderStatus($event)" />
             </section>
           }
 

@@ -4,6 +4,7 @@ import argparse
 import asyncio
 from contextlib import asynccontextmanager
 import json
+import importlib.util
 import multiprocessing as mp
 import os
 import queue
@@ -44,6 +45,7 @@ from .services.library import (
 from .services.sqlite_db import SQLiteDatabase, database_path
 from .services.job_store import JobStore
 from .services.preferences_store import PreferencesStore
+from .services.provider_installer import ProviderInstallManager
 from .services.search_synthesis import (
     _clean_search_answer,
     _has_unknown_citations,
@@ -55,6 +57,7 @@ from .services.search_synthesis import (
 # This matters for editable installs in a src/ layout and console-script launches.
 PROJECT_ROOT = discover_project_root(package_file=__file__)
 SESSION_ROOT = resolve_session_root(PROJECT_ROOT)
+_PROVIDER_INSTALLER = ProviderInstallManager()
 
 WEB_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = WEB_DIR / "frontend"
@@ -249,6 +252,9 @@ class Settings(BaseModel):
     processing_profile: Literal["turbo", "balanced", "quality", "pixel-perfect", "custom"] = "balanced"
     model: str = DEFAULT_WHISPER_MODEL
     transcription_provider: str = "whisper.cpp"
+    audio_enhancement_provider: str = "ffmpeg-denoise"
+    source_separation_provider: str = "no-separation"
+    speaker_embedding_provider: str = "speechbrain-ecapa"
     provider_options: dict[str, dict[str, Any]] = Field(default_factory=dict)
     whisper_cli: str = DEFAULT_WHISPER_CLI
     language: str = "auto"
@@ -274,10 +280,22 @@ class Settings(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def migrate_legacy_acceleration_setting(cls, value: Any) -> Any:
-        """Move the former global Whisper device setting into its provider options."""
-        if not isinstance(value, dict) or not value.get("openvino_device"):
+        """Migrate historical global Whisper/device/audio options into provider settings."""
+        if not isinstance(value, dict):
             return value
         value = dict(value)
+        raw_options = value.get("provider_options")
+        whisper_options = raw_options.get("whisper.cpp", {}) if isinstance(raw_options, dict) else {}
+        whisper_options = whisper_options if isinstance(whisper_options, dict) else {}
+        if "audio_enhancement_provider" not in value:
+            legacy_enhancement = str(whisper_options.get("speech_enhancement", "auto")).casefold()
+            value["audio_enhancement_provider"] = {"off": "no-enhancement", "ffmpeg": "ffmpeg-denoise", "deepfilter": "deepfilternet", "auto": "ffmpeg-denoise"}.get(legacy_enhancement, "ffmpeg-denoise")
+        if "source_separation_provider" not in value:
+            value["source_separation_provider"] = "no-separation"
+        if "speaker_embedding_provider" not in value:
+            value["speaker_embedding_provider"] = "speechbrain-ecapa"
+        if not value.get("openvino_device"):
+            return value
         raw_provider_options = value.get("provider_options")
         provider_options = dict(raw_provider_options) if isinstance(raw_provider_options, dict) else {}
         raw_whisper_options = provider_options.get("whisper.cpp")
@@ -295,6 +313,13 @@ class Settings(BaseModel):
             raise HTTPException(status_code=422, detail="Provider de génération inconnu.")
         if values.get("transcription_provider") not in TRANSCRIPTION_PROVIDER_IDS:
             raise HTTPException(status_code=422, detail="Provider de transcription inconnu.")
+        from seance.providers.audio_processing import ENHANCEMENT_PROVIDER_FACTORIES, SEPARATION_PROVIDER_FACTORIES, EMBEDDING_PROVIDER_FACTORIES
+        if values.get("audio_enhancement_provider") not in ENHANCEMENT_PROVIDER_FACTORIES:
+            raise HTTPException(status_code=422, detail="Provider d’amélioration audio inconnu.")
+        if values.get("source_separation_provider") not in SEPARATION_PROVIDER_FACTORIES:
+            raise HTTPException(status_code=422, detail="Provider de séparation audio inconnu.")
+        if values.get("speaker_embedding_provider") not in EMBEDDING_PROVIDER_FACTORIES:
+            raise HTTPException(status_code=422, detail="Provider d’embeddings vocaux inconnu.")
         values["provider_options"] = normalize_provider_options(
             values.get("provider_options", {}), legacy_values=values,
         )
@@ -347,6 +372,11 @@ class AudioTrackToggleRequest(BaseModel):
 
 class RenameSessionRequest(BaseModel):
     title: str = Field(min_length=1, max_length=120)
+
+
+class SaveSummaryRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=2_000_000)
+    revision: str | None = Field(default=None, max_length=100)
 
 
 class JobRequest(BaseModel):
@@ -1300,9 +1330,64 @@ def config() -> dict[str, Any]:
 def providers() -> dict[str, Any]:
     """Return neutral provider metadata and current local readiness to the UI."""
     settings = _get_preferences()["settings"]
-    return {"providers": [item.to_dict() for item in get_provider_statuses(
-        Settings(**settings), project_root=PROJECT_ROOT,
-    )]}
+    runtime_is_frozen = bool(getattr(sys, "frozen", False))
+    pip_available = importlib.util.find_spec("pip") is not None
+    runtime_can_install_python = not runtime_is_frozen and pip_available
+    payloads = []
+    for item in get_provider_statuses(Settings(**settings), project_root=PROJECT_ROOT):
+        payload = item.to_dict()
+        payload["python_install_runtime_available"] = bool(
+            payload["python_install_available"] and runtime_can_install_python
+        )
+        payload["python_install_block_reason"] = ""
+        if payload["python_install_available"] and runtime_is_frozen:
+            payload["python_install_block_reason"] = (
+                "Cette édition empaquetée ne peut pas ajouter de paquets à son environnement Python interne. "
+                "Utilisez une édition source adaptée ou une build qui inclut cette dépendance."
+            )
+        elif payload["python_install_available"] and not pip_available:
+            payload["python_install_block_reason"] = (
+                "Le module pip n’est pas disponible dans l’environnement Python courant. "
+                "Installez/activez pip dans cet environnement puis relancez Glimio."
+            )
+        payloads.append(payload)
+    return {"providers": payloads}
+
+
+@app.post("/api/providers/{provider_id}/install-python")
+def install_provider_python(provider_id: str, request: Request) -> dict[str, Any]:
+    """Install only Python dependencies declared by a built-in provider, from localhost."""
+    remote_host = request.client.host if request.client else ""
+    try:
+        import ipaddress
+        local_request = ipaddress.ip_address(remote_host).is_loopback
+    except ValueError:
+        local_request = remote_host.casefold() == "localhost"
+    if not local_request:
+        raise HTTPException(status_code=403, detail="L’installation des dépendances est autorisée uniquement depuis Glimio sur la machine locale.")
+    provider = get_provider_info(provider_id)
+    if provider is None:
+        raise HTTPException(status_code=404, detail="Provider inconnu.")
+    if not (provider.python_install_extra or provider.python_install_packages):
+        raise HTTPException(status_code=400, detail="Ce provider n’a pas de dépendances Python installables en un clic.")
+    try:
+        install = _PROVIDER_INSTALLER.start(
+            provider, project_root=PROJECT_ROOT, frozen=bool(getattr(sys, "frozen", False)),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"install": install}
+
+
+@app.get("/api/provider-installs/{install_id}")
+def provider_python_install_status(install_id: str) -> dict[str, Any]:
+    """Poll status of a background Python provider installation."""
+    install = _PROVIDER_INSTALLER.get(install_id)
+    if install is None:
+        raise HTTPException(status_code=404, detail="Installation inconnue ou historique expiré.")
+    return {"install": install}
 
 
 @app.get("/api/preferences")
@@ -1803,6 +1888,66 @@ def session_audio(session_id: str, filename: str, request: Request):
                 yield chunk
 
     return StreamingResponse(stream_file(), status_code=status_code, media_type="audio/wav", headers=headers)
+
+
+@app.put("/api/sessions/{session_id}/summary")
+def save_session_summary(session_id: str, request: SaveSummaryRequest) -> dict[str, Any]:
+    """Save a user-edited summary as Markdown, guarding against stale writes."""
+    if not request.content.strip():
+        raise HTTPException(status_code=422, detail="Le résumé ne peut pas être vide.")
+    try:
+        folder = resolve_session_folder(SESSION_ROOT, session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Séance introuvable.") from exc
+
+    # Keep the active-job check, revision check and atomic replacement together so
+    # a new job cannot be queued between the check and the write.
+    with STATE_LOCK:
+        active_jobs = [
+            job for job in JOBS.values()
+            if job.get("session_id") == folder.name
+            and job.get("state") in {"queued", "running", "stopping"}
+        ]
+        if active_jobs:
+            raise HTTPException(
+                status_code=409,
+                detail="Le résumé ne peut pas être modifié pendant un traitement.",
+            )
+
+        path = summary_path(folder)
+        if path is None:
+            raise HTTPException(status_code=404, detail="Aucun résumé à modifier pour cette séance.")
+        try:
+            stat = path.stat()
+        except OSError as exc:
+            raise HTTPException(status_code=409, detail="Le résumé n’est plus disponible.") from exc
+        current_revision = f"{stat.st_mtime_ns}:{stat.st_size}"
+        if request.revision is not None and request.revision != current_revision:
+            raise HTTPException(
+                status_code=409,
+                detail="Le résumé a changé depuis son chargement. Rechargez-le avant de sauvegarder.",
+            )
+
+        temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            temporary.write_text(request.content, encoding="utf-8", newline="")
+            temporary.replace(path)
+            stat = path.stat()
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail=f"Impossible d’enregistrer le résumé : {exc}") from exc
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    return {
+        "session_id": session_id,
+        "kind": "summary",
+        "filename": path.name,
+        "revision": f"{stat.st_mtime_ns}:{stat.st_size}",
+        "content": request.content,
+        "live": False,
+    }
 
 
 def _artifact_tail_hash(value: str) -> str:

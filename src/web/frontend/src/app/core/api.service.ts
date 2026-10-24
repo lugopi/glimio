@@ -4,7 +4,7 @@ import { Observable, catchError, throwError } from 'rxjs';
 import {
   AppConfig, AudioDevices, AudioSourceSelection, GlimioSettings, JobsResponse, JobAction, Job,
   PreferencesPayload, SearchResult, SessionArtifact, SessionDetail, SessionPage,
-  ProvidersResponse,
+  ProvidersResponse, ProviderInstallResponse,
 } from './api.models';
 
 @Injectable({ providedIn: 'root' })
@@ -17,6 +17,14 @@ export class ApiService {
 
   providers(): Observable<ProvidersResponse> {
     return this.get<ProvidersResponse>('/api/providers');
+  }
+
+  installProviderDependencies(providerId: string): Observable<ProviderInstallResponse> {
+    return this.http.post<ProviderInstallResponse>(`/api/providers/${encodeURIComponent(providerId)}/install-python`, {}).pipe(catchError(this.normalizeError));
+  }
+
+  providerInstallStatus(installId: string): Observable<ProviderInstallResponse> {
+    return this.get<ProviderInstallResponse>(`/api/provider-installs/${encodeURIComponent(installId)}`);
   }
 
   preferences(): Observable<PreferencesPayload> {
@@ -42,6 +50,12 @@ export class ApiService {
 
   session(id: string): Observable<SessionDetail> {
     return this.get<SessionDetail>(`/api/sessions/${encodeURIComponent(id)}`);
+  }
+
+  saveSessionSummary(id: string, content: string, revision: string | null): Observable<SessionArtifact> {
+    return this.http.put<SessionArtifact>(
+      `/api/sessions/${encodeURIComponent(id)}/summary`, { content, revision },
+    ).pipe(catchError(this.normalizeError));
   }
 
   sessionArtifact(id: string, kind: 'summary' | 'transcript',
