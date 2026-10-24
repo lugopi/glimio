@@ -131,7 +131,7 @@ class AudioComApartmentTests(unittest.TestCase):
         def fake_record_impl(*args, **kwargs):
             order.append("record-impl")
 
-            from seance.media import audio
+        from seance.media import audio
         args = SimpleNamespace(capture_microphone=True, capture_windows=False)
         with patch.object(audio, "_soundcard", side_effect=fake_soundcard), patch.object(
             audio, "audio_com_apartment", side_effect=fake_com_scope

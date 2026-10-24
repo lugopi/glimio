@@ -66,6 +66,15 @@ def clean_model_output(text: str) -> str:
     if final_positions:
         text = text[max(final_positions):]
 
+    # Truncated generations can leave an analysis channel without a final
+    # channel after it; its whole scratch content is then discarded instead of
+    # being partially exposed after the token cleanup below.
+    analysis_marker = re.search(r"<\|channel\|>\s*analysis\b", text, flags=re.IGNORECASE)
+    if analysis_marker and not re.search(
+        r"<\|channel\|>\s*final\b", text[analysis_marker.end():], flags=re.IGNORECASE
+    ):
+        text = text[:analysis_marker.start()]
+
     # Stop on known end-of-turn markers before removing wrappers.
     end_marker = re.search(
         r"\[end of text\]|\[end of turn\]|\[fim_suffix\]|"
@@ -76,7 +85,7 @@ def clean_model_output(text: str) -> str:
     if end_marker:
         text = text[:end_marker.start()]
 
-    for tag in ("think", "analysis", "reasoning", "scratchpad"):
+    for tag in ("think", "analysis", "reasoning", "scratchpad", "thought", "reflection"):
         text = re.sub(
             rf"<{tag}\b[^>]*>.*?</{tag}\s*>",
             "",
@@ -94,7 +103,7 @@ def clean_model_output(text: str) -> str:
     text = re.sub(
         r"<\|(?:im_start|im_end|eot_id|end_of_turn|assistant|user|system|final|"
         r"fim_suffix|endoftext|fim_prefix|fim_middle|ghissue|ghreview|startoftext|"
-        r"message_start|message_end)\|>",
+        r"message_start|message_end|start|end|message|return)\|>",
         "",
         text,
         flags=re.IGNORECASE,
