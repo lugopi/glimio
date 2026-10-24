@@ -1,7 +1,9 @@
+"""Selection and resolution of session folders inside the sessions root."""
 from pathlib import Path
 from datetime import datetime
 from .layout import has_audio, has_transcript
 def latest_session(directory='seances', *, require=None):
+    """Return the newest subfolder of ``directory`` matching ``require``."""
     root=Path(directory).resolve()
     candidates=[p for p in root.iterdir() if p.is_dir()] if root.is_dir() else []
     if require=='audio': candidates=[p for p in candidates if has_audio(p)]
@@ -10,6 +12,7 @@ def latest_session(directory='seances', *, require=None):
     if not candidates: raise SystemExit('No session found')
     return max(candidates, key=lambda p:p.name)
 def resolve_session(folder, directory, *, require=None):
+    """Resolve an explicit folder, or fall back to ``latest_session``."""
     p=Path(folder).expanduser().resolve() if folder else latest_session(directory, require=require)
     if not p.is_dir(): raise SystemExit(f'Session not found: {p}')
     return p

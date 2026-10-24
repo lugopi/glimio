@@ -51,6 +51,7 @@ def _read_wav(path: Path) -> tuple[np.ndarray, int]:
 
 
 def _resample(audio: np.ndarray, source_rate: int, target_rate: int) -> np.ndarray:
+    """Resample mono audio to ``target_rate`` with chunked linear interpolation."""
     if source_rate == target_rate or not audio.size:
         return audio.astype(np.float32, copy=False)
     target_length = max(1, round(len(audio) * target_rate / source_rate))
@@ -88,6 +89,7 @@ def _resampled_length(path: Path, target_rate: int) -> int:
 
 
 def _combined_audio(folder: Path, target_rate: int) -> np.ndarray:
+    """Mix every enabled WAV track of the session into one resampled mono signal."""
     from ..layout import list_enabled_audio_paths
 
     paths = [path for path in list_enabled_audio_paths(folder) if path.is_file()]
@@ -122,6 +124,7 @@ def _combined_audio(folder: Path, target_rate: int) -> np.ndarray:
 
 
 def _segment_speaker(start: float, end: float, diarized: list[Any]) -> int | None:
+    """Pick the speaker with the largest overlap, or the one nearest the midpoint."""
     best_speaker: int | None = None
     best_overlap = 0.0
     midpoint = (start + end) / 2.0
@@ -143,6 +146,7 @@ def _segment_speaker(start: float, end: float, diarized: list[Any]) -> int | Non
 
 
 def _format_timestamp(seconds: float) -> str:
+    """Render a duration as a zero-padded HH:MM:SS stamp."""
     total = max(0, int(seconds))
     hours, remainder = divmod(total, 3600)
     minutes, seconds_part = divmod(remainder, 60)

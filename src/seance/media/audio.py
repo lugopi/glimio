@@ -528,6 +528,14 @@ def _record_impl(
                 thread.join(timeout=0.25)
     except KeyboardInterrupt:
         log("Stop requested.")
+    except BaseException:
+        # An unexpected error (or a shutdown-raised SystemExit) in this
+        # controlling thread must not leave capture threads recording forever:
+        # signal stop and join them, so the cleanup below sees settled writers.
+        stop.set()
+        for thread in threads:
+            thread.join(timeout=CHUNK_SECONDS + 3)
+        raise
     finally:
         update_status("Finalisation des pistes WAV…")
         stop.set()

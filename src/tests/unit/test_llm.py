@@ -27,6 +27,21 @@ class CleanModelOutputTests(unittest.TestCase):
         self.assertNotIn("secret", cleaned)
         self.assertEqual(cleaned, "Réponse [1]")
 
+    def test_discards_truncated_analysis_channel_without_final(self) -> None:
+        raw = "<|start|>assistant<|channel|>analysis<|message|>raisonnement tronqué"
+        cleaned = clean_model_output(raw)
+        self.assertEqual(cleaned, "")
+
+    def test_strips_leftover_special_tokens_after_final_channel(self) -> None:
+        raw = "<|channel|>final<|message|>Réponse finale<|return|>"
+        cleaned = clean_model_output(raw)
+        self.assertEqual(cleaned, "Réponse finale")
+
+    def test_discards_unclosed_reflection_block(self) -> None:
+        raw = "Réponse partielle.\n<reflection>je poursuis sans fermer"
+        cleaned = clean_model_output(raw)
+        self.assertEqual(cleaned, "Réponse partielle.")
+
 
 class CompletionCommandCompatibilityTests(unittest.TestCase):
     def test_supports_long_only_prompt_and_noninteractive_flags(self) -> None:

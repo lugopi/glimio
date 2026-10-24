@@ -23,6 +23,7 @@ web = [
 ]
 dev = [
     "pytest>=9.0",
+    "pytest-cov>=6.0",
 ]
 bundle = [
     "pyinstaller>=6.0",
@@ -54,4 +55,15 @@ web = [
     "frontend/src/app/*.ts", "frontend/src/app/core/*.ts", "frontend/src/app/shared/*.ts",
     "frontend/src/app/layout/*.ts", "frontend/src/app/pages/**/*.ts",
     "static/angular/*", "static/vendor/heroicons/*", "static/vendor/heroicons/24/outline/*.svg",
+]
+
+[tool.coverage.run]
+source = ["src/seance", "src/web"]
+omit = ["src/tests/*"]
+
+[tool.coverage.report]
+exclude_also = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
 ]

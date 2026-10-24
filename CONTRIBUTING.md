@@ -8,7 +8,7 @@ Les assistants de code doivent aussi suivre les conventions du dépôt décrites
 
 1. Décris le problème et le changement visible/utilisateur.
 2. Ajoute des tests pour tout comportement modifié.
-3. Lance `python -m pytest -q src/tests` depuis la racine.
+3. Lance `python -m pytest -q src/tests` depuis la racine. Pour mesurer la couverture : `python -m pytest -q src/tests --cov=src/seance --cov=src/web --cov-report=term-missing` (pytest-cov, inclus dans l'extra `dev`).
 4. Pour tout changement Angular, depuis `src/web/frontend`, exécute `npm ci`, `npm run typecheck`, `npm test` et `npm run build`.
 5. Ajoute des tests qui protègent le comportement observable : règles métier, réponses API, import/normalisation audio, persistance, pagination, navigation et licences. Évite les snapshots qui figent des détails de CSS ou des métadonnées SVG sans impact utilisateur.
    Range-les dans `src/tests/unit`, `src/tests/integration` ou `src/tests/regression` selon ce qu’ils vérifient. Les tests de composants Angular restent dans le frontend et se lancent avec `npm test`.

@@ -77,6 +77,11 @@ def _npm_command(args: list[str]) -> list[str]:
 
 def _install_frontend_dependencies() -> None:
     """Install front-end dependencies before building (no manual npm step needed)."""
+    if shutil.which("npm") is None:
+        raise SystemExit(
+            "npm est introuvable sur le PATH. Installez Node.js 22.22.3+ "
+            "(ou une version compatible 24/26), puis relancez Glimio."
+        )
     node_modules = FRONTEND_DIR / "node_modules"
     lock = FRONTEND_DIR / "package-lock.json"
     pkg = FRONTEND_DIR / "package.json"
@@ -87,17 +92,30 @@ def _install_frontend_dependencies() -> None:
             (p.stat().st_mtime for p in (pkg, lock) if p.is_file()), default=0
         )
         needs_install = newest_source > mtime_node
-    if needs_install:
-        print("[web] Installation des dépendances du front (npm)…", flush=True)
-        commands = [["ci"] if lock.is_file() else ["install"], ["install"]]
-        last_error: Exception | None = None
-        for args in commands:
-            try:
-                subprocess.run(_npm_command(args), cwd=FRONTEND_DIR, check=True)
-                return
-            except (OSError, subprocess.CalledProcessError) as exc:
-                last_error = exc
-        raise SystemExit(f"Impossible d'installer les dépendances du front : {last_error}")
+    if not needs_install:
+        return
+    print("[web] Installation des dépendances du front (npm)…", flush=True)
+    commands = [["ci"], ["install"]] if lock.is_file() else [["install"], ["install"]]
+    last_error: Exception | None = None
+    for step, args in enumerate(commands):
+        try:
+            subprocess.run(_npm_command(args), cwd=FRONTEND_DIR, check=True)
+            return
+        except FileNotFoundError as exc:
+            raise SystemExit(
+                "npm est introuvable sur le PATH. Installez Node.js 22.22.3+ "
+                "(ou une version compatible 24/26), puis relancez Glimio."
+            ) from exc
+        except (OSError, subprocess.CalledProcessError) as exc:
+            last_error = exc
+            if step == 0 and len(commands) > 1:
+                print("[web] Première tentative npm échouée · nouvelle tentative en cours…",
+                      flush=True)
+    raise SystemExit(
+        f"Impossible d'installer les dépendances du front : {last_error}\n"
+        f"L'étape « npm {' '.join(commands[-1])} » a été tentée dans {FRONTEND_DIR} ; "
+        "vérifiez Node.js, npm et package-lock.json, puis relancez."
+    )
 
 
 def _build_frontend() -> None:
@@ -179,7 +197,7 @@ def _program_path(value: str) -> str:
     return text
 
 
-async def _warm_soundcard_backend_on_server_thread() -> None:
+def _warm_soundcard_backend_on_server_thread() -> None:
     """Import SoundCard on the server's long-lived event-loop thread on Windows.
 
     SoundCard initializes a module-level COM helper at import time. Importing it for
@@ -189,7 +207,6 @@ async def _warm_soundcard_backend_on_server_thread() -> None:
     devices endpoint to report, so a missing audio backend does not prevent browsing
     existing sessions.
     """
-    _initialize_persistence()
     if os.name != "nt":
         return
     try:
@@ -200,7 +217,12 @@ async def _warm_soundcard_backend_on_server_thread() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    await _warm_soundcard_backend_on_server_thread()
+    # Persistence first: pending jobs are re-queued and the saved session
+    # directory is applied before any request arrives. It stays here, as a
+    # no-op when main() already ran it, so ASGI/lifespan starts (uvicorn
+    # web.app:app) are initialized too.
+    _warmup_persistence()
+    _warm_soundcard_backend_on_server_thread()
     yield
 
 
