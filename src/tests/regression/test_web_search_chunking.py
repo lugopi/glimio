@@ -28,6 +28,53 @@ class SearchChunkingTests(unittest.TestCase):
             for index in range(1, count + 1)
         ]
 
+    def test_source_selection_keeps_stable_ids_and_renumbers_included_citations(self) -> None:
+        decorated = web_app._decorate_search_sources(self.passages(3), {"2", "3"})
+
+        self.assertEqual([item["source_id"] for item in decorated], ["1", "2", "3"])
+        self.assertEqual([item["included"] for item in decorated], [False, True, True])
+        self.assertEqual([item["citation_number"] for item in decorated], [None, 1, 2])
+
+    def test_synthesis_endpoint_uses_only_confirmed_sources_and_keeps_excluded_visible(self) -> None:
+        search_id = "test-synthesis-selection"
+        previous_search = web_app.SEARCHES.get(search_id)
+        previous_event = web_app.SEARCH_CANCEL_EVENTS.get(search_id)
+        previous_active = web_app.ACTIVE_SEARCH_ID
+        web_app.SEARCHES[search_id] = {
+            "id": search_id,
+            "state": "completed",
+            "query": "Résume le sujet",
+            "sources": web_app._decorate_search_sources(self.passages(3)),
+            "answer": "Synthèse précédente [1] [2] [3]",
+            "llm_error": None,
+            "updated_at": "2026-10-20T10:00:00",
+            "_settings": self.settings,
+        }
+        web_app.SEARCH_CANCEL_EVENTS.pop(search_id, None)
+        web_app.ACTIVE_SEARCH_ID = None
+        try:
+            with patch.object(web_app.threading, "Thread") as thread_factory:
+                response = web_app.synthesize_library_search(
+                    search_id, web_app.SearchSynthesisRequest(source_ids=["2", "3"]),
+                )
+
+            selected = thread_factory.call_args.kwargs["args"][1]
+            self.assertEqual([item["source_number"] for item in selected], [1, 2])
+            self.assertEqual([item["source_id"] for item in selected], ["2", "3"])
+            self.assertEqual([item["included"] for item in response["sources"]], [False, True, True])
+            self.assertEqual([item["citation_number"] for item in response["sources"]], [None, 1, 2])
+            self.assertIsNone(response["answer"])
+            self.assertEqual(response["state"], "running")
+        finally:
+            web_app.SEARCH_CANCEL_EVENTS.pop(search_id, None)
+            web_app.ACTIVE_SEARCH_ID = previous_active
+            if previous_search is None:
+                web_app.SEARCHES.pop(search_id, None)
+            else:
+                web_app.SEARCHES[search_id] = previous_search
+            if previous_event is not None:
+                web_app.SEARCH_CANCEL_EVENTS[search_id] = previous_event
+
     def test_many_passages_are_synthesized_in_batches_then_merged(self) -> None:
         sources = self.passages(8)
         stages: list[str] = []

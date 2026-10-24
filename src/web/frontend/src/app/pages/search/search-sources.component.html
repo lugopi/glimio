@@ -1,0 +1,45 @@
+<section class="search-source-results" aria-labelledby="search-sources-title">
+  <div class="result-card-head source-results-heading">
+    <div><h2 id="search-sources-title">Extraits pertinents</h2><p class="source-selection-help">Décochez les extraits qui apportent peu d’informations. La synthèse ne change qu’après confirmation.</p></div>
+    <span class="badge">{{ includedCount + ' / ' + totalSources + ' CONSERVÉ(S)' }}</span>
+  </div>
+  @if (pendingChanges || retryMessage) {
+    <div class="pending-source-changes" role="status">
+      <span><glimio-icon name="information-circle" /> {{ pendingChanges ? 'Votre sélection a changé. La synthèse actuelle n’a pas encore été modifiée.' : retryMessage }}</span>
+      <button class="btn btn--primary" type="button" [disabled]="running || includedCount === 0" (click)="confirmSelection.emit()"><glimio-icon name="check-circle" /> {{ pendingChanges ? 'Confirmer et actualiser la synthèse' : 'Réessayer la synthèse' }}</button>
+    </div>
+  }
+  <glimio-selectable-list
+    class="search-source-list"
+    [items]="sources"
+    [trackKey]="sourceTrackKey"
+    [highlighted]="sourceIsIncluded"
+    [muted]="sourceIsExcluded"
+    [surface]="true"
+  >
+    <ng-template #row let-source>
+      <article class="session-card search-source-card" [class.is-excluded]="!sourceIncluded(source)">
+        <div class="session-card-top">
+          <span class="session-date">{{ source.session_id }}</span>
+          <span class="session-markers"><span class="badge">{{ sourceBadgeLabel(source) }}</span><span class="badge">{{ source.kind }}</span></span>
+        </div>
+        <strong>{{ source.title }}</strong>
+        <p class="session-card-description search-source-excerpt">{{ source.text }}</p>
+        <div class="search-source-footer">
+          <span class="search-source-meta">{{ source.filename }}</span>
+          <label class="source-include-toggle"><input type="checkbox" [checked]="sourceIncluded(source)" [disabled]="running" (change)="toggleSource.emit(source)" /><span>Inclure cet extrait dans la synthèse</span></label>
+          <a class="btn btn--secondary btn--small source-open" [routerLink]="['/library']" [queryParams]="{ session: source.session_id }">Ouvrir la séance</a>
+        </div>
+      </article>
+    </ng-template>
+  </glimio-selectable-list>
+  <div class="search-source-pagination-footer">
+    <div class="page-size-control">
+      <label class="field-label" for="search-source-page-size">Extraits par page</label>
+      <select class="select" id="search-source-page-size" [ngModel]="pageSize" (ngModelChange)="pageSizeChange.emit($event)">
+        <option [ngValue]="5">5</option><option [ngValue]="10">10</option><option [ngValue]="25">25</option><option [ngValue]="50">50</option>
+      </select>
+    </div>
+    <glimio-pagination [page]="page" [pageSize]="pageSize" [totalItems]="totalSources" label="Pagination des extraits pertinents" (pageChange)="pageChange.emit($event)" />
+  </div>
+</section>

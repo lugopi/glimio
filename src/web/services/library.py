@@ -333,11 +333,13 @@ def retrieve_passages(
     *,
     on_update: Callable[[list[dict[str, Any]], dict[str, int]], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
+    session_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Retrieve relevant passages locally, optionally publishing results as they are found.
 
     ``on_update`` receives the current ranked top-k and scan progress. ``should_stop``
     allows a caller to cancel the scan without waiting for every session to be read.
+    ``session_ids`` optionally limits retrieval to a set of session directory names.
     """
     raw_terms = list(dict.fromkeys(re.findall(r"[\wÀ-ÿ]{2,}", query.casefold())))
     stop_words = {
@@ -371,6 +373,7 @@ def retrieve_passages(
         candidate_folders = [
             folder for folder in candidate_folders
             if folder.resolve().parent == root_resolved
+            and (session_ids is None or folder.name in session_ids)
         ]
     except OSError:
         return []

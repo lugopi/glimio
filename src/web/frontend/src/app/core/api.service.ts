@@ -134,8 +134,16 @@ export class ApiService {
     return this.http.post<Job>('/api/import', body).pipe(catchError(this.normalizeError));
   }
 
-  startSearch(query: string, settings: GlimioSettings, topK = 8): Observable<SearchResult> {
-    return this.http.post<SearchResult>('/api/search/start', { query, settings, top_k: topK }).pipe(catchError(this.normalizeError));
+  startSearch(query: string, settings: GlimioSettings, topK = 8, sessionIds: string[] = []): Observable<SearchResult> {
+    return this.http.post<SearchResult>('/api/search/start', {
+      query, settings, top_k: topK, session_ids: sessionIds,
+    }).pipe(catchError(this.normalizeError));
+  }
+
+  synthesizeSearch(id: string, sourceIds: string[]): Observable<SearchResult> {
+    return this.http.post<SearchResult>(`/api/search/${encodeURIComponent(id)}/synthesize`, {
+      source_ids: sourceIds,
+    }).pipe(catchError(this.normalizeError));
   }
 
   search(id: string): Observable<SearchResult> {

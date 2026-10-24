@@ -232,7 +232,7 @@ def build_completion_command(
     else:
         raise LLMError(
             "Impossible de confirmer un mode llama.cpp non interactif avec cet exécutable. "
-            "Vérifie que tu utilises llama-completion.exe et que son --help expose "
+            "Vérifie que tu utilises llama-completion et que son --help expose "
             "-no-cnv/--no-conversation ou -st/--single-turn."
         )
 

@@ -3,169 +3,238 @@ name: Build and release
 on:
   push:
     tags:
-      - "v*.*.*"
+      - 'v*.*.*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   python-tests:
-    name: Tests Python
-    runs-on: windows-latest
+    name: Validate release and run Python tests
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Installer le projet et les dépendances de test
-        run: python -m pip install -e ".[web,dev]"
-      - name: Exécuter la suite Python
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate tag and project versions
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+          python scripts/build_release.py --check-version --version "$version"
+
+      - name: Install project and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[web,dev]'
+
+      - name: Run Python tests
         run: python -m pytest -q src/tests
 
-  frontend-tests:
-    name: Vérifications Angular
-    runs-on: windows-latest
+  frontend:
+    name: Validate and build Angular
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: src/web/frontend
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version-file: src/web/frontend/.nvmrc
           cache: npm
           cache-dependency-path: src/web/frontend/package-lock.json
-      - name: Installer les dépendances Angular verrouillées
+
+      - name: Install dependencies
         run: npm ci
-      - name: Vérifier les types Angular
+
+      - name: Type-check
         run: npm run typecheck
-      - name: Tests Angular
+
+      - name: Run frontend tests
         run: npm test
 
-  frontend-build:
-    name: Build Angular de production
-    runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: src/web/frontend
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: src/web/frontend/.nvmrc
-          cache: npm
-          cache-dependency-path: src/web/frontend/package-lock.json
-      - name: Installer les dépendances Angular verrouillées
-        run: npm ci
-      - name: Compiler Angular en production
+      - name: Build Angular production bundle
         run: npm run build
-      - uses: actions/upload-artifact@v5
-        with:
-          name: angular-production-build
-          path: dist/glimio-web-ui
-          if-no-files-found: error
-          retention-days: 2
 
-  build:
-    name: Paquets ${{ matrix.edition }} (Windows x64)
-    runs-on: windows-latest
-    needs: [python-tests, frontend-tests, frontend-build]
+      - name: Upload Angular bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: angular-dist
+          path: dist/glimio-web-ui/**
+          if-no-files-found: error
+          retention-days: 1
+
+  package:
+    name: Package ${{ matrix.edition }} on ${{ matrix.platform }}
+    needs: [python-tests, frontend]
     strategy:
       fail-fast: false
       matrix:
         include:
-          - edition: cli
-            extras: bundle
-          - edition: web
-            extras: web,bundle
-          - edition: web-diarization
-            extras: web,diarization,bundle
+          - os: windows-latest
+            platform: windows
+            edition: cli
+          - os: windows-latest
+            platform: windows
+            edition: web
+          - os: ubuntu-22.04
+            platform: linux
+            edition: cli
+          - os: ubuntu-22.04
+            platform: linux
+            edition: web
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - name: Valider le tag et installer les dépendances Python
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-          RELEASE_EXTRAS: ${{ matrix.extras }}
-        run: |
-          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw "Tag SemVer invalide : $env:RELEASE_TAG" }
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[${env:RELEASE_EXTRAS}]"
-      - name: Compiler le frontend Angular pour les éditions Web
-        if: matrix.edition != 'cli'
-        uses: actions/download-artifact@v6
-        with:
-          name: angular-production-build
-          path: dist/glimio-web-ui
-      - name: Compiler les exécutables et l’archive portable
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          $version = $env:RELEASE_TAG.TrimStart('v')
-          python scripts/build_windows_release.py --edition "${{ matrix.edition }}" --version $version
-      - name: Installer Inno Setup
-        run: choco install innosetup --yes --no-progress
-      - name: Construire l’installateur Windows
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-          RELEASE_EDITION: ${{ matrix.edition }}
-        run: |
-          $version = $env:RELEASE_TAG.TrimStart('v')
-          $payload = (Resolve-Path "dist/release/$env:RELEASE_EDITION/payload").Path
-          $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
-          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
-          if (-not (Test-Path $iscc)) { throw "ISCC.exe introuvable : $iscc" }
-          & $iscc "/DAppVersion=$version" "/DEdition=$env:RELEASE_EDITION" "/DPayloadDir=$payload" "scripts/package/installer.iss"
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup a échoué avec le code $LASTEXITCODE" }
-      - name: Vérifier les exécutables et préparer les fichiers de release
-        env:
-          RELEASE_EDITION: ${{ matrix.edition }}
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          $version = $env:RELEASE_TAG.TrimStart('v')
-          $release = "dist/release/$env:RELEASE_EDITION"
-          $cli = Get-ChildItem "$release/payload/GlimioCLI/GlimioCLI.exe" -ErrorAction Stop
-          & $cli.FullName --help | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw "Le CLI empaqueté ne démarre pas" }
-          if ($env:RELEASE_EDITION -ne 'cli') {
-            & "$release/payload/GlimioWeb/GlimioWeb.exe" --check-bundle | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "Le frontend Web empaqueté est incomplet" }
-          }
-          $portable = Get-ChildItem "$release/Glimio-$env:RELEASE_EDITION-$version-Windows-x64-portable.zip" -ErrorAction Stop
-          $setup = Get-ChildItem "$release/Glimio-$env:RELEASE_EDITION-$version-Windows-x64-Setup.exe" -ErrorAction Stop
-          $assets = "artifacts/$env:RELEASE_EDITION"
-          New-Item -ItemType Directory -Force -Path $assets | Out-Null
-          Copy-Item $portable.FullName, $setup.FullName -Destination $assets
-      - uses: actions/upload-artifact@v5
-        with:
-          name: release-${{ matrix.edition }}-windows-x64
-          path: artifacts/${{ matrix.edition }}/*
-          if-no-files-found: error
-          retention-days: 7
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  publish:
-    name: Préparer la release brouillon
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v6
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          pattern: release-*-windows-x64
-          path: dist/release-assets
-          merge-multiple: true
-      - name: Generate SHA-256 checksums
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install release dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[web,diarization,bundle]'
+
+      - name: Download Angular bundle
+        if: matrix.edition == 'web'
+        uses: actions/download-artifact@v4
+        with:
+          name: angular-dist
+          path: dist/glimio-web-ui
+
+      - name: Build portable package (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          python scripts/build_release.py --platform windows --edition '${{ matrix.edition }}' --version $version
+
+      - name: Build portable package (Linux)
+        if: matrix.platform == 'linux'
         shell: bash
         run: |
-          cd dist/release-assets
-          sha256sum Glimio-* > SHA256SUMS.txt
-      - uses: softprops/action-gh-release@v2
+          version="${GITHUB_REF_NAME#v}"
+          python scripts/build_release.py --platform linux --edition '${{ matrix.edition }}' --version "$version"
+
+      - name: Compile Windows installer
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (!(Test-Path $compiler)) {
+            choco install innosetup --yes --no-progress
+          }
+          if (!(Test-Path $compiler)) {
+            throw "Inno Setup compiler not found at $compiler"
+          }
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          $payload = (Resolve-Path "dist/release/${{ matrix.edition }}/payload").Path
+          & $compiler "/DAppVersion=$version" "/DEdition=${{ matrix.edition }}" "/DPayloadDir=$payload" 'scripts/package/installer.iss'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload release files
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Glimio ${{ github.ref_name }}
-          draft: true
-          generate_release_notes: true
-          files: dist/release-assets/*
+          name: release-${{ matrix.platform }}-${{ matrix.edition }}
+          path: dist/release/${{ matrix.edition }}/Glimio-*
+          if-no-files-found: error
+          retention-days: 3
+
+  publish-draft:
+    name: Publish draft release with checksums
+    runs-on: ubuntu-22.04
+    needs: [package]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist/release
+          merge-multiple: true
+
+      - name: Create checksums and release notes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+          import os
+          import re
+
+          def file_sha256(path):
+              digest = sha256()
+              with path.open("rb") as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          version = os.environ["GITHUB_REF_NAME"][1:]
+          release_dir = Path("dist/release")
+          assets = sorted(path for path in release_dir.iterdir() if path.is_file() and path.name.startswith("Glimio-"))
+          if len(assets) != 6:
+              raise SystemExit(f"Expected 6 release assets (2 Windows installers, 2 Windows portable archives, 2 Linux archives), found {len(assets)}: {[p.name for p in assets]}")
+          names = [path.name for path in assets]
+          required_suffixes = {
+              "-Windows-x64-Setup.exe": 2,
+              "-Windows-x64-portable.zip": 2,
+              "-Linux-x86_64.tar.gz": 2,
+          }
+          for suffix, expected_count in required_suffixes.items():
+              actual_count = sum(name.endswith(suffix) for name in names)
+              if actual_count != expected_count:
+                  raise SystemExit(f"Expected {expected_count} assets ending in {suffix}, found {actual_count}: {names}")
+          (release_dir / "SHA256SUMS.txt").write_text(
+              "".join(f"{file_sha256(path)}  {path.name}\n" for path in assets),
+              encoding="utf-8",
+          )
+
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          match = re.search(rf"(?m)^##\s+{re.escape(version)}(?:\s|—).*\n", changelog)
+          if not match:
+              raise SystemExit(f"CHANGELOG.md has no section for {version}")
+          start = match.end()
+          following = re.search(r"(?m)^##\s+", changelog[start:])
+          body = changelog[start:start + following.start()] if following else changelog[start:]
+          body = body.strip()
+          if not body:
+              raise SystemExit(f"CHANGELOG.md section for {version} is empty")
+          Path("release-notes.md").write_text(body + "\n", encoding="utf-8")
+          print("Release assets:")
+          print("\n".join(f"- {name}" for name in names))
+          PY
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+
+      - name: Create draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" dist/release/* \
+            --draft \
+            --title "Glimio $version" \
+            --notes-file release-notes.md

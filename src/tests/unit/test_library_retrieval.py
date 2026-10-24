@@ -50,6 +50,33 @@ class PassageRetrievalTests(unittest.TestCase):
         self.assertTrue(retrieved)
         self.assertIn("endmarkerneedle", retrieved[0]["text"])
 
+    def test_session_scope_limits_retrieval_to_selected_sessions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            selected = root / "2026-10-20_10-00-01"
+            other = root / "2026-10-20_10-00-02"
+            for session in (selected, other):
+                summary = session / "summary" / "resume_audio.md"
+                summary.parent.mkdir(parents=True)
+                summary.write_text("Nebula budget decision approved.", encoding="utf-8")
+
+            passages = retrieve_passages(root, "nebula budget", top_k=8, session_ids={selected.name})
+
+        self.assertTrue(passages)
+        self.assertTrue(all(item["session_id"] == selected.name for item in passages))
+
+    def test_empty_session_scope_returns_no_matches_when_no_selected_session_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            session = root / "2026-10-20_10-00-01"
+            summary = session / "summary" / "resume_audio.md"
+            summary.parent.mkdir(parents=True)
+            summary.write_text("Nebula budget decision approved.", encoding="utf-8")
+
+            passages = retrieve_passages(root, "nebula budget", top_k=8, session_ids={"missing-session"})
+
+        self.assertEqual(passages, [])
+
     def test_long_paragraph_chunking_does_not_split_a_keyword_mid_word(self) -> None:
         from web.services.library import _iter_text_chunks
 

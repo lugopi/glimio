@@ -1,0 +1,41 @@
+@reference '../../../styles/tailwind-ref.scss';
+
+:host { @apply block min-w-0; }
+.search-source-results { @apply min-w-0; }
+.result-card-head { @apply mb-[11px] flex flex-wrap items-center justify-between gap-2.5; }
+.result-card-head h2 { @apply m-0 text-[0.8125rem] font-bold; }
+.source-results-heading { @apply items-start; }
+.source-results-heading > div { @apply min-w-0 flex-1; }
+.source-selection-help { @apply mt-1 text-xs leading-relaxed text-subtle; }
+.pending-source-changes { @apply mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/30 bg-surface-raised p-3; }
+.pending-source-changes > span { @apply flex min-w-0 flex-1 items-start gap-2 text-xs leading-relaxed text-muted; }
+.pending-source-changes > span glimio-icon { @apply mt-0.5 size-4 shrink-0 text-accent; }
+.pending-source-changes button { @apply shrink-0; }
+.search-source-list { @apply mt-3; }
+.search-source-card { @apply block min-w-0 rounded-none border-0 bg-transparent px-3 py-3; }
+.search-source-card > strong { @apply mb-2 block text-sm font-semibold break-words; }
+.search-source-excerpt { @apply mt-1 whitespace-pre-line line-clamp-4; }
+.search-source-footer { @apply mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3; }
+.search-source-meta { @apply min-w-0 text-xs text-subtle break-words; }
+.source-open { @apply ml-auto mt-0 shrink-0; }
+.search-source-pagination-footer { @apply mt-3 flex min-w-0 flex-nowrap items-center justify-between gap-3 border-t border-border-soft pt-3; }
+.search-source-pagination-footer .page-size-control { @apply flex shrink-0 items-center gap-2; }
+.search-source-pagination-footer .field-label { @apply mb-0 whitespace-nowrap; }
+.search-source-pagination-footer .select { @apply min-h-9 min-w-[76px] w-[76px]; }
+.search-source-pagination-footer glimio-pagination { @apply min-w-0 flex-1; }
+.search-source-card.is-excluded > strong { @apply text-muted; }
+.search-source-card.is-excluded .search-source-excerpt { @apply line-through decoration-subtle/60; }
+.source-include-toggle { @apply inline-flex cursor-pointer items-center gap-2 text-xs text-muted; }
+.source-include-toggle input { @apply accent-accent; }
+
+@media (width < theme(--breakpoint-sm)) {
+  .pending-source-changes { @apply items-stretch; }
+  .pending-source-changes button { @apply w-full justify-center; }
+  .source-include-toggle { @apply w-full; }
+  .search-source-card { @apply px-3 py-3; }
+  .search-source-footer { @apply items-start; }
+  .source-open { @apply ml-auto; }
+  .search-source-pagination-footer { @apply flex-col items-stretch; }
+  .search-source-pagination-footer .page-size-control { @apply justify-between; }
+  .search-source-pagination-footer glimio-pagination { @apply w-full flex-none; }
+}

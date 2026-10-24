@@ -1,0 +1,14 @@
+@reference '../../styles/tailwind-ref.scss';
+:host { display: block; min-width: 0; }
+.audio-track { grid-template-columns: minmax(115px, 145px) minmax(0, 1fr) auto; }
+.audio-track-actions { display: block; justify-self: end; align-self: center; }
+.audio-track-actions-menu { @apply relative; z-index: 1; }
+.audio-track-actions-menu .session-actions-toggle { @apply size-9; }
+.audio-track-actions-menu[open] { z-index: 2; }
+.audio-track-actions-menu .session-actions-icon glimio-icon { @apply text-xl; }
+.audio-track-actions-menu .session-actions-panel { @apply min-w-[12rem]; }
+@media (width < theme(--breakpoint-sm)) {
+  .audio-track { @apply grid-cols-1; }
+  .audio-track-title, .audio-track audio { grid-column: 1; }
+  .audio-track-actions { grid-column: 1; justify-self: end; }
+}

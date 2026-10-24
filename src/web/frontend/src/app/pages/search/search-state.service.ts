@@ -20,7 +20,7 @@ export class SearchStateService {
   readonly searchId = signal<string | null>(null);
   readonly result = signal<SearchResult | null>(null);
 
-  runSearch(): void {
+  runSearch(sessionIds: string[] = []): void {
     if (this.running()) return;
     const query = this.query().trim();
     const settings = this.preferences.preferences()?.settings;
@@ -37,7 +37,7 @@ export class SearchStateService {
     this.running.set(true);
     this.searchId.set(null);
     this.result.set(null);
-    this.api.startSearch(query, settings, 20).subscribe({
+    this.api.startSearch(query, settings, 20, sessionIds).subscribe({
       next: created => {
         this.searchId.set(created.id);
         this.searchSubscription = this.jobEvents.searchUpdates$.subscribe(result => {
@@ -58,6 +58,38 @@ export class SearchStateService {
       error: error => {
         this.toast.show(`Impossible de démarrer la recherche : ${error.message}`, 'error');
         this.running.set(false);
+      },
+    });
+  }
+
+  regenerateSynthesis(sourceIds: string[]): void {
+    if (this.running()) return;
+    const current = this.result();
+    if (!current?.id || sourceIds.length === 0) {
+      this.toast.show('Conservez au moins un extrait avant d’actualiser la synthèse.', 'error');
+      return;
+    }
+    const id = current.id;
+    this.searchSubscription?.unsubscribe();
+    this.running.set(true);
+    this.searchId.set(id);
+    this.searchSubscription = this.jobEvents.searchUpdates$.subscribe(result => {
+      if (result.id === id && this.searchId() === id) this.applySearchResult(result);
+    });
+    this.api.synthesizeSearch(id, sourceIds).subscribe({
+      next: result => {
+        if (this.searchId() === id) this.applySearchResult(result);
+        // Hydrate from the canonical state in case synthesis finished before SSE was handled.
+        this.api.search(id).subscribe({
+          next: latest => { if (this.searchId() === id) this.applySearchResult(latest); },
+          error: error => this.toast.show(`Impossible de récupérer la synthèse : ${error.message}`, 'error'),
+        });
+      },
+      error: error => {
+        this.toast.show(`Impossible d’actualiser la synthèse : ${error.message}`, 'error');
+        this.running.set(false);
+        this.searchId.set(null);
+        this.searchSubscription?.unsubscribe();
       },
     });
   }

@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 
 from ..runtime import acquire_ai_engine, AI_ENGINE_LOCK
+from ..project_paths import DEFAULT_WHISPER_CLI_PATH
 from .contracts import ProviderEvent, ProviderInfo, ProviderOption, ProviderOptionChoice, ProviderResourceLink, TranscriptSegment, TranscriptionRequest
 from .events import emit_provider_event
 from .srt import read_srt
@@ -125,7 +126,7 @@ WHISPER_CPP_INFO = ProviderInfo(
         ),
         ProviderOption(
             key="whisper_cli", label="Moteur de transcription", type="path",
-            default="bin/asr/whisper-cli.exe",
+            default=DEFAULT_WHISPER_CLI_PATH,
             description="Exécutable whisper-cli fourni avec l’installation.",
             required=True, advanced=True,
         ),

@@ -145,7 +145,6 @@
   .session-list { @apply grid gap-[5px] p-[7px]; }
   .session-card { @apply block w-full min-w-0 rounded-[11px] border border-transparent px-3 py-[13px] text-left text-text; background: transparent; }
   .session-card:hover { background: var(--c-surface-hover); }
-  .session-card.is-selected { border-color: color-mix(in srgb, var(--c-accent) 34%, var(--c-border)); background: var(--c-accent-soft); }
   .session-card-select { @apply block w-full min-w-0 border-0 p-0 text-left text-text; background: transparent; }
   .session-card-select:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 3px; border-radius: 6px; }
   .session-card-top { @apply mb-2 flex items-center justify-between gap-[9px]; }
@@ -473,7 +472,7 @@
     border-color: color-mix(in srgb, var(--c-accent) 24%, transparent);
     box-shadow: inset 0 1px 0 rgb(255 255 255 / .025), 0 0 18px color-mix(in srgb, var(--c-accent) 5%, transparent);
   }
-  .nav-link.is-active, .session-card.is-selected {
+  .nav-link.is-active {
     border-color: transparent;
     box-shadow: inset 2px 0 0 var(--c-accent), 0 0 18px color-mix(in srgb, var(--c-accent) 5%, transparent);
   }
@@ -552,7 +551,6 @@
   .session-list { gap: 0; padding: 4px 8px; }
   .session-card { border: 0; border-radius: 0; }
   .session-card + .session-card { border-top: 1px solid var(--c-border-soft); }
-  .session-card.is-selected { border-color: transparent; background: var(--c-accent-soft); box-shadow: inset 3px 0 0 var(--c-accent); }
   .badge, .job-state, .feature-chip { border: 0; border-radius: 5px; background: var(--c-surface-raised); }
   .detail-tabs { gap: 0; }
   .detail-tab { border-radius: 0; }
@@ -1100,4 +1098,35 @@
     .library-layout.is-mobile-detail-open .session-detail-panel { @apply block; }
     .library-layout.is-mobile-detail-open .library-detail-back { @apply mb-4 inline-flex items-center gap-2; }
   }
+}
+
+
+/* Shared processing-option fields used by both recording setup and session details. */
+@layer components {
+.common-processing-fields > div { @apply min-w-0; }
+.common-processing-fields > .processing-basics { @apply col-span-full grid min-w-0 gap-4; }
+.processing-quality { @apply grid min-w-0 grid-cols-1 gap-2; }
+.processing-quality .field-label { @apply mb-2; }
+.processing-quality .field-note { @apply m-0; }
+.processing-content-group { @apply grid min-w-0 gap-3 border-t border-border-soft pt-4; }
+.processing-content-group > .card-title { @apply m-0 text-sm; }
+.processing-content-fields { @apply grid min-w-0 grid-cols-2 items-start gap-[14px]; }
+.processing-content-fields:not(:has(> :nth-child(2))) { @apply grid-cols-1; }
+.processing-content-fields > * { @apply min-w-0; }
+.processing-content-fields .field-label { @apply mb-2; }
+.processing-content-fields .field-note { @apply mt-2; }
+.common-processing-fields > .processing-extras { @apply col-span-full min-w-0 border-t border-border-soft pt-4; }
+.processing-extras > .card-title { @apply mb-3; }
+.processing-extras-grid { @apply grid grid-cols-2 items-start gap-[14px]; }
+.common-processing-fields .field-label { @apply mb-2; }
+.common-processing-fields .field-note { @apply mt-2; }
+.common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-label,
+.common-processing-fields > div:not(.normalization-option):not(.diarization-option) > .field-note { @apply m-0; }
+.common-processing-fields .diarization-option { @apply grid content-start gap-3; }
+.common-processing-fields .speaker-count-field { @apply grid gap-2; }
+.common-processing-fields .diarization-option .field-label,
+.common-processing-fields .diarization-option .field-note { @apply m-0; }
+.common-processing-fields .normalization-gain-control { @apply mt-3 grid gap-2 border-0 bg-transparent p-0; }
+.common-processing-fields .normalization-gain-control .field-label { @apply m-0 flex-wrap justify-between gap-2; }
+.common-processing-fields .normalization-gain-control .range-input { @apply m-0 block w-full; }
 }

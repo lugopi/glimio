@@ -1,0 +1,18 @@
+<div
+  class="standard-list-content"
+  role="list"
+  [class.standard-list-content--surface]="surface"
+  [class.standard-list-content--scrollable]="scrollable"
+>
+  @for (item of items; track trackItem(item, $index); let index = $index) {
+    <div class="standard-list-row" role="listitem" [class.is-highlighted]="isHighlighted(item)" [class.is-muted]="isMuted(item)">
+      @if (rowTemplate; as row) {
+        <ng-container [ngTemplateOutlet]="row" [ngTemplateOutletContext]="{ $implicit: item, index: index }" />
+      }
+    </div>
+  } @empty {
+    @if (emptyTemplate; as empty) {
+      <ng-container [ngTemplateOutlet]="empty" />
+    }
+  }
+</div>

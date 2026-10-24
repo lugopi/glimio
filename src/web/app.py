@@ -31,6 +31,7 @@ from seance.processing.quality_profiles import apply_processing_profile, PROFILE
 from seance.llm import (
     LLMCancelled, LLMError, run_completion_resilient,
 )
+from seance.project_paths import DEFAULT_LLAMA_COMPLETION_PATH, DEFAULT_WHISPER_CLI_PATH
 from seance.providers import (
     DEFAULT_TEXT_PROVIDER, DEFAULT_TRANSCRIPTION_PROVIDER,
     TEXT_PROVIDER_IDS, TRANSCRIPTION_PROVIDER_IDS, default_provider_options,
@@ -174,9 +175,9 @@ def _sources_newer_than_build() -> bool:
                     return True
     return False
 DEFAULT_WHISPER_MODEL = "models/asr/model.bin"
-DEFAULT_WHISPER_CLI = "bin/asr/whisper-cli.exe"
+DEFAULT_WHISPER_CLI = DEFAULT_WHISPER_CLI_PATH
 DEFAULT_GGUF = "models/llm/model.gguf"
-DEFAULT_LLAMA_COMPLETION = "bin/llm/llama-completion.exe"
+DEFAULT_LLAMA_COMPLETION = DEFAULT_LLAMA_COMPLETION_PATH
 DEFAULT_THREADS = max(1, (os.cpu_count() or 4) // 2)
 VALID_FORMATS = {"summary", "auto", "daily", "technical", "formal", "brainstorm"}
 
@@ -230,7 +231,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="Glimio — Audio, transcription et notes", version="0.4.3",
+    title="Glimio — Audio, transcription et notes", version="0.5.0",
     docs_url="/api/docs", redoc_url=None, lifespan=lifespan,
 )
 # Keep module imports side-effect free: tests and tooling may import the API without
@@ -429,6 +430,11 @@ class SearchRequest(BaseModel):
     query: str = Field(min_length=2, max_length=1000)
     top_k: int = Field(default=8, ge=1, le=20)
     settings: Settings = Field(default_factory=Settings)
+    session_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
+class SearchSynthesisRequest(BaseModel):
+    source_ids: list[str] = Field(min_length=1, max_length=20)
 
 
 class UIPreferences(BaseModel):
@@ -818,9 +824,9 @@ def _get_preferences() -> dict[str, Any]:
         saved_settings = dict(saved.get("settings") or {})
         legacy_paths = {
             "model": (("models/asr/ggml-large-v3.bin",), "models/asr/model.bin"),
-            "whisper_cli": (("bin/asr/transcriber.exe", "bin/whisper/whisper-cli.exe"), "bin/asr/whisper-cli.exe"),
+            "whisper_cli": (("bin/asr/transcriber.exe", "bin/whisper/whisper-cli.exe", "bin/asr/whisper-cli.exe", "bin/asr/whisper-cli"), DEFAULT_WHISPER_CLI_PATH),
             "gguf": (("models/llm/model.gguf",), "models/llm/model.gguf"),
-            "llama_completion": (("bin/llm/inference.exe", "bin/llama-cpp/llama-completion.exe"), "bin/llm/llama-completion.exe"),
+            "llama_completion": (("bin/llm/inference.exe", "bin/llama-cpp/llama-completion.exe", "bin/llm/llama-completion.exe", "bin/llm/llama-completion"), DEFAULT_LLAMA_COMPLETION_PATH),
             "diarization_segmentation_model": (("models/diarization/segmentation/model.onnx", "models/diarization/segmentation.onnx"), "models/diarization/segmentation/segmentation.onnx"),
             "diarization_embedding_model": (("models/diarization/embedding/nemo_en_titanet_small.onnx", "models/diarization/embedding.onnx"), "models/diarization/embedding/embedding.onnx"),
         }
@@ -2371,6 +2377,27 @@ async def import_and_process(
         raise
 
 
+def _decorate_search_sources(
+    sources: list[dict[str, Any]], included_source_ids: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Attach stable source IDs and citation numbers without changing source identity."""
+    decorated: list[dict[str, Any]] = []
+    citation_number = 0
+    for source in sources:
+        item = dict(source)
+        source_id = str(item.get("source_id") or item.get("source_number") or len(decorated) + 1)
+        included = included_source_ids is None or source_id in included_source_ids
+        item["source_id"] = source_id
+        item["included"] = included
+        if included:
+            citation_number += 1
+            item["citation_number"] = citation_number
+        else:
+            item["citation_number"] = None
+        decorated.append(item)
+    return decorated
+
+
 def _search_public(search: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in search.items() if not key.startswith("_")}
 
@@ -2434,7 +2461,7 @@ def _run_cancellable_search(search_id: str, request: SearchRequest) -> None:
             found = progress.get("passages_found", 0)
             _set_search(
                 search_id,
-                sources=items,
+                sources=_decorate_search_sources(items),
                 sessions_scanned=scanned,
                 sessions_total=total,
                 passages_found=found,
@@ -2447,6 +2474,7 @@ def _run_cancellable_search(search_id: str, request: SearchRequest) -> None:
             request.top_k,
             on_update=publish_retrieval_update,
             should_stop=cancel_event.is_set,
+            session_ids=set(request.session_ids) if request.session_ids else None,
         )
         with SEARCH_LOCK:
             latest = SEARCHES.get(search_id, {})
@@ -2455,6 +2483,7 @@ def _run_cancellable_search(search_id: str, request: SearchRequest) -> None:
                 "sessions_total": latest.get("sessions_total", 0),
                 "passages_found": latest.get("passages_found", len(passages)),
             }
+        passages = _decorate_search_sources(passages)
         _set_search(search_id, sources=passages, **progress_snapshot)
         if cancel_event.is_set():
             _finish_search_cancelled(search_id)
@@ -2616,6 +2645,7 @@ def start_library_search(request: SearchRequest) -> dict[str, Any]:
             "state": "running",
             "message": "Recherche en préparation…",
             "query": request.query,
+            "session_ids": list(request.session_ids),
             "answer": None,
             "sources": [],
             "llm_error": None,
@@ -2626,6 +2656,7 @@ def start_library_search(request: SearchRequest) -> dict[str, Any]:
             "updated_at": _now(),
             "finished_at": None,
             "_process": None,
+            "_settings": request.settings,
         }
         SEARCHES[search_id] = search
         SEARCH_CANCEL_EVENTS[search_id] = threading.Event()
@@ -2640,6 +2671,118 @@ def start_library_search(request: SearchRequest) -> dict[str, Any]:
         daemon=True,
     ).start()
     return _search_public(search)
+
+
+def _run_search_resynthesis(search_id: str, passages: list[dict[str, Any]], settings: Settings) -> None:
+    """Regenerate only the final synthesis from user-confirmed source selections."""
+    cancel_event = SEARCH_CANCEL_EVENTS[search_id]
+    try:
+        binary = Path(settings.llama_completion).expanduser()
+        model = Path(settings.gguf).expanduser()
+        if not binary.is_absolute():
+            binary = PROJECT_ROOT / binary
+        if not model.is_absolute():
+            model = PROJECT_ROOT / model
+
+        def publish_process(active_process: subprocess.Popen[Any] | None) -> None:
+            with SEARCH_LOCK:
+                if search_id in SEARCHES:
+                    if active_process is None:
+                        SEARCHES[search_id].pop("_process", None)
+                    else:
+                        SEARCHES[search_id]["_process"] = active_process
+
+        def publish_progress(message: str) -> None:
+            if not cancel_event.is_set():
+                _set_search(search_id, message=message)
+
+        answer, hit_limit = _generate_search_synthesis(
+            str(SEARCHES[search_id].get("query", "")), passages, settings, binary, model,
+            cancel_event=cancel_event, on_process=publish_process, on_progress=publish_progress,
+        )
+        if cancel_event.is_set():
+            _finish_search_cancelled(search_id)
+            return
+        if hit_limit:
+            _set_search(search_id, state="error", message="Synthèse tronquée", answer=None,
+                        llm_error="Le modèle a atteint sa limite de génération sans terminer sa réponse.", finished_at=_now())
+            return
+        if _looks_like_malformed_synthesis(answer):
+            _set_search(search_id, state="error", message="Synthèse locale de mauvaise qualité", answer=None,
+                        llm_error="Le modèle a renvoyé une sortie de raisonnement interne ou répétitive. Vérifie que le modèle est adapté à la rédaction.", finished_at=_now())
+            return
+        if _has_unknown_citations(answer, passages):
+            _set_search(search_id, state="error", message="Références de synthèse invalides", answer=None,
+                        llm_error="La synthèse cite des sources absentes des extraits conservés. Elle n’a pas été affichée pour éviter des références trompeuses.", finished_at=_now())
+            return
+        _set_search(search_id, state="completed", message="Synthèse actualisée", answer=answer, llm_error=None, finished_at=_now())
+    except LLMCancelled:
+        _finish_search_cancelled(search_id)
+    except (LLMError, ValueError) as exc:
+        if cancel_event.is_set():
+            _finish_search_cancelled(search_id)
+        else:
+            _set_search(search_id, state="error", message="Échec de la génération locale", answer=None,
+                        llm_error=str(exc), finished_at=_now())
+    except (Exception, SystemExit) as exc:
+        if cancel_event.is_set():
+            _finish_search_cancelled(search_id)
+        else:
+            _set_search(search_id, state="error", message="La synthèse n’a pas pu être actualisée", answer=None,
+                        llm_error=str(exc).strip() or f"Erreur pendant la synthèse ({type(exc).__name__}).", finished_at=_now())
+    finally:
+        global ACTIVE_SEARCH_ID
+        with SEARCH_LOCK:
+            if search_id in SEARCHES:
+                SEARCHES[search_id].pop("_process", None)
+            SEARCH_CANCEL_EVENTS.pop(search_id, None)
+            if ACTIVE_SEARCH_ID == search_id:
+                ACTIVE_SEARCH_ID = None
+
+
+@app.post("/api/search/{search_id}/synthesize")
+def synthesize_library_search(search_id: str, request: SearchSynthesisRequest) -> dict[str, Any]:
+    """Start one synthesis pass after the user confirms the kept excerpts."""
+    global ACTIVE_SEARCH_ID
+    with SEARCH_LOCK:
+        search = SEARCHES.get(search_id)
+        if search is None:
+            raise HTTPException(status_code=404, detail="Recherche inconnue ou historique expiré.")
+        if ACTIVE_SEARCH_ID and ACTIVE_SEARCH_ID in SEARCHES and SEARCHES[ACTIVE_SEARCH_ID].get("state") in {"running", "cancelling"}:
+            raise HTTPException(status_code=409, detail="Une recherche IA est déjà en cours.")
+        current_sources = search.get("sources", [])
+        source_ids = {str(item.get("source_id") or item.get("source_number")) for item in current_sources}
+        requested_ids = set(request.source_ids)
+        if not requested_ids or not requested_ids.issubset(source_ids):
+            raise HTTPException(status_code=422, detail="La sélection des extraits est invalide. Relancez la recherche.")
+        selected = [dict(item) for item in current_sources if str(item.get("source_id") or item.get("source_number")) in requested_ids]
+        for citation_number, passage in enumerate(selected, start=1):
+            passage["source_number"] = citation_number
+        settings = search.get("_settings")
+        if settings is None:
+            raise HTTPException(status_code=409, detail="Les paramètres de cette recherche ne sont plus disponibles. Relancez-la.")
+        decorated = _decorate_search_sources(current_sources, requested_ids)
+        search.update({
+            "sources": decorated,
+            "state": "running",
+            "message": "Actualisation de la synthèse à partir des extraits conservés…",
+            "answer": None,
+            "llm_error": None,
+            "finished_at": None,
+            "updated_at": _now(),
+        })
+        SEARCH_CANCEL_EVENTS[search_id] = threading.Event()
+        ACTIVE_SEARCH_ID = search_id
+        public = _search_public(search)
+    with JOB_EVENT_LOCK:
+        _coalesce_job_event_locked("search", public, f"search:{search_id}")
+    threading.Thread(
+        target=_run_search_resynthesis,
+        args=(search_id, selected, settings),
+        name=f"glimio-web-search-synthesis-{search_id}",
+        daemon=True,
+    ).start()
+    return public
 
 
 @app.get("/api/search/{search_id}")
@@ -2678,7 +2821,10 @@ def cancel_library_search(search_id: str) -> dict[str, Any]:
 
 @app.post("/api/search/ask")
 def ask_library(request: SearchRequest) -> dict[str, Any]:
-    passages = retrieve_passages(SESSION_ROOT, request.query, request.top_k)
+    passages = retrieve_passages(
+        SESSION_ROOT, request.query, request.top_k,
+        session_ids=set(request.session_ids) if request.session_ids else None,
+    )
     if not passages:
         return {"query": request.query, "answer": None, "sources": [], "llm_error": "Aucun passage ne contient les termes de recherche. Essaie une formulation ou des mots-clés différents."}
 

@@ -1,0 +1,18 @@
+@reference '../../../styles/tailwind-ref.scss';
+
+:host { @apply block min-w-0; }
+.session-picker { @apply mt-3 rounded-xl border border-border-soft bg-surface p-3; }
+.session-picker-heading { @apply mb-3 flex flex-wrap items-center justify-between gap-2 text-xs; }
+.session-picker-heading span { @apply text-subtle; }
+.session-filter-input { @apply mb-2 w-full text-xs; }
+.search-session-picker-list { @apply mt-2; }
+.search-session-picker-card { @apply px-3 py-3; }
+.search-session-picker-option { @apply flex min-w-0 cursor-pointer items-start gap-3; }
+.search-session-picker-option > input { @apply mt-1 shrink-0 accent-accent; }
+.search-session-picker-copy { @apply grid min-w-0 flex-1 gap-0; }
+.search-session-picker-copy > strong { @apply mb-1 block text-xs font-semibold leading-[1.45] text-text break-words; }
+.search-session-picker-copy .session-card-top { @apply mb-1.5; }
+.search-session-picker-copy .session-date { @apply whitespace-normal; }
+.search-session-picker-copy .session-markers .badge { @apply min-h-0 px-1.5 py-1 text-[0.6875rem]; }
+.empty-session-options { @apply px-2 py-4 text-center text-xs text-subtle; }
+.session-picker-footer { @apply mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border-soft pt-3 text-[0.7rem] text-subtle; }

@@ -13,10 +13,10 @@ Glimio ne versionne pas les poids IA ou les exécutables natifs. Télécharge-le
 | `models/asr/ggml-silero-v6.2.0.bin` | VAD (détection des zones de parole) pour ignorer les silences prolongés | [Modèle Silero VAD converti pour whisper.cpp](https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin) ; [instructions officielles VAD](https://github.com/ggml-org/whisper.cpp#vad) | Le dépôt de modèles indique MIT. Conserver les notices et valider la licence de l'artefact exact distribué. |
 | `models/diarization/segmentation/segmentation.onnx` | Segmentation des voix avant regroupement des locuteurs | [Modèles de segmentation de sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-segmentation-models) ; modèle source [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0) | Le modèle source `pyannote/segmentation-3.0` affiche MIT, mais le dépôt Hugging Face demande d'accepter ses conditions avant l'accès. La version ONNX convertie est distribuée séparément : vérifie les notices/conditions associées à l'artefact sherpa-onnx exact avant toute redistribution. |
 | `models/diarization/embedding/embedding.onnx` | Embeddings vocaux 3D-Speaker ERes2Net pour la diarisation | [Artefact ONNX de sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx) ; [projet 3D-Speaker et licence du code](https://github.com/modelscope/3D-Speaker/blob/main/LICENSE) | Le code du projet 3D-Speaker indique Apache-2.0, mais vérifie également les conditions exactes du poids ONNX distribué et conserve la notice fournie par la source. |
-| `bin/asr/whisper-cli.exe` | Exécutable de transcription Whisper | [whisper.cpp — releases](https://github.com/ggml-org/whisper.cpp/releases) | Télécharge la version adaptée au système et examine la licence ainsi que les bibliothèques embarquées dans l'archive choisie. |
-| `bin/llm/llama-completion.exe` | Exécutable d'inférence GGUF | [llama.cpp — releases](https://github.com/ggml-org/llama.cpp/releases) | Télécharge une release officielle et conserve ses notices. Les termes du modèle GGUF restent indépendants de ceux de llama.cpp. |
+| `bin/asr/whisper-cli` (Linux) / `bin/asr/whisper-cli.exe` (Windows) | Exécutable de transcription Whisper | [whisper.cpp — releases](https://github.com/ggml-org/whisper.cpp/releases) | Télécharge la version adaptée au système et examine la licence ainsi que les bibliothèques embarquées dans l'archive choisie. |
+| `bin/llm/llama-completion` (Linux) / `bin/llm/llama-completion.exe` (Windows) | Exécutable d'inférence GGUF | [llama.cpp — releases](https://github.com/ggml-org/llama.cpp/releases) | Télécharge une release officielle et conserve ses notices. Les termes du modèle GGUF restent indépendants de ceux de llama.cpp. |
 | `ffmpeg` (ou `ffmpeg.exe`) | Décodage audio/vidéo, filtre anti-bruit `afftdn` | [Téléchargements FFmpeg](https://ffmpeg.org/download.html) | FFmpeg est proposé sous LGPL ou GPL selon les options de compilation et les composants activés ; la licence exacte dépend de la build téléchargée. Lis sa configuration et ses notices. |
-| `bin/speech/deep-filter.exe` | Amélioration de la voix par DeepFilterNet, en option | [Releases DeepFilterNet](https://github.com/Rikorose/DeepFilterNet/releases) | Le code du projet est annoncé sous double licence MIT/Apache-2.0. Vérifie les notices de la release exacte et les conditions du binaire choisi ; ne l'inclus pas automatiquement dans un package Glimio. |
+| `bin/speech/deep-filter` (Linux) / `bin/speech/deep-filter.exe` (Windows) | Amélioration de la voix par DeepFilterNet, en option | [Releases DeepFilterNet](https://github.com/Rikorose/DeepFilterNet/releases) | Le code du projet est annoncé sous double licence MIT/Apache-2.0. Vérifie les notices de la release exacte et les conditions du binaire choisi ; ne l'inclus pas automatiquement dans un package Glimio. |
 | `models/speech-enhancement/model.tar.gz` | Poids de DeepFilterNet, en option | [Projet DeepFilterNet](https://github.com/Rikorose/DeepFilterNet) ; [guide du binaire et format du modèle](https://github.com/Rikorose/DeepFilterNet#deep-filter) | Télécharge l'archive du modèle séparément. Le mode Glimio demande une archive compatible avec le binaire `deep-filter`; garde la provenance, la licence exacte et la version du modèle. |
 
 ### Notes sur les noms
@@ -32,10 +32,10 @@ Les téléchargements ne sont pas automatiques dans Glimio : cela évite de tél
 
 ```text
 bin/
-├── whisper/whisper-cli.exe
-├── llama-cpp/llama-completion.exe
-├── media/ffmpeg.exe  # facultatif ; peut aussi être dans PATH
-└── speech/deep-filter.exe      # facultatif : binaire téléchargé séparément
+├── asr/whisper-cli[.exe]
+├── llm/llama-completion[.exe]
+├── media/ffmpeg[.exe]  # facultatif ; peut aussi être dans PATH
+└── speech/deep-filter[.exe]   # facultatif : binaire téléchargé séparément
 models/
 ├── asr/
 │   ├── model.bin

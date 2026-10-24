@@ -9,6 +9,7 @@ from ..common import log
 from ..layout import get_transcript_path, has_audio
 from ..media.audio_import import import_audio_file
 from ..sessions import resolve_session
+from ..project_paths import DEFAULT_LLAMA_COMPLETION_PATH, DEFAULT_WHISPER_CLI_PATH
 from .minutes import summarize
 from .transcription import transcribe
 
@@ -39,7 +40,7 @@ def transcribe_folder(
         folder=str(selected),
         directory=getattr(source_args, "directory", "seances"),
         model=getattr(source_args, "model", "models/asr/model.bin"),
-        whisper_cli=getattr(source_args, "whisper_cli", "bin/asr/whisper-cli.exe"),
+        whisper_cli=getattr(source_args, "whisper_cli", DEFAULT_WHISPER_CLI_PATH),
         transcription_provider=getattr(source_args, "transcription_provider", "whisper.cpp"),
         audio_enhancement_provider=getattr(source_args, "audio_enhancement_provider", "ffmpeg-denoise"),
         source_separation_provider=getattr(source_args, "source_separation_provider", "no-separation"),
@@ -155,7 +156,7 @@ def minutes_folder(
         folder=str(selected),
         directory=getattr(source_args, "directory", "seances"),
         gguf=getattr(source_args, "gguf", "models/llm/model.gguf"),
-        llama_completion=getattr(source_args, "llama_completion", "bin/llm/llama-completion.exe"),
+        llama_completion=getattr(source_args, "llama_completion", DEFAULT_LLAMA_COMPLETION_PATH),
         text_provider=getattr(source_args, "text_provider", "llama.cpp"),
         provider_options=getattr(source_args, "provider_options", {}),
         context=getattr(source_args, "context", 16384),

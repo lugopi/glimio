@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 
+from ..project_paths import DEFAULT_DEEP_FILTER_EXECUTABLE_PATH
 from .contracts import (
     AudioEnhancementRequest, AudioEnhancementResult, AudioSeparationRequest,
     AudioSeparationResult, ProviderInfo, ProviderOption, ProviderOptionChoice,
@@ -354,7 +355,7 @@ DEEPFILTER_ENHANCEMENT_INFO = ProviderInfo(
         ProviderResourceLink("Licence DeepFilterNet", "https://github.com/Rikorose/DeepFilterNet", "license", "Vérifiez la licence du code et les conditions applicables aux modèles téléchargés."),
     ),
     options=(
-        ProviderOption(key="deep_filter_executable", label="Binaire DeepFilterNet", type="path", default="bin/speech/deep-filter.exe", description="Exécutable installé séparément.", advanced=True),
+        ProviderOption(key="deep_filter_executable", label="Binaire DeepFilterNet", type="path", default=DEFAULT_DEEP_FILTER_EXECUTABLE_PATH, description="Exécutable installé séparément.", advanced=True),
         ProviderOption(key="deep_filter_model", label="Modèle DeepFilterNet", type="path", default="models/speech-enhancement/model.tar.gz", description="Archive du modèle téléchargée séparément.", advanced=True),
     ), requires=("ffmpeg",),
 
@@ -459,7 +460,7 @@ class DeepFilterNetEnhancementProvider:
         options = request.options
         output, selected = enhance_for_transcription(
             request.audio_path, request.output_path, mode="deepfilter", ffmpeg=request.ffmpeg,
-            deep_filter_executable=str(options.get("deep_filter_executable", "bin/speech/deep-filter.exe")),
+            deep_filter_executable=str(options.get("deep_filter_executable", DEFAULT_DEEP_FILTER_EXECUTABLE_PATH)),
             deep_filter_model=str(options.get("deep_filter_model", "models/speech-enhancement/model.tar.gz")),
             cancel_event=request.cancel_event,
         )
@@ -926,7 +927,7 @@ def provider_readiness(info: ProviderInfo, options: dict[str, Any] | None = None
         return True, ()
 
     if info.id == "deepfilternet":
-        executable = str(values.get("deep_filter_executable", "bin/speech/deep-filter.exe"))
+        executable = str(values.get("deep_filter_executable", DEFAULT_DEEP_FILTER_EXECUTABLE_PATH))
         model = Path(str(values.get("deep_filter_model", "models/speech-enhancement/model.tar.gz"))).expanduser()
         resolved_exe = shutil.which(executable) if "/" not in executable and "\\" not in executable else executable
         if not resolved_exe or (("/" in executable or "\\" in executable) and not Path(executable).expanduser().is_file()):

@@ -14,6 +14,7 @@ from ..layout import (
 )
 from ..media.audio_import import import_audio_file
 from ..sessions import resolve_session
+from ..project_paths import DEFAULT_WHISPER_CLI_PATH
 from .diarization_process import diarize_transcription_isolated
 from .transcription import transcribe as transcribe_audio
 # Shared LLM helpers used by this workflow.
@@ -142,7 +143,7 @@ def _ensure_transcript(folder: Path, args: argparse.Namespace) -> Path:
         folder=str(folder),
         directory=getattr(args, "directory", "seances"),
         model=getattr(args, "model", "models/asr/model.bin"),
-        whisper_cli=getattr(args, "whisper_cli", "bin/asr/whisper-cli.exe"),
+        whisper_cli=getattr(args, "whisper_cli", DEFAULT_WHISPER_CLI_PATH),
         transcription_provider=getattr(args, "transcription_provider", "whisper.cpp"),
         language=getattr(args, "language", "auto"),
         provider_options=getattr(args, "provider_options", {}),
@@ -213,7 +214,7 @@ def _ensure_diarization(folder: Path, args: argparse.Namespace) -> None:
         folder=str(folder),
         directory=getattr(args, "directory", "seances"),
         model=getattr(args, "model", "models/asr/model.bin"),
-        whisper_cli=getattr(args, "whisper_cli", "bin/asr/whisper-cli.exe"),
+        whisper_cli=getattr(args, "whisper_cli", DEFAULT_WHISPER_CLI_PATH),
         transcription_provider=getattr(args, "transcription_provider", "whisper.cpp"),
         language=getattr(args, "language", "auto"),
         provider_options=getattr(args, "provider_options", {}),

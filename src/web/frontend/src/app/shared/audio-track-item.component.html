@@ -1,0 +1,11 @@
+<div class="audio-track" [class.is-audio-track-disabled]="disabled">
+  <div class="audio-track-title"><strong>{{ label }}</strong><small>{{ track }}</small>@if (disabled) { <span class="audio-track-disabled-label">Désactivée pour les prochains traitements</span> }</div>
+  <audio controls preload="metadata" [src]="src">Votre navigateur ne prend pas en charge la lecture audio.</audio>
+  <details class="session-actions-menu audio-track-actions audio-track-actions-menu" #trackActionsMenu>
+    <summary class="session-actions-toggle" [attr.aria-label]="'Actions pour la piste ' + track"><span class="session-actions-icon"><glimio-icon name="bars-3" size="fill" /></span></summary>
+    <div class="session-actions-panel">
+      <button class="btn btn--ghost btn--small" type="button" [disabled]="actionsDisabled || !canDisable" [title]="!canDisable ? 'Au moins une piste doit rester active' : ''" (click)="toggleDisabled.emit(); trackActionsMenu.open = false"><glimio-icon [name]="disabled ? 'eye' : 'eye-slash'" /><span class="btn-label">{{ disabled ? 'Réactiver' : 'Désactiver' }}</span></button>
+      <button class="btn btn--ghost btn--small is-danger" type="button" [disabled]="actionsDisabled" (click)="deleteTrack.emit(); trackActionsMenu.open = false"><glimio-icon name="trash" /><span class="btn-label">Supprimer le fichier</span></button>
+    </div>
+  </details>
+</div>
