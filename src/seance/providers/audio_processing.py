@@ -22,6 +22,7 @@ from .contracts import (
     ProviderResourceLink, SpeakerEmbeddingProvider,
 )
 from ..media.speech_enhancement import enhance_for_transcription
+from .plugins import check_plugin_readiness, get_provider_plugin, plugins_for_task
 
 
 NO_ENHANCEMENT_TRANSLATIONS_EN = {'en': {'Aucun prétraitement': 'No preprocessing',
@@ -355,7 +356,7 @@ DEEPFILTER_ENHANCEMENT_INFO = ProviderInfo(
         ProviderResourceLink("Licence DeepFilterNet", "https://github.com/Rikorose/DeepFilterNet", "license", "Vérifiez la licence du code et les conditions applicables aux modèles téléchargés."),
     ),
     options=(
-        ProviderOption(key="deep_filter_executable", label="Binaire DeepFilterNet", type="path", default=DEFAULT_DEEP_FILTER_EXECUTABLE_PATH, description="Exécutable installé séparément.", advanced=True),
+        ProviderOption(key="deep_filter_executable", label="Binaire DeepFilterNet", type="path", default=DEFAULT_DEEP_FILTER_EXECUTABLE_PATH, description="Exécutable installé séparément.", advanced=True, path_role="executable"),
         ProviderOption(key="deep_filter_model", label="Modèle DeepFilterNet", type="path", default="models/speech-enhancement/model.tar.gz", description="Archive du modèle téléchargée séparément.", advanced=True),
     ), requires=("ffmpeg",),
 
@@ -823,7 +824,10 @@ def _run_checked(command: list[str], cancel_event: Any, label: str) -> None:
     try:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     except OSError as exc:
-        raise RuntimeError(f"Impossible de lancer {command[0]} : {exc}") from exc
+        raise RuntimeError(
+            f"Impossible de lancer {command[0]} : {exc}. Installez FFmpeg, configurez le provider FFmpeg "
+            "dans les paramètres, ou choisissez « Aucune amélioration »."
+        ) from exc
     while True:
         if cancel_event is not None and cancel_event.is_set():
             process.terminate()
@@ -865,24 +869,45 @@ def _selected_device(value: str) -> str:
     return value
 
 
-ENHANCEMENT_PROVIDER_FACTORIES = {
+_BUILTIN_ENHANCEMENT_PROVIDER_FACTORIES = {
     "no-enhancement": lambda options: NoAudioEnhancementProvider(),
     "ffmpeg-denoise": lambda options: FFmpegDenoiseProvider(),
     "deepfilternet": lambda options: DeepFilterNetEnhancementProvider(),
 }
-SEPARATION_PROVIDER_FACTORIES = {
+_BUILTIN_SEPARATION_PROVIDER_FACTORIES = {
     "no-separation": lambda options, embedding: NoSourceSeparationProvider(),
     "speechbrain-sepformer": lambda options, embedding: SpeechBrainSepFormerProvider(options, embedding_provider=embedding),
 }
-EMBEDDING_PROVIDER_FACTORIES = {
+_BUILTIN_EMBEDDING_PROVIDER_FACTORIES = {
     "none-speaker-embedding": lambda options: None,
     "speechbrain-ecapa": lambda options: SpeechBrainEcapaEmbeddingProvider(options),
 }
 
+ENHANCEMENT_PROVIDER_FACTORIES = {
+    **_BUILTIN_ENHANCEMENT_PROVIDER_FACTORIES,
+    **{p.info.id: p.factory for p in plugins_for_task("enhancement") if p.info.id not in _BUILTIN_ENHANCEMENT_PROVIDER_FACTORIES},
+}
+SEPARATION_PROVIDER_FACTORIES = {
+    **_BUILTIN_SEPARATION_PROVIDER_FACTORIES,
+    **{p.info.id: p.factory for p in plugins_for_task("separation") if p.info.id not in _BUILTIN_SEPARATION_PROVIDER_FACTORIES},
+}
+EMBEDDING_PROVIDER_FACTORIES = {
+    **_BUILTIN_EMBEDDING_PROVIDER_FACTORIES,
+    **{p.info.id: p.factory for p in plugins_for_task("speaker_embedding") if p.info.id not in _BUILTIN_EMBEDDING_PROVIDER_FACTORIES},
+}
+
 
 def audio_processing_provider_infos() -> tuple[ProviderInfo, ...]:
-    return (NO_ENHANCEMENT_INFO, FFMPEG_ENHANCEMENT_INFO, DEEPFILTER_ENHANCEMENT_INFO,
-            NO_SEPARATION_INFO, SPEECHBRAIN_SEPARATION_INFO, NO_EMBEDDING_INFO, SPEECHBRAIN_EMBEDDING_INFO)
+    builtins = (NO_ENHANCEMENT_INFO, FFMPEG_ENHANCEMENT_INFO, DEEPFILTER_ENHANCEMENT_INFO,
+                NO_SEPARATION_INFO, SPEECHBRAIN_SEPARATION_INFO, NO_EMBEDDING_INFO, SPEECHBRAIN_EMBEDDING_INFO)
+    known_ids = {item.id for item in builtins}
+    plugin_infos = tuple(
+        plugin.info
+        for task in ("enhancement", "separation", "speaker_embedding")
+        for plugin in plugins_for_task(task)
+        if plugin.info.id not in known_ids
+    )
+    return (*builtins, *plugin_infos)
 
 
 def create_audio_enhancement_provider(provider_id: str, options: dict[str, Any] | None = None):
@@ -922,6 +947,11 @@ def provider_readiness(info: ProviderInfo, options: dict[str, Any] | None = None
     """Report missing local resources/runtime packages without downloads or heavy imports."""
     values = dict(options or {})
     missing: list[str] = []
+
+    plugin = get_provider_plugin(info.id)
+    if plugin is not None and plugin.info is info and plugin.readiness is not None:
+        plugin_missing, _details = check_plugin_readiness(plugin, values, Path.cwd())
+        return not plugin_missing, plugin_missing
 
     if info.id in {"no-enhancement", "no-separation", "none-speaker-embedding"}:
         return True, ()

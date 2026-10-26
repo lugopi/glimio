@@ -1,10 +1,8 @@
-"""Run the native diarization work outside the main Python process.
+"""Run the selected diarization provider outside the main Python process.
 
-``sherpa-onnx`` performs its inference in native code but can keep the CPython
-GIL for the whole call. When diarization runs inside the web process, that
-prevents FastAPI, the SSE stream and every other Python thread from making
-progress until the inference finishes. A spawned child process has its own GIL,
-so the API stays responsive while the heavy native call runs.
+Some providers execute inference in native code and can keep the CPython GIL for
+long calls. A spawned child process isolates those engines so FastAPI, SSE and
+other Python threads remain responsive, regardless of the selected provider.
 """
 from __future__ import annotations
 
@@ -15,6 +13,7 @@ import threading
 from typing import Any
 
 _DIARIZATION_KEYS = (
+    "diarization_provider",
     "diarization_segmentation_model",
     "diarization_embedding_model",
     "diarization_num_speakers",

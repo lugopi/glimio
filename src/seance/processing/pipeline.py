@@ -8,9 +8,10 @@ from typing import Callable
 from ..common import log
 from ..layout import get_transcript_path, has_audio
 from ..media.audio_import import import_audio_file
+from ..providers.media_tools import DEFAULT_MEDIA_PROVIDER
 from ..session_paths import resolve_session
 from ..project_paths import DEFAULT_LLAMA_COMPLETION_PATH, DEFAULT_WHISPER_CLI_PATH
-from .minutes import summarize
+from .minutes import summarize, translate_summary
 from .transcription import transcribe
 
 StatusCallback = Callable[[str], None]
@@ -42,6 +43,7 @@ def transcribe_folder(
         model=getattr(source_args, "model", "models/asr/model.bin"),
         whisper_cli=getattr(source_args, "whisper_cli", DEFAULT_WHISPER_CLI_PATH),
         transcription_provider=getattr(source_args, "transcription_provider", "whisper.cpp"),
+        media_provider=getattr(source_args, "media_provider", DEFAULT_MEDIA_PROVIDER),
         audio_enhancement_provider=getattr(source_args, "audio_enhancement_provider", "ffmpeg-denoise"),
         source_separation_provider=getattr(source_args, "source_separation_provider", "no-separation"),
         speaker_embedding_provider=getattr(source_args, "speaker_embedding_provider", "speechbrain-ecapa"),
@@ -49,6 +51,7 @@ def transcribe_folder(
         language=getattr(source_args, "language", "auto"),
         threads=getattr(source_args, "threads", 1),
         ffmpeg=getattr(source_args, "ffmpeg", "ffmpeg"),
+        ffprobe=getattr(source_args, "ffprobe", "ffprobe"),
         diarize=getattr(source_args, "diarize", False),
         diarization_segmentation_model=getattr(source_args, "diarization_segmentation_model", "models/diarization/segmentation/segmentation.onnx"),
         diarization_embedding_model=getattr(source_args, "diarization_embedding_model", "models/diarization/embedding/embedding.onnx"),
@@ -159,12 +162,21 @@ def minutes_folder(
         llama_completion=getattr(source_args, "llama_completion", DEFAULT_LLAMA_COMPLETION_PATH),
         text_provider=getattr(source_args, "text_provider", "llama.cpp"),
         provider_options=getattr(source_args, "provider_options", {}),
+        ffmpeg=getattr(source_args, "ffmpeg", "ffmpeg"),
+        ffprobe=getattr(source_args, "ffprobe", "ffprobe"),
+        # A summary that has to transcribe first must keep the user's audio chain
+        # instead of silently falling back to a default enhancement provider.
+        media_provider=getattr(source_args, "media_provider", DEFAULT_MEDIA_PROVIDER),
+        audio_enhancement_provider=getattr(source_args, "audio_enhancement_provider", "no-enhancement"),
+        source_separation_provider=getattr(source_args, "source_separation_provider", "no-separation"),
+        speaker_embedding_provider=getattr(source_args, "speaker_embedding_provider", "speechbrain-ecapa"),
         context=getattr(source_args, "context", 16384),
         max_tokens=getattr(source_args, "max_tokens", 6000),
         analysis_tokens=getattr(source_args, "analysis_tokens", 3500),
         analysis_retries=getattr(source_args, "analysis_retries", 3),
         analysis_max_splits=getattr(source_args, "analysis_max_splits", 6),
         format=getattr(source_args, "format", "auto"),
+        summary_language=getattr(source_args, "summary_language", "auto"),
         no_review=getattr(source_args, "no_review", False),
         diarize=getattr(source_args, "diarize", False),
         diarization_segmentation_model=getattr(source_args, "diarization_segmentation_model", "models/diarization/segmentation/segmentation.onnx"),
@@ -211,6 +223,55 @@ def minutes_folder(
     _notify(callback, "LLM · résumé final enregistré")
 
 
+
+def translate_summary_folder(
+    folder: str | Path,
+    source_args: argparse.Namespace,
+    *,
+    target_language: str,
+    on_status: StatusCallback | None = None,
+) -> Path:
+    """Translate an existing summary through the selected text provider, without rerunning analysis."""
+    callback = on_status or getattr(source_args, "status_callback", None)
+    selected = Path(folder).expanduser().resolve()
+    _notify(callback, f"Traduction du résumé · préparation du provider pour {target_language}…")
+    args = argparse.Namespace(
+        folder=str(selected),
+        directory=getattr(source_args, "directory", "seances"),
+        gguf=getattr(source_args, "gguf", "models/llm/model.gguf"),
+        llama_completion=getattr(source_args, "llama_completion", DEFAULT_LLAMA_COMPLETION_PATH),
+        text_provider=getattr(source_args, "text_provider", "llama.cpp"),
+        provider_options=getattr(source_args, "provider_options", {}),
+        context=getattr(source_args, "context", 16384),
+        max_tokens=getattr(source_args, "max_tokens", 6000),
+        analysis_retries=getattr(source_args, "analysis_retries", 3),
+        analysis_max_splits=getattr(source_args, "analysis_max_splits", 6),
+        _cancel_event=getattr(source_args, "_cancel_event", None),
+        status_callback=callback,
+    )
+    from ..llm import reset_job_cancel_event, set_job_cancel_event
+    from ..providers.events import reset_provider_event_callback, set_provider_event_callback
+    from ..providers.selection import reset_text_provider, set_text_provider
+
+    cancel_token = set_job_cancel_event(getattr(args, "_cancel_event", None))
+    provider_options = getattr(args, "provider_options", {}) or {}
+    provider_id = getattr(args, "text_provider", None)
+    provider_token = set_text_provider(provider_id, provider_options.get(provider_id or "", {}))
+    event_callback = getattr(source_args, "provider_event_callback", None)
+    if event_callback is None and callback is not None:
+        event_callback = lambda event: _notify(callback, event.message)
+    event_token = set_provider_event_callback(event_callback) if event_callback is not None else None
+    try:
+        result = translate_summary(selected, args, target_language)
+    finally:
+        if event_token is not None:
+            reset_provider_event_callback(event_token)
+        reset_text_provider(provider_token)
+        reset_job_cancel_event(cancel_token)
+    _notify(callback, f"Traduction du résumé enregistrée ({target_language})")
+    return result
+
+
 def process_folder(
     folder: str | Path,
     source_args: argparse.Namespace,
@@ -245,10 +306,16 @@ def process(args: argparse.Namespace) -> None:
     """Process an explicit session or latest suitable session in the session root."""
     requested = getattr(args, "folder", None)
     if requested and Path(requested).expanduser().is_file():
+        media_provider = getattr(args, "media_provider", DEFAULT_MEDIA_PROVIDER)
+        provider_options = getattr(args, "provider_options", {}) or {}
+        media_options = provider_options.get(media_provider, {}) if isinstance(provider_options, dict) else {}
         folder = import_audio_file(
             requested,
             getattr(args, "directory", "seances"),
+            media_provider=media_provider,
+            media_options=media_options if isinstance(media_options, dict) else None,
             ffmpeg=getattr(args, "ffmpeg", "ffmpeg"),
+            ffprobe=getattr(args, "ffprobe", "ffprobe"),
         )
     else:
         folder = resolve_session(

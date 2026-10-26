@@ -49,7 +49,7 @@ export class JobsPageComponent implements OnInit, OnDestroy {
   }
 
   jobLabel(job: Job): string {
-    return ({ recording: 'Enregistrement', transcribe: 'Transcription Whisper', summarize: 'Résumé', process: 'Traitement complet', import: 'Import audio / vidéo' } as Record<string, string>)[job.kind] ?? job.kind;
+    return ({ recording: 'Enregistrement', transcribe: 'Transcription Whisper', summarize: 'Résumé', process: 'Traitement complet', 'translate-summary': 'Traduction du résumé', import: 'Import audio / vidéo' } as Record<string, string>)[job.kind] ?? job.kind;
   }
 
   stateLabel(job: Job): string {

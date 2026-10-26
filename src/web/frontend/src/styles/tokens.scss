@@ -1,3 +1,12 @@
+/* Shared layout constants for the shell and accessibility overlays. */
+:root {
+  --layout-sidebar-width: 250px;
+  --layout-sidebar-width-compact: 224px;
+  --layout-sidebar-width-collapsed: 80px;
+  --layout-content-max-width: 1780px;
+  --session-detail-min-height: 30rem;
+}
+
 @theme inline {
   --color-canvas: var(--c-canvas);
   --color-sidebar: var(--c-sidebar);
@@ -16,9 +25,35 @@
   --color-warning: var(--c-warning);
   --color-danger: var(--c-danger);
   --color-danger-soft: var(--c-danger-soft);
+  --color-success-soft: color-mix(in srgb, var(--c-success) 12%, transparent);
+  /* Reusable, theme-aware status borders used by badges and inline status panels. */
+  --color-success-border: color-mix(in srgb, var(--c-success) 30%, var(--c-border));
+  --color-danger-border: color-mix(in srgb, var(--c-danger) 30%, var(--c-border));
+  --color-accent-border: color-mix(in srgb, var(--c-accent) 28%, var(--c-border));
+  --color-warning-border: color-mix(in srgb, var(--c-warning, var(--c-muted)) 32%, var(--c-border));
+  --z-index-skip-link: 1000;
+  /* Theme-aware banner surfaces belong to the theme so components can use bg-* utilities. */
+  --color-danger-banner: color-mix(in srgb, var(--c-danger) 8%, var(--c-surface-raised));
+  --color-accent-banner: color-mix(in srgb, var(--c-accent) 7%, var(--c-surface-raised));
+  --color-warning-banner: color-mix(in srgb, var(--c-warning) 7%, var(--c-surface-raised));
   --shadow-panel: var(--c-shadow);
+  /* Soft halos used by status indicators; exposed as shadow-* utilities for @apply. */
+  --shadow-danger-halo: 0 0 0 4px color-mix(in srgb, var(--c-danger) 13%, transparent);
+  --shadow-accent-halo: 0 0 0 4px var(--c-accent-soft);
+  --shadow-warning-halo: 0 0 0 4px color-mix(in srgb, var(--c-warning) 14%, transparent);
+  --shadow-danger-glow: 0 0 8px color-mix(in srgb, var(--c-danger) 50%, transparent);
+  --shadow-recording-white-glow: 0 0 8px rgb(255 255 255 / .6);
+  --shadow-danger-live-ring: 0 0 0 3px color-mix(in srgb, var(--c-danger) 15%, transparent);
+  --animate-recording-pulse: pulse 1.2s infinite;
   --font-sans: var(--font-ui);
   --font-mono: var(--font-code);
+  /* Shared semantic text sizes used by @apply; keep these defined in tailwind.css too. */
+  --text-compact: 0.8125rem;
+  --text-compact--line-height: 1.55;
+  --text-caption: 0.6875rem;
+  --text-caption--line-height: 1rem;
+  --text-micro: 0.625rem;
+  --text-micro--line-height: 1rem;
 }
 
 :root,

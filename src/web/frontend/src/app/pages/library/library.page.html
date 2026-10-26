@@ -37,7 +37,7 @@
                   @if (session.audio) { <span class="badge">Audio</span> }
                 </span>
               </span>
-              <strong>{{ session.title }}</strong>
+              <strong data-no-translate="true">{{ session.title }}</strong>
               <span class="session-card-description">{{ session.summary_excerpt || (session.transcript ? 'Transcription disponible' : session.audio ? 'Audio disponible' : 'Aucun document reconnu pour le moment.') }}</span>
             </button>
             @if (session.processing; as processing) {
@@ -45,7 +45,7 @@
                 @if (processing.active) { <span class="spinner" aria-hidden="true"></span> }
                 @else if (processing.state === 'completed') { <glimio-icon name="check-circle" /> }
                 @else if (processing.state === 'error') { <glimio-icon name="information-circle" /> }
-                <span><strong>{{ processingStateLabel(processing.state, processing.phase) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processing.error) { <span> · {{ processing.error }}</span> }</span>
+                <span><strong>{{ processingStateLabel(processing.state, processing.phase) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processing.error) { <span data-no-translate="true"> · {{ processing.error }}</span> }</span>
               </div>
             }
           </article>
@@ -69,13 +69,13 @@
           <div class="detail-header-top">
             <div class="detail-heading-copy">
               <div class="eyebrow">DÉTAIL DE LA SÉANCE</div>
-              <h2 class="card-title">{{ session.title }}</h2>
+              <h2 class="card-title" data-no-translate="true">{{ session.title }}</h2>
               <p class="field-note detail-meta">{{ dateLabel(session.started_at, session.id) }}@if (session.duration_seconds != null) { <span aria-hidden="true"> · </span><span>Durée {{ durationLabel(session.duration_seconds) }}</span> }</p>
             </div>
             <div class="detail-actions">
               <button class="btn btn--primary btn--small detail-process-button" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="runJob('process', true)"><glimio-icon name="play" /> Traiter complètement</button>
               <details class="session-actions-menu" #sessionActionsMenu>
-                <summary class="session-actions-toggle" aria-label="Autres actions sur la séance"><span class="session-actions-icon"><glimio-icon name="bars-3" size="fill" /></span></summary>
+                <summary class="session-actions-toggle" aria-label="Autres actions sur la séance"><glimio-icon class="menu-toggle-icon" name="bars-3" /></summary>
                 <div class="session-actions-panel">
                   <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="renameSession(); sessionActionsMenu.open = false"><glimio-icon name="pencil-square" /><span class="btn-label">Renommer</span></button>
                   <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="runJob('transcribe'); sessionActionsMenu.open = false"><glimio-icon name="document-text" /><span class="btn-label">Transcrire</span></button>
@@ -95,7 +95,7 @@
               @else if (processing.state === 'completed') { <glimio-icon name="check-circle" /> }
               @else if (processing.state === 'error') { <glimio-icon name="information-circle" /> }
               @else { <glimio-icon name="clock" /> }
-              <span><strong>{{ processingStateLabel(processing.state, processing.phase) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processingEtaLabel(processing); as eta) { <small class="detail-processing-eta"> · Fin estimée vers {{ eta }} · approximative</small> }@if (processing.error) { <span> — {{ processing.error }}</span> }</span>
+              <span><strong>{{ processingStateLabel(processing.state, processing.phase) }}</strong>@if (processing.message) { <span> · {{ processing.message }}</span> }@if (processingEtaLabel(processing); as eta) { <small class="detail-processing-eta"> · Fin estimée vers {{ eta }} · approximative</small> }@if (processing.error) { <span data-no-translate="true"> — {{ processing.error }}</span> }</span>
             </div>
           }
         </header>
@@ -121,6 +121,16 @@
             </div>
           }
 
+          @if (artifactKind() === 'summary' && session.summary && availableSummaryTranslations().length && !summaryEditing()) {
+            <div class="summary-version-switcher">
+              <label class="field-label" for="summary-version">Version affichée</label>
+              <select class="select" id="summary-version" [ngModel]="artifactLanguage()" (ngModelChange)="loadSummaryVersion($event)" [disabled]="sessionProcessingActive() || isFullProcessActive() || artifactLoading()">
+                <option value="source">Résumé original</option>
+                @for (language of availableSummaryTranslations(); track language) { <option [value]="language">Résumé traduit — {{ summaryLanguageLabel(language) }}</option> }
+              </select>
+            </div>
+          }
+
           @if (artifactKind() === 'summary' && session.summary && !sessionProcessingActive() && !isFullProcessActive() && !artifactLoading() && !artifactPending() && artifactContent()) {
             <div class="artifact-toolbar" aria-label="Actions sur le résumé">
               @if (summaryEditing()) {
@@ -130,11 +140,25 @@
                   <button class="btn btn--ghost btn--small" type="button" [disabled]="summarySaving()" (click)="cancelSummaryEdit()">Annuler</button>
                 </div>
               } @else {
-                <span class="artifact-format-label">Résumé en Markdown</span>
+                <span class="artifact-format-label">{{ artifactLanguage() === 'source' ? 'Résumé original en Markdown' : 'Résumé traduit en ' + summaryLanguageLabel(artifactLanguage()) }}</span>
                 <div class="artifact-toolbar-actions">
-                  <button class="btn btn--secondary btn--small" type="button" (click)="startSummaryEdit()"><glimio-icon name="pencil-square" /> Modifier</button>
-                  <button class="btn btn--ghost btn--small" type="button" (click)="exportSummaryMarkdown()"><glimio-icon name="arrow-down-tray" /> Exporter .md</button>
-                  <button class="btn btn--ghost btn--small" type="button" (click)="printSummaryPdf()"><glimio-icon name="document-text" /> Imprimer / PDF</button>
+                  <details class="session-actions-menu summary-actions-menu" #summaryActionsMenu>
+                    <summary class="session-actions-toggle" aria-label="Actions sur le résumé" title="Actions sur le résumé"><glimio-icon class="menu-toggle-icon" name="bars-3" /></summary>
+                    <div class="session-actions-panel summary-actions-panel">
+                      @if (artifactLanguage() === 'source') {
+                        <button class="btn btn--secondary btn--small" type="button" (click)="startSummaryEdit(); summaryActionsMenu.open = false"><glimio-icon name="pencil-square" /><span class="btn-label">Modifier</span></button>
+                      }
+                      <button class="btn btn--ghost btn--small" type="button" (click)="exportSummaryMarkdown(); summaryActionsMenu.open = false"><glimio-icon name="arrow-down-tray" /><span class="btn-label">Exporter .md</span></button>
+                      <button class="btn btn--ghost btn--small" type="button" (click)="printSummaryPdf(); summaryActionsMenu.open = false"><glimio-icon name="document-text" /><span class="btn-label">Imprimer / PDF</span></button>
+                      <div class="summary-translation-controls">
+                        <label class="field-label" for="summary-translation-target">Langue cible</label>
+                        <select class="select" id="summary-translation-target" [ngModel]="translationTarget()" (ngModelChange)="translationTarget.set($event)" [disabled]="processingActionDisabled()">
+                          @for (language of summaryTranslationLanguages; track language.code) { <option [value]="language.code">{{ language.label }}</option> }
+                        </select>
+                        <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled() || summarySaving()" (click)="translateSummary(translationTarget()); summaryActionsMenu.open = false"><glimio-icon name="arrow-path" /><span class="btn-label">Traduire le résumé</span></button>
+                      </div>
+                    </div>
+                  </details>
                 </div>
               }
             </div>
@@ -191,7 +215,8 @@
             <div class="settings-grid common-processing-fields">
               <div class="session-processing-column">
                 <div><label class="field-label" for="session-processing-profile">Qualité du traitement</label><select class="select" id="session-processing-profile" [ngModel]="options.processing_profile" (ngModelChange)="patchSessionSetting('processing_profile', $event)"><option value="turbo">Turbo · rapide, détails réduits</option><option value="balanced">Équilibré · recommandé</option><option value="quality">Haute qualité · plus détaillé</option><option value="pixel-perfect">Pixel perfect · très détaillé, très lent</option><option value="custom">Personnalisé · réglages avancés</option></select><small class="field-note">Le profil ajuste le budget de génération et les étapes d’analyse.</small></div>
-                <div><label class="field-label" for="session-format">Format du résumé</label><select class="select" id="session-format" [ngModel]="options.format" (ngModelChange)="patchSessionSetting('format', $event)">@for (format of formats; track format) { <option [value]="format">{{ formatLabel(format) }}</option> }</select></div>
+                <div><label class="field-label" for="session-format">Format du résumé</label><select class="select" id="session-format" [ngModel]="options.format" (ngModelChange)="patchSessionSetting('format', $event)">@for (format of formats; track format) { <option [value]="format">{{ formatLabel(format) }}</option> }</select><small class="field-note">{{ formatDescription(options.format) }}</small></div>
+                <div><label class="field-label" for="session-summary-language">Langue du résumé</label><select class="select" id="session-summary-language" [ngModel]="options.summary_language" (ngModelChange)="patchSessionSetting('summary_language', $event)">@for (language of summaryLanguages; track language.code) { <option [value]="language.code">{{ language.label }}</option> }</select><small class="field-note">« Suivre la langue de la transcription » est le choix recommandé ; les variantes déjà traduites restent distinctes du résumé original.</small></div>
                 @if (supportsTranscriptionLanguage()) { <div><label class="field-label" for="session-language">Langue de transcription</label><select class="select" id="session-language" [ngModel]="options.language === 'detect' ? 'auto' : options.language" (ngModelChange)="patchSessionSetting('language', $event)"><option value="auto">Détection automatique (Whisper)</option>@for (language of transcriptionLanguages(); track language.code) { <option [value]="language.code">{{ language.label }}</option> }</select></div> }
               </div>
               <div class="session-processing-column">

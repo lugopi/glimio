@@ -69,7 +69,7 @@ LLAMA_CPP_INFO = ProviderInfo(
             key="llama_completion", label="Moteur de résumé", type="path",
             default=DEFAULT_LLAMA_COMPLETION_PATH,
             description="Exécutable llama.cpp fourni avec l’installation.",
-            required=True, advanced=True,
+            required=True, advanced=True, path_role="executable",
         ),
         ProviderOption(
             key="openvino_enabled", label="Utiliser OpenVINO", type="boolean",

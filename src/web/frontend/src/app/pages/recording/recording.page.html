@@ -66,6 +66,21 @@
             <div class="provider-setup-notice__copy">
               <strong>Configuration requise</strong>
               <p>Un ou plusieurs composants sélectionnés ne sont pas prêts. Ouvrez les paramètres pour consulter leur état et installer ou configurer les ressources manquantes.</p>
+              @for (issue of setupIssues(); track issue.key) {
+                <p class="provider-setup-notice__issue">
+                  <span>{{ issue.message }}</span>
+                  @if (issue.requiredProviderIds.length) {
+                    <span> Provider requis : </span>
+                    @for (requiredProviderId of issue.requiredProviderIds; track requiredProviderId; let index = $index) {
+                      @if (index) { <span>, </span> }
+                      <a class="provider-setup-notice__provider-link" [routerLink]="['/settings']" [queryParams]="{ provider: requiredProviderId, fallback: issue.fallbackProviderId, task: issue.linkTask ?? null }" [attr.data-no-translate]="''">{{ requiredProviderId }}</a>
+                    }
+                  } @else if (issue.providerId) {
+                    <span> Provider concerné : </span>
+                    <a class="provider-setup-notice__provider-link" [routerLink]="['/settings']" [queryParams]="{ provider: issue.providerId, fallback: issue.fallbackProviderId }" [attr.data-no-translate]="''">{{ issue.providerId }}</a>
+                  }
+                </p>
+              }
             </div>
             <a class="btn btn--secondary btn--small" routerLink="/settings">Ouvrir les paramètres</a>
           </div>
@@ -82,7 +97,8 @@
                 <h3 class="card-title">Transcription et résumés</h3>
                 <div class="processing-content-fields">
                   @if (supportsTranscriptionLanguage()) { <div><label class="field-label" for="recording-language">Langue de transcription</label><select class="select" id="recording-language" [ngModel]="value.language === 'detect' ? 'auto' : value.language" (ngModelChange)="patchSetting('language', $event)"><option value="auto">Détection automatique (Whisper)</option>@for (language of transcriptionLanguages(); track language.code) { <option [value]="language.code">{{ language.label }}</option> }</select><small class="field-note">Whisper détecte la langue parlée. Choisissez une langue pour forcer la transcription ; cela ne traduit pas l’audio.</small></div> }
-                  <div><label class="field-label" for="recording-summary-format">Format du résumé par défaut</label><select class="select" id="recording-summary-format" [ngModel]="value.format" (ngModelChange)="patchSetting('format', $event)">@for (format of formats; track format) { <option [value]="format">{{ formatLabel(format) }}</option> }</select></div>
+                  <div><label class="field-label" for="recording-summary-format">Format du résumé par défaut</label><select class="select" id="recording-summary-format" [ngModel]="value.format" (ngModelChange)="patchSetting('format', $event)">@for (format of formats; track format) { <option [value]="format">{{ formatLabel(format) }}</option> }</select><small class="field-note">{{ formatDescription(value.format) }}</small></div>
+                  <div><label class="field-label" for="recording-summary-language">Langue du résumé par défaut</label><select class="select" id="recording-summary-language" [ngModel]="value.summary_language" (ngModelChange)="patchSetting('summary_language', $event)">@for (language of summaryLanguages; track language.code) { <option [value]="language.code">{{ language.label }}</option> }</select><small class="field-note">Par défaut, le résumé suit la langue dominante de la transcription. Vous pouvez choisir une autre langue sans traduire la transcription.</small></div>
                 </div>
               </div>
             </div>
@@ -117,7 +133,7 @@
         <div class="jobs-list">
           @for (job of visibleJobs(); track job.id) {
             <div class="job-row-wrap">
-              <article class="job-row"><span class="job-icon"><glimio-icon [name]="job.state === 'completed' ? 'check-circle' : 'clock'" /></span><span class="job-main"><strong>{{ jobLabel(job) }}</strong>@if (job.session_id) { <small>Séance · {{ job.session_id }}</small> }<span class="job-progress-text">{{ job.message || job.state }}</span>@if (job.error) { <small class="job-error-text">{{ job.error }}</small> }</span><span class="job-state" [class.is-completed]="job.state === 'completed'" [class.is-error]="job.state === 'error'" [class.is-running]="job.state === 'running'">{{ stateLabel(job.state) }}</span></article>
+              <article class="job-row"><span class="job-icon"><glimio-icon [name]="job.state === 'completed' ? 'check-circle' : 'clock'" /></span><span class="job-main"><strong>{{ jobLabel(job) }}</strong>@if (job.session_id) { <small>Séance · {{ job.session_id }}</small> }<span class="job-progress-text">{{ job.message || job.state }}</span>@if (job.error) { <small class="job-error-text" data-no-translate="true">{{ job.error }}</small> }</span><span class="job-state" [class.is-completed]="job.state === 'completed'" [class.is-error]="job.state === 'error'" [class.is-running]="job.state === 'running'">{{ stateLabel(job.state) }}</span></article>
               @if (isDeletable(job)) { <button class="job-row-delete" type="button" (click)="deleteJob(job)" [attr.aria-label]="'Effacer l’activité ' + jobLabel(job)" title="Effacer cette activité"><glimio-icon name="x-mark" /></button> }
             </div>
           } @empty { <div class="inline-empty">Aucune activité récente. Les nouveaux traitements apparaîtront ici.</div> }

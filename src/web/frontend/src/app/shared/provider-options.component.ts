@@ -1,17 +1,19 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, input, output, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Subscription, switchMap, takeWhile, timer } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { PreferencesService } from '../core/preferences.service';
 import { ProviderInstallStatus, ProviderOption, ProviderStatus } from '../core/api.models';
+import { missingProviderDependencyIds } from '../core/provider-dependencies';
 import { CheckboxFieldComponent } from './checkbox-field.component';
 import { IconComponent } from './icon.component';
 
 @Component({
   selector: 'glimio-provider-options',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet, CheckboxFieldComponent, IconComponent],
+  imports: [FormsModule, NgTemplateOutlet, RouterLink, CheckboxFieldComponent, IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './provider-options.component.html',
   styleUrl: './provider-options.component.scss',
@@ -20,6 +22,8 @@ export class ProviderOptionsComponent implements OnDestroy {
   readonly provider = input.required<ProviderStatus>();
   readonly values = input<Record<string, unknown>>({});
   readonly showAllOptions = input(false);
+  /** In settings, let users collapse option fields for providers that are ready. */
+  readonly collapsible = input(false);
   readonly perJobOnly = input(false);
   /** Resource links belong to setup/settings screens, not the recording workflow. */
   readonly showSetupLinks = input(true);
@@ -76,8 +80,17 @@ export class ProviderOptionsComponent implements OnDestroy {
 
   missingText(value: string): string { return this.providerText(value); }
 
-  missingDetails(): string {
-    return this.provider().missing.map(value => this.providerText(value)).join(', ');
+  missingItems(): Array<{ text?: string; providerId?: string }> {
+    const items: Array<{ text?: string; providerId?: string }> = this.provider().missing.map(value => {
+      const match = value.match(/^(?:provider requis|required provider)\s*:\s*(.+)$/i);
+      const providerId = match?.[1]?.trim();
+      return providerId ? { providerId } : { text: this.providerText(value) };
+    });
+    const displayedIds = new Set(items.flatMap(item => item.providerId ? [item.providerId] : []));
+    const structuredItems = missingProviderDependencyIds(this.provider())
+      .filter(providerId => !displayedIds.has(providerId))
+      .map(providerId => ({ providerId }));
+    return [...items, ...structuredItems];
   }
 
   missingPythonPackages(status: ProviderStatus): string[] {

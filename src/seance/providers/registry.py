@@ -9,104 +9,14 @@ from typing import Any
 from .contracts import ProviderInfo, ProviderOption, ProviderOptionChoice, ProviderResourceLink, ProviderStatus
 from .factory import registered_provider_infos
 from .audio_processing import provider_readiness
+from .media_tools import MEDIA_PROVIDER_IDS, media_toolchain_status
+from .plugins import check_plugin_readiness, get_provider_plugin, load_provider_plugins
 
 
-SHERPA_ONNX_TRANSLATIONS_EN = {'en': {'Diarisation locale avec modèles ONNX.': 'Local speaker diarization with ONNX models.',
-        'Installe le runtime Python sherpa-onnx. Les deux modèles ONNX restent à télécharger séparément.': 'Installs '
-                                                                                                           'the '
-                                                                                                           'sherpa-onnx '
-                                                                                                           'Python '
-                                                                                                           'runtime. '
-                                                                                                           'Both '
-                                                                                                           'ONNX '
-                                                                                                           'models '
-                                                                                                           'must '
-                                                                                                           'be '
-                                                                                                           'downloaded '
-                                                                                                           'separately.',
-        'Modèle de segmentation': 'Segmentation model',
-        'Modèle ONNX qui détecte les tours de parole.': 'ONNX model that detects speaker turns.',
-        'Modèle de reconnaissance des voix': 'Speaker recognition model',
-        'Modèle ONNX qui regroupe les segments par voix.': 'ONNX model that groups transcript segments by '
-                                                           'speaker.',
-        'Modèles de segmentation des locuteurs': 'Speaker segmentation models',
-        'Téléchargez et extrayez le modèle, puis configurez son fichier .onnx.': 'Download and extract the '
-                                                                                 'model, then configure its '
-                                                                                 '.onnx file.',
-        'Modèles d’embeddings vocaux': 'Speaker embedding models',
-        'Téléchargez un modèle compatible et configurez son chemin .onnx.': 'Download a compatible model and '
-                                                                            'configure its .onnx path.',
-        'Documentation diarisation': 'Diarization documentation',
-        'Licence sherpa-onnx': 'sherpa-onnx license'}}
-
-
-FFMPEG_TRANSLATIONS_EN = {'en': {'Décodage et conversion des formats audio/vidéo importés.': 'Decoding and conversion of imported '
-                                                                    'audio and video formats.',
-        'Commande FFmpeg': 'FFmpeg command',
-        'Commande ou chemin vers FFmpeg.': 'Command or path to FFmpeg.',
-        'Télécharger FFmpeg': 'Download FFmpeg',
-        'Installez FFmpeg et vérifiez que ffmpeg et ffprobe sont accessibles.': 'Install FFmpeg and make '
-                                                                                'sure ffmpeg and ffprobe are '
-                                                                                'available.',
-        'Guide Windows': 'Windows guide',
-        'Builds Windows populaires ; vérifiez leur provenance et leurs conditions.': 'Popular Windows '
-                                                                                     'builds; check their '
-                                                                                     'provenance and terms.',
-        'Documentation FFmpeg': 'FFmpeg documentation'}}
-
-
-BUILTIN_PROVIDERS = (
-    *registered_provider_infos(),
-    ProviderInfo(
-        id="sherpa-onnx", name="sherpa-onnx", task="diarization",
-        description="Diarisation locale avec modèles ONNX.",
-        execution="embedded",
-        capabilities=("local", "speaker-segmentation", "speaker-embedding"),
-        python_install_extra="diarization",
-        python_install_packages=("sherpa-onnx>=1.10.28",),
-        python_install_note="Installe le runtime Python sherpa-onnx. Les deux modèles ONNX restent à télécharger séparément.",
-        setup_links=(
-            ProviderResourceLink("Modèles de segmentation des locuteurs", "https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-segmentation-models", "model", "Téléchargez et extrayez le modèle, puis configurez son fichier .onnx."),
-            ProviderResourceLink("Modèles d’embeddings vocaux", "https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models", "model", "Téléchargez un modèle compatible et configurez son chemin .onnx."),
-            ProviderResourceLink("Documentation diarisation", "https://k2-fsa.github.io/sherpa/onnx/speaker-diarization/index.html", "documentation"),
-            ProviderResourceLink("Licence sherpa-onnx", "https://github.com/k2-fsa/sherpa-onnx", "license"),
-        ),
-        options=(
-            ProviderOption(
-                key="diarization_segmentation_model", label="Modèle de segmentation", type="path",
-                default="models/diarization/segmentation/segmentation.onnx",
-                description="Modèle ONNX qui détecte les tours de parole.", required=True, advanced=True,
-            ),
-            ProviderOption(
-                key="diarization_embedding_model", label="Modèle de reconnaissance des voix", type="path",
-                default="models/diarization/embedding/embedding.onnx",
-                description="Modèle ONNX qui regroupe les segments par voix.", required=True, advanced=True,
-            ),
-        ),
-
-        translations=SHERPA_ONNX_TRANSLATIONS_EN,
-    ),
-    ProviderInfo(
-        id="ffmpeg", name="FFmpeg", task="media",
-        description="Décodage et conversion des formats audio/vidéo importés.",
-        execution="system_executable",
-        capabilities=("audio-video-import", "audio-chunking"),
-        setup_links=(
-            ProviderResourceLink("Télécharger FFmpeg", "https://ffmpeg.org/download.html", "binary", "Installez FFmpeg et vérifiez que ffmpeg et ffprobe sont accessibles."),
-            ProviderResourceLink("Guide Windows", "https://www.gyan.dev/ffmpeg/builds/", "binary", "Builds Windows populaires ; vérifiez leur provenance et leurs conditions."),
-            ProviderResourceLink("Documentation FFmpeg", "https://ffmpeg.org/documentation.html", "documentation"),
-        ),
-        options=(ProviderOption(
-            key="ffmpeg", label="Commande FFmpeg", type="text", default="ffmpeg",
-            description="Commande ou chemin vers FFmpeg.", required=True, advanced=True,
-        ),),
-
-        translations=FFMPEG_TRANSLATIONS_EN,
-    ),
-)
-
-
-PROVIDERS_BY_ID = {provider.id: provider for provider in BUILTIN_PROVIDERS}
+ALL_PROVIDER_INFOS = registered_provider_infos()
+_PLUGIN_INFO_OBJECT_IDS = {id(plugin.info) for plugin in load_provider_plugins()}
+BUILTIN_PROVIDERS = tuple(info for info in ALL_PROVIDER_INFOS if id(info) not in _PLUGIN_INFO_OBJECT_IDS)
+PROVIDERS_BY_ID = {provider.id: provider for provider in ALL_PROVIDER_INFOS}
 
 
 def get_provider_info(provider_id: str) -> ProviderInfo | None:
@@ -116,7 +26,7 @@ def get_provider_info(provider_id: str) -> ProviderInfo | None:
 def default_provider_options() -> dict[str, dict[str, Any]]:
     return {
         provider.id: {option.key: option.default for option in provider.options}
-        for provider in BUILTIN_PROVIDERS if provider.options
+        for provider in ALL_PROVIDER_INFOS if provider.options
     }
 
 
@@ -200,21 +110,15 @@ def get_provider_statuses(settings: Any, *, project_root: str | Path) -> list[Pr
     sherpa_options = provider_options.get("sherpa-onnx", {})
     segmentation = _resolved_path(sherpa_options.get("diarization_segmentation_model", getattr(settings, "diarization_segmentation_model", None)), root)
     embedding = _resolved_path(sherpa_options.get("diarization_embedding_model", getattr(settings, "diarization_embedding_model", None)), root)
-    ffmpeg_options = provider_options.get("ffmpeg", {})
-    ffmpeg_setting = str(ffmpeg_options.get("ffmpeg", getattr(settings, "ffmpeg", "ffmpeg")) or "ffmpeg").strip()
-    ffmpeg_candidate = _resolved_path(ffmpeg_setting, root) if ("/" in ffmpeg_setting or "\\" in ffmpeg_setting) else None
-    ffmpeg_found = ffmpeg_candidate if ffmpeg_candidate is not None else shutil.which(ffmpeg_setting)
-    ffprobe_found = None
-    if ffmpeg_found:
-        ffmpeg_path = Path(ffmpeg_found)
-        ffprobe_names = ("ffprobe.exe", "ffprobe") if ffmpeg_path.suffix.casefold() == ".exe" else ("ffprobe", "ffprobe.exe")
-        ffprobe_found = next((ffmpeg_path.parent / name for name in ffprobe_names if (ffmpeg_path.parent / name).is_file()), None)
-    if ffprobe_found is None:
-        ffprobe_found = shutil.which("ffprobe") or shutil.which("ffprobe.exe")
 
     statuses: list[ProviderStatus] = []
-    for provider in BUILTIN_PROVIDERS:
-        if provider.id in {"no-enhancement", "no-separation", "none-speaker-embedding"}:
+    for provider in ALL_PROVIDER_INFOS:
+        plugin = get_provider_plugin(provider.id)
+        if plugin is not None and plugin.info is provider and plugin.readiness is not None:
+            configured = provider_options.get(provider.id, {})
+            configured = dict(configured) if isinstance(configured, dict) else {}
+            missing, details = check_plugin_readiness(plugin, configured, root)
+        elif provider.id in {"no-enhancement", "no-separation", "none-speaker-embedding"}:
             missing = ()
             details = {"dependencies": list(provider.requires)}
         elif provider.id in {"deepfilternet", "speechbrain-sepformer", "speechbrain-ecapa"}:
@@ -222,8 +126,18 @@ def get_provider_statuses(settings: Any, *, project_root: str | Path) -> list[Pr
             configured_paths = dict(configured) if isinstance(configured, dict) else {}
             for option in provider.options:
                 if option.type == "path" and configured_paths.get(option.key) is not None:
-                    resolved = _resolved_path(configured_paths[option.key], root)
-                    configured_paths[option.key] = str(resolved) if resolved else configured_paths[option.key]
+                    raw_text = str(configured_paths[option.key]).strip()
+                    raw_path = Path(raw_text).expanduser() if raw_text else None
+                    is_bare_executable = (
+                        option.path_role == "executable"
+                        and raw_path is not None
+                        and not raw_path.is_absolute()
+                        and "/" not in raw_text
+                        and "\\" not in raw_text
+                    )
+                    if not is_bare_executable:
+                        resolved = _resolved_path(configured_paths[option.key], root)
+                        configured_paths[option.key] = str(resolved) if resolved else configured_paths[option.key]
             ready, provider_missing = provider_readiness(provider, configured_paths)
             missing = provider_missing
             details = {"dependencies": list(provider.requires)}
@@ -237,17 +151,13 @@ def get_provider_statuses(settings: Any, *, project_root: str | Path) -> list[Pr
             missing = tuple(str(path) for path in paths if path is None or not path.is_file())
             if not details["package_available"]:
                 missing = (*missing, "Python package sherpa-onnx")
-        elif provider.id == "ffmpeg":
-            missing_values = []
-            if not ffmpeg_found or (isinstance(ffmpeg_found, Path) and not ffmpeg_found.is_file()):
-                missing_values.append(ffmpeg_setting)
-            if not ffprobe_found or (isinstance(ffprobe_found, Path) and not ffprobe_found.is_file()):
-                missing_values.append("ffprobe")
-            missing = tuple(missing_values)
-            details = {
-                "executable": str(ffmpeg_found) if ffmpeg_found else ffmpeg_setting,
-                "ffprobe_executable": str(ffprobe_found) if ffprobe_found else None,
-            }
+        elif provider.id in MEDIA_PROVIDER_IDS:
+            configured = provider_options.get(provider.id, {})
+            configured = dict(configured) if isinstance(configured, dict) else {}
+            if provider.id == "ffmpeg":
+                configured.setdefault("ffmpeg", str(getattr(settings, "ffmpeg", "ffmpeg") or "ffmpeg"))
+                configured.setdefault("ffprobe", str(getattr(settings, "ffprobe", "ffprobe") or "ffprobe"))
+            missing, details = media_toolchain_status(provider, configured, root)
         else:
             configured = provider_options.get(provider.id, {})
             missing_values = []
@@ -255,10 +165,25 @@ def get_provider_statuses(settings: Any, *, project_root: str | Path) -> list[Pr
             for option in provider.options:
                 value = configured.get(option.key, option.default)
                 if option.type == "path":
-                    resolved = _resolved_path(value, root)
-                    details[option.key] = str(resolved) if resolved else None
-                    if option.required and (resolved is None or not resolved.is_file()):
-                        missing_values.append(str(resolved or option.label))
+                    raw_text = str(value).strip() if value is not None else ""
+                    raw_path = Path(raw_text).expanduser() if raw_text else None
+                    is_bare_executable = (
+                        option.path_role == "executable"
+                        and raw_path is not None
+                        and not raw_path.is_absolute()
+                        and "/" not in raw_text
+                        and "\\" not in raw_text
+                    )
+                    if is_bare_executable:
+                        executable = shutil.which(raw_text)
+                        details[option.key] = executable or raw_text
+                        if option.required and executable is None:
+                            missing_values.append(raw_text or option.label)
+                    else:
+                        resolved = _resolved_path(value, root)
+                        details[option.key] = str(resolved) if resolved else None
+                        if option.required and (resolved is None or not resolved.is_file()):
+                            missing_values.append(str(resolved or option.label))
                 elif option.required and (value is None or (isinstance(value, str) and not value.strip())):
                     missing_values.append(option.label)
             missing = tuple(missing_values)

@@ -19,6 +19,19 @@ def test_root_cli_help_includes_provider_management(capsys: pytest.CaptureFixtur
     assert "transcribe" in output
 
 
+
+def test_cli_can_select_summary_output_language() -> None:
+    parser = build_parser()
+    automatic = parser.parse_args(["summarize", "--summary-language", "auto", "session-dir"])
+    french = parser.parse_args(["summarize", "--summary-language", "fr", "session-dir"])
+    assert automatic.summary_language == "auto"
+    assert french.summary_language == "fr"
+
+def test_cli_accepts_a_selectable_diarization_provider() -> None:
+    args = build_parser().parse_args(["process", "--diarization-provider", "sherpa-onnx"])
+    assert args.diarization_provider == "sherpa-onnx"
+
+
 def test_provider_subcommand_help_works_without_web_app(capsys: pytest.CaptureFixture[str]) -> None:
     parser = build_parser()
     with pytest.raises(SystemExit) as raised:

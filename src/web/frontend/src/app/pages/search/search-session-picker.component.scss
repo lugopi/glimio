@@ -10,9 +10,9 @@
 .search-session-picker-option { @apply flex min-w-0 cursor-pointer items-start gap-3; }
 .search-session-picker-option > input { @apply mt-1 shrink-0 accent-accent; }
 .search-session-picker-copy { @apply grid min-w-0 flex-1 gap-0; }
-.search-session-picker-copy > strong { @apply mb-1 block text-xs font-semibold leading-[1.45] text-text break-words; }
+.search-session-picker-copy > strong { @apply mb-1 block text-xs font-semibold leading-normal text-text break-words; }
 .search-session-picker-copy .session-card-top { @apply mb-1.5; }
 .search-session-picker-copy .session-date { @apply whitespace-normal; }
-.search-session-picker-copy .session-markers .badge { @apply min-h-0 px-1.5 py-1 text-[0.6875rem]; }
+.search-session-picker-copy .session-markers .badge { @apply min-h-0 px-1.5 py-1 text-caption; }
 .empty-session-options { @apply px-2 py-4 text-center text-xs text-subtle; }
-.session-picker-footer { @apply mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border-soft pt-3 text-[0.7rem] text-subtle; }
+.session-picker-footer { @apply mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border-soft pt-3 text-xs text-subtle; }

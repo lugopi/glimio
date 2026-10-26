@@ -169,7 +169,7 @@ def set_audio_track_disabled(
     else:
         disabled_set.discard(filename)
     metadata["disabled_audio_tracks"] = sorted(disabled_set)
-    _mark_audio_outputs_stale(folder, metadata)
+    mark_audio_outputs_stale(folder, metadata)
     write_metadata(folder, metadata)
     return {"id": session_id, "filename": filename, "disabled_audio_tracks": sorted(disabled_set), "metadata": metadata}
 
@@ -202,7 +202,7 @@ def delete_audio_track(project_root: str | Path, root: str | Path, session_id: s
         values = metadata.get(field)
         if isinstance(values, list):
             metadata[field] = [value for value in values if predicate(value)]
-    _mark_audio_outputs_stale(folder, metadata)
+    mark_audio_outputs_stale(folder, metadata)
     write_metadata(folder, metadata)
     return {"id": session_id, "filename": filename, "audio_tracks": [item.name for item in list_audio_paths(folder)], "metadata": metadata, "warnings": warnings}
 
@@ -277,7 +277,11 @@ def _resolve_session(root: str | Path, session_id: str) -> Path:
         raise SessionServiceError("Séance introuvable.") from exc
 
 
-def _mark_audio_outputs_stale(folder: Path, metadata: dict[str, Any]) -> None:
+def mark_audio_outputs_stale(folder: Path, metadata: dict[str, Any]) -> None:
+    """Flag existing generated artifacts as stale after the audio set changed.
+
+    Successful jobs clear each flag separately, so artifacts are never deleted here.
+    """
     if transcript_path(folder) is not None:
         metadata["audio_transcript_stale"] = True
     if summary_path(folder) is not None:

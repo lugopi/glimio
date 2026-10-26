@@ -2,8 +2,8 @@
 
 :host { @apply block min-w-0; }
 .search-source-results { @apply min-w-0; }
-.result-card-head { @apply mb-[11px] flex flex-wrap items-center justify-between gap-2.5; }
-.result-card-head h2 { @apply m-0 text-[0.8125rem] font-bold; }
+.result-card-head { @apply mb-3 flex flex-wrap items-center justify-between gap-2.5; }
+.result-card-head h2 { @apply m-0 text-compact font-bold; }
 .source-results-heading { @apply items-start; }
 .source-results-heading > div { @apply min-w-0 flex-1; }
 .source-selection-help { @apply mt-1 text-xs leading-relaxed text-subtle; }
@@ -21,7 +21,7 @@
 .search-source-pagination-footer { @apply mt-3 flex min-w-0 flex-nowrap items-center justify-between gap-3 border-t border-border-soft pt-3; }
 .search-source-pagination-footer .page-size-control { @apply flex shrink-0 items-center gap-2; }
 .search-source-pagination-footer .field-label { @apply mb-0 whitespace-nowrap; }
-.search-source-pagination-footer .select { @apply min-h-9 min-w-[76px] w-[76px]; }
+.search-source-pagination-footer .select { @apply min-h-9 min-w-20 w-20; }
 .search-source-pagination-footer glimio-pagination { @apply min-w-0 flex-1; }
 .search-source-card.is-excluded > strong { @apply text-muted; }
 .search-source-card.is-excluded .search-source-excerpt { @apply line-through decoration-subtle/60; }

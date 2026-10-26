@@ -8,10 +8,3 @@
   @apply block size-10 object-contain;
 }
 
-.mobile-nav-toggle {
-  @apply min-h-12 min-w-12 touch-manipulation;
-}
-
-@media (width >= theme(--breakpoint-md)) {
-  .mobile-nav-toggle { @apply hidden; }
-}

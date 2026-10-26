@@ -15,7 +15,7 @@
         @for (session of selectedSessions(); track session.id) {
           <span class="selected-session-chip">
             <glimio-icon name="document-text" />
-            <span>{{ session.title }}</span>
+            <span data-no-translate="true">{{ session.title }}</span>
             <button type="button" class="chip-remove" aria-label="Retirer la séance sélectionnée" (click)="removeSession(session.id)"><glimio-icon name="x-mark" /></button>
           </span>
         }
@@ -28,12 +28,12 @@
         (keydown.control.enter)="runSearch()" (keydown.meta.enter)="runSearch()"
         placeholder="Posez une question sur vos séances… Utilisez &#64; pour cibler une séance."></textarea>
       @if (suggestionOpen()) {
-        <div class="session-suggestions" role="listbox" aria-label="Suggestions de séances">
-          <p class="session-suggestions-label">Sélectionner une séance</p>
+        <div class="session-suggestions" role="group" aria-labelledby="session-suggestions-label">
+          <p class="session-suggestions-label" id="session-suggestions-label">Sélectionner une séance</p>
           @for (session of filteredSessions(); track session.id) {
-            <button type="button" class="session-suggestion" role="option" (click)="addSession(session)">
+            <button type="button" class="session-suggestion" (click)="addSession(session)">
               <glimio-icon name="document-text" />
-              <span class="session-suggestion-copy"><strong>{{ session.title }}</strong><small>{{ session.id }}</small></span>
+              <span class="session-suggestion-copy"><strong data-no-translate="true">{{ session.title }}</strong><small>{{ session.id }}</small></span>
               <glimio-icon name="plus" />
             </button>
           }
@@ -83,7 +83,7 @@
           <h2>Synthèse générale</h2>
           <details class="session-actions-menu search-summary-actions-menu" #summaryActionsMenu>
             <summary class="session-actions-toggle" aria-label="Actions sur la synthèse générale">
-              <span class="session-actions-icon"><glimio-icon name="bars-3" size="fill" /></span>
+              <glimio-icon class="menu-toggle-icon" name="bars-3" />
             </summary>
             <div class="session-actions-panel">
               <button class="btn btn--ghost btn--small" type="button" (click)="exportAnswerMarkdown(); summaryActionsMenu.open = false"><glimio-icon name="arrow-down-tray" /><span class="btn-label">Exporter .md</span></button>

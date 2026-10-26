@@ -1,4 +1,4 @@
-"""Local speaker diarization using sherpa-onnx and timestamped Whisper segments."""
+"""Provider-driven local speaker diarization over timestamped transcript segments."""
 from __future__ import annotations
 
 import argparse
@@ -100,10 +100,23 @@ def _model_fingerprint(path: Path) -> dict[str, Any]:
     return payload
 
 
+def _signature_provider_options(options: dict[str, Any]) -> dict[str, Any]:
+    """Fingerprint model/path options while preserving ordinary scalar settings."""
+    result: dict[str, Any] = {}
+    for key, value in options.items():
+        if isinstance(value, (str, Path)) and any(token in key.casefold() for token in ("model", "weights", "checkpoint", "path", "dir")):
+            result[key] = _model_fingerprint(Path(value).expanduser())
+        else:
+            result[key] = value
+    return result
+
+
 def _diarization_signature(
-    audio_paths: list[Path], segments: list[Any], *, segmentation_model: Path,
-    embedding_model: Path, num_speakers: int, threshold: float,
+    audio_paths: list[Path], segments: list[Any], *, segmentation_model: Path | None,
+    embedding_model: Path | None, num_speakers: int, threshold: float,
     embedding_provider_id: str, embedding_options: dict[str, Any],
+    diarization_provider_id: str = "sherpa-onnx",
+    diarization_options: dict[str, Any] | None = None,
 ) -> str:
     """Invalidate cached diarization blocks whenever source audio/text/models/settings change."""
     transcript_input = []
@@ -112,11 +125,13 @@ def _diarization_signature(
             continue
         transcript_input.append({key: item.get(key) for key in ("start", "end", "text", "source", "source_file")})
     payload = {
-        "version": 2,
+        "version": 3,
         "tracks": [_model_fingerprint(path) for path in audio_paths],
         "transcription_inputs": transcript_input,
-        "segmentation_model": _model_fingerprint(segmentation_model),
-        "embedding_model": _model_fingerprint(embedding_model),
+        "diarization_provider": diarization_provider_id,
+        "diarization_options": _signature_provider_options(diarization_options or {}),
+        "segmentation_model": _model_fingerprint(segmentation_model) if segmentation_model else None,
+        "embedding_model": _model_fingerprint(embedding_model) if embedding_model else None,
         "num_speakers": num_speakers,
         "threshold": threshold,
         "chunk_seconds": DIARIZATION_CHUNK_SECONDS,
@@ -238,16 +253,49 @@ def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backu
         raw = Path(value).expanduser()
         return (raw if raw.is_absolute() else project_root / raw).resolve()
 
-    segmentation_model = resolve_project_path(getattr(args, "diarization_segmentation_model", "models/diarization/segmentation/segmentation.onnx"))
-    embedding_model = resolve_project_path(getattr(args, "diarization_embedding_model", "models/diarization/embedding/embedding.onnx"))
-    for label, path in (("segmentation", segmentation_model), ("embedding", embedding_model)):
-        if not path.is_file():
-            raise SystemExit(f"Modèle de diarisation {label} introuvable : {path}")
+    from ..providers import DEFAULT_DIARIZATION_PROVIDER, get_provider_info
 
-    try:
-        import sherpa_onnx
-    except ImportError as exc:
-        raise SystemExit('La diarisation nécessite sherpa-onnx. Installez la dépendance avec : python -m pip install -e "[diarization]"') from exc
+    diarization_provider_id = str(getattr(args, "diarization_provider", DEFAULT_DIARIZATION_PROVIDER) or DEFAULT_DIARIZATION_PROVIDER)
+    provider_options = getattr(args, "provider_options", {}) or {}
+    provider_options = provider_options if isinstance(provider_options, dict) else {}
+    raw_diarization_options = provider_options.get(diarization_provider_id, {})
+    diarization_options = dict(raw_diarization_options) if isinstance(raw_diarization_options, dict) else {}
+    # Legacy command/settings fields remain aliases for the built-in sherpa adapter.
+    for option_key in ("diarization_segmentation_model", "diarization_embedding_model", "diarization_num_speakers", "diarization_threshold"):
+        legacy_value = getattr(args, option_key, None)
+        if option_key not in diarization_options and legacy_value is not None:
+            diarization_options[option_key] = legacy_value
+
+    diarization_info = get_provider_info(diarization_provider_id)
+    if diarization_info is None or diarization_info.task != "diarization":
+        raise SystemExit(f"Provider de diarisation inconnu : {diarization_provider_id}")
+    for option in diarization_info.options:
+        if option.key not in diarization_options:
+            diarization_options[option.key] = option.default
+    from ..providers.options import resolve_provider_option_paths
+    diarization_options = resolve_provider_option_paths(diarization_info, diarization_options, project_root)
+    import shutil as _shutil
+    for option in diarization_info.options:
+        value = diarization_options.get(option.key)
+        if option.type != "path" or not value or not option.required:
+            continue
+        resolved_text = str(value)
+        resolved_path = Path(resolved_text).expanduser()
+        if option.path_role == "executable" and not resolved_path.is_absolute() and "/" not in resolved_text and "\\" not in resolved_text:
+            resource_exists = _shutil.which(resolved_text) is not None
+        else:
+            resource_exists = resolved_path.is_file()
+        if not resource_exists:
+            if option.key == "diarization_segmentation_model":
+                raise SystemExit(f"Modèle de diarisation segmentation introuvable : {resolved_text}")
+            if option.key == "diarization_embedding_model":
+                raise SystemExit(f"Modèle de diarisation embedding introuvable : {resolved_text}")
+            raise SystemExit(f"Ressource requise du provider {diarization_provider_id} introuvable ({option.label}) : {resolved_text}")
+
+    segmentation_value = diarization_options.get("diarization_segmentation_model")
+    embedding_value = diarization_options.get("diarization_embedding_model")
+    segmentation_model = Path(str(segmentation_value)) if segmentation_value else None
+    embedding_model = Path(str(embedding_value)) if embedding_value else None
 
     try:
         transcript = json.loads(json_path.read_text(encoding="utf-8-sig"))
@@ -314,20 +362,15 @@ def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backu
             if original.is_file() and not backup.exists():
                 shutil.copy2(original, backup)
 
-    num_speakers = int(getattr(args, "diarization_num_speakers", -1))
-    threshold = float(getattr(args, "diarization_threshold", 0.5))
-    config = sherpa_onnx.OfflineSpeakerDiarizationConfig(
-        segmentation=sherpa_onnx.OfflineSpeakerSegmentationModelConfig(
-            pyannote=sherpa_onnx.OfflineSpeakerSegmentationPyannoteModelConfig(model=str(segmentation_model)),
-        ),
-        embedding=sherpa_onnx.SpeakerEmbeddingExtractorConfig(model=str(embedding_model)),
-        clustering=sherpa_onnx.FastClusteringConfig(num_clusters=num_speakers, threshold=threshold),
-        min_duration_on=0.3,
-        min_duration_off=0.5,
-    )
-    if not config.validate():
-        raise SystemExit("Configuration sherpa-onnx invalide. Vérifiez les deux modèles ONNX de diarisation.")
-    diarizer = sherpa_onnx.OfflineSpeakerDiarization(config)
+    num_speakers = int(diarization_options.get("diarization_num_speakers", getattr(args, "diarization_num_speakers", -1)))
+    threshold = float(diarization_options.get("diarization_threshold", getattr(args, "diarization_threshold", 0.5)))
+    diarization_options["diarization_num_speakers"] = num_speakers
+    diarization_options["diarization_threshold"] = threshold
+    from ..providers import create_speaker_diarization_provider
+    try:
+        diarizer = create_speaker_diarization_provider(diarization_provider_id, diarization_options)
+    except (RuntimeError, ValueError, OSError) as exc:
+        raise SystemExit(str(exc)) from exc
     from ..layout import list_enabled_audio_paths
     audio_paths = [path for path in list_enabled_audio_paths(root) if path.is_file()]
     if not audio_paths:
@@ -335,16 +378,19 @@ def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backu
 
     # Optional global voice linker. The diarizer itself stays replaceable; ECAPA is
     # a separate provider and is activated only when its local model is available.
-    provider_options = getattr(args, "provider_options", {}) or {}
     embedding_provider_id = str(getattr(args, "speaker_embedding_provider", "speechbrain-ecapa") or "speechbrain-ecapa")
     embedding_options = dict(provider_options.get(embedding_provider_id, {}) or {}) if isinstance(provider_options, dict) else {}
-    for option_name, value in list(embedding_options.items()):
-        if isinstance(value, str) and value.strip() and (option_name.endswith(("_dir", "_model", "_executable")) or option_name == "model_dir"):
-            embedding_options[option_name] = str(resolve_project_path(value))
     embedding_provider = None
     if embedding_provider_id not in {"", "none"}:
-        from ..providers.audio_processing import create_speaker_embedding_provider, provider_readiness, SPEECHBRAIN_EMBEDDING_INFO
-        ready, missing = provider_readiness(SPEECHBRAIN_EMBEDDING_INFO, embedding_options)
+        from ..providers import get_provider_info
+        from ..providers.options import resolve_provider_option_paths
+        from ..providers.audio_processing import create_speaker_embedding_provider, provider_readiness
+        embedding_info = get_provider_info(embedding_provider_id)
+        if embedding_info is not None:
+            for option in embedding_info.options:
+                embedding_options.setdefault(option.key, option.default)
+            embedding_options = resolve_provider_option_paths(embedding_info, embedding_options, project_root)
+        ready, missing = provider_readiness(embedding_info, embedding_options) if embedding_info else (False, ("provider inconnu",))
         if ready:
             try:
                 embedding_provider = create_speaker_embedding_provider(embedding_provider_id, embedding_options)
@@ -376,6 +422,7 @@ def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backu
         audio_paths, segments, segmentation_model=segmentation_model,
         embedding_model=embedding_model, num_speakers=num_speakers, threshold=threshold,
         embedding_provider_id=embedding_provider_id, embedding_options=embedding_options,
+        diarization_provider_id=diarization_provider_id, diarization_options=diarization_options,
     )
     checkpoint_path = transcript_output_path(root, "checkpoints/diarization/state.json")
     raw_checkpoint = _load_diarization_checkpoint(checkpoint_path, signature)
@@ -444,10 +491,10 @@ def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backu
         samples = _read_wav_range(path, media_start, media_end, int(diarizer.sample_rate))
         chunk_turns: list[dict[str, Any]] = []
         if samples.size:
-            detected = diarizer.process(samples).sort_by_start_time()
+            detected = sorted(diarizer.process(samples), key=lambda turn: turn.start_seconds)
             local_segments = [
-                {"start": float(turn.start), "end": float(turn.end), "speaker": int(turn.speaker)}
-                for turn in detected if float(turn.end) > float(turn.start)
+                {"start": float(turn.start_seconds), "end": float(turn.end_seconds), "speaker": int(turn.speaker_index)}
+                for turn in detected if float(turn.end_seconds) > float(turn.start_seconds)
             ]
             # Keep turns in the logical block containing their midpoint; overlap is context only.
             local_segments = [turn for turn in local_segments if
@@ -569,11 +616,11 @@ def diarize_transcription(folder: str | Path, args: argparse.Namespace, *, backu
     _atomic_write_text(markdown_path, "\n".join(lines) + "\n")
     _atomic_write_text(
         transcript_output_path(root, "speaker_diarization.json"),
-        json.dumps({"sample_rate": int(diarizer.sample_rate), "chunk_seconds": DIARIZATION_CHUNK_SECONDS,
+        json.dumps({"provider": diarization_provider_id, "sample_rate": int(diarizer.sample_rate), "chunk_seconds": DIARIZATION_CHUNK_SECONDS,
                     "speaker_identity_linking": "speechbrain-ecapa" if any(item.get("embedding_linked") for item in local_turns) else "track-and-window-scoped (no usable embedding model/results)",
                     "speakers": speaker_labels, "tracks": sorted({item["track"] for item in detected_segments}),
                     "segments": detected_segments}, ensure_ascii=False, indent=2) + "\n",
     )
     _atomic_write_text(json_path, json.dumps(transcript, ensure_ascii=False, indent=2) + "\n")
     log(f"Diarisation terminée : {len(speaker_ids)} voix détectée(s), {len(detected_segments)} segments de voix.")
-    return {"speakers": speaker_labels, "segments": detected_segments}
+    return {"speakers": speaker_labels, "segments": detected_segments, "provider": diarization_provider_id}

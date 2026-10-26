@@ -7,12 +7,26 @@ import { ApiService } from '../../core/api.service';
 import { JobEventsService } from '../../core/job-events.service';
 import { AudioDeviceInfo, AudioDevices, AudioSourceKind, AudioSourceSelection, GlimioSettings, Job, JobsResponse, PreferencesPayload, ProviderStatus } from '../../core/api.models';
 import { PreferencesService } from '../../core/preferences.service';
+import { missingProviderDependencyIds, requiredProviderIdsForTask } from '../../core/provider-dependencies';
 import { ToastService } from '../../core/toast.service';
 import { CheckboxFieldComponent } from '../../shared/checkbox-field.component';
 import { IconComponent } from '../../shared/icon.component';
 import { PaginationComponent } from '../../shared/pagination.component';
 import { ProviderOptionsComponent } from '../../shared/provider-options.component';
 import { providerSupportsTranscriptionLanguage, transcriptionLanguageOptions } from '../../shared/transcription-languages';
+import { summaryFormatDescription, summaryFormatLabel, summaryFormatOptions } from '../../shared/summary-formats';
+import { summaryLanguageOptions } from '../../shared/summary-languages';
+
+interface ProviderSetupIssue {
+  key: string;
+  message: string;
+  /** Provider whose status is being reported or whose dependency is missing. */
+  providerId: string;
+  /** If the target provider is absent, route to this requiring provider's settings. */
+  fallbackProviderId: string;
+  requiredProviderIds: string[];
+  linkTask?: ProviderStatus['task'];
+}
 
 @Component({
   standalone: true,
@@ -42,7 +56,8 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
   readonly providers = signal<ProviderStatus[] | null>(null);
   readonly perJobOverrides = signal<Record<string, Record<string, unknown>>>({});
   readonly transcriptionLanguages = computed(() => transcriptionLanguageOptions(this.preferences.preferences()?.ui.language ?? 'fr'));
-  readonly formats = ['auto', 'summary', 'daily', 'technical', 'formal', 'brainstorm'];
+  readonly formats = summaryFormatOptions.map(option => option.code);
+  readonly summaryLanguages = summaryLanguageOptions;
   readonly speakerCounts = [...Array.from({ length: 20 }, (_, index) => index + 1), 25, 30, 40, 50, 100];
   readonly visibleJobs = computed(() => this.jobs().slice((this.jobsPage() - 1) * this.pageSize, this.jobsPage() * this.pageSize));
   readonly activeRecording = computed(() => this.jobsResponse()?.active?.kind === 'recording' ? this.jobsResponse()?.active : this.jobs().find(job => job.kind === 'recording' && ['queued', 'running', 'stopping'].includes(job.state)) ?? null);
@@ -236,7 +251,7 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
 
 
   /** Only route to settings when a provider required by the chosen workflow is not ready. */
-  setupIssues(): string[] {
+  setupIssues(): ProviderSetupIssue[] {
     const settings = this.settings();
     const providers = this.providers();
     if (!settings || providers === null) return [];
@@ -244,43 +259,83 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
     // Recording without post-processing must not require transcription/model resources.
     const processingRequested = hasSelectedFile || this.workflow !== 'none';
     if (!processingRequested) return [];
-    const required: Array<{ task: ProviderStatus['task']; id?: string; label: string }> = [
+    const required: Array<{ task: ProviderStatus['task']; id?: string; label: string; fallbackProviderId?: string }> = [
       { task: 'transcription', id: settings.transcription_provider, label: 'transcription' },
     ];
     const needsSummary = hasSelectedFile ? this.importAction === 'process' : this.workflow === 'summary';
     if (needsSummary) required.push({ task: 'generation', id: settings.text_provider, label: 'résumés' });
-    if (hasSelectedFile) required.push({ task: 'media', label: 'import audio/vidéo' });
+    if (hasSelectedFile) required.push({ task: 'media', id: settings.media_provider, label: 'import audio/vidéo' });
     if (settings.audio_enhancement_provider && settings.audio_enhancement_provider !== 'no-enhancement') {
       required.push({ task: 'enhancement', id: settings.audio_enhancement_provider, label: 'amélioration audio' });
     }
     if (settings.source_separation_provider && settings.source_separation_provider !== 'no-separation') {
       required.push({ task: 'separation', id: settings.source_separation_provider, label: 'séparation des voix' });
     }
-    if (settings.diarize) {
-      required.push({ task: 'diarization', label: 'diarisation' });
-      // Global speaker linking is optional for diarization; only show a hard
-      // setup warning when SepFormer explicitly requires a compatible linker.
+    if (settings.diarize) required.push({ task: 'diarization', id: settings.diarization_provider, label: 'diarisation' });
+
+    const requiredEmbeddingIds = requiredProviderIdsForTask(
+      providers,
+      settings.source_separation_provider,
+      'speaker_embedding',
+    );
+    const embeddingProviderMismatch = requiredEmbeddingIds.length > 0
+      && !requiredEmbeddingIds.includes(settings.speaker_embedding_provider);
+    for (const requiredProviderId of requiredEmbeddingIds) {
+      const requiredProvider = providers.find(provider => provider.id === requiredProviderId);
+      required.push({
+        task: 'speaker_embedding', id: requiredProviderId,
+        label: requiredProvider?.name ?? requiredProviderId,
+        fallbackProviderId: settings.source_separation_provider,
+      });
     }
-    let uniqueConfigurationNotice = false;
-    if (settings.source_separation_provider === 'speechbrain-sepformer'
-      && settings.speaker_embedding_provider !== 'speechbrain-ecapa') {
-      uniqueConfigurationNotice = true;
-    }
-    if (settings.source_separation_provider === 'speechbrain-sepformer') {
-      required.push({ task: 'speaker_embedding', id: 'speechbrain-ecapa', label: 'SpeechBrain ECAPA' });
-    }
-    const unique = new Map<string, string>();
+
+    const unique = new Map<string, ProviderSetupIssue>();
     for (const item of required) {
       const provider = providers.find(candidate => candidate.task === item.task && (!item.id || candidate.id === item.id));
+      const key = `${item.task}:${item.id ?? 'default'}`;
       if (!provider) {
-        unique.set(`${item.task}:${item.id ?? 'default'}`, `${item.label} : provider indisponible`);
+        const missingProviderId = item.id ?? '';
+        unique.set(key, {
+          key,
+          message: `${item.label} : provider indisponible`,
+          providerId: missingProviderId,
+          fallbackProviderId: item.fallbackProviderId ?? missingProviderId,
+          requiredProviderIds: missingProviderId ? [missingProviderId] : [],
+        });
       } else if (!provider.ready) {
-        unique.set(`${provider.task}:${provider.id}`, `${item.label} : ${provider.missing.length ? provider.missing.join(', ') : provider.message}`);
+        const dependencyIds = missingProviderDependencyIds(provider);
+        const resourceIssues = provider.missing.filter(value => !/^(?:provider requis|required provider)\s*:/i.test(value));
+        const reason = resourceIssues.length ? `${provider.message} — ${resourceIssues.join(', ')}` : provider.message;
+        unique.set(key, {
+          key,
+          message: `${item.label} : ${reason}`,
+          providerId: provider.id,
+          fallbackProviderId: provider.id,
+          requiredProviderIds: dependencyIds,
+        });
       }
     }
-    if (uniqueConfigurationNotice) unique.set('sepformer-identity-config', 'SepFormer nécessite SpeechBrain ECAPA dans les paramètres.');
+    if (embeddingProviderMismatch) {
+      unique.set('separation-identity-config', {
+        key: 'separation-identity-config',
+        message: 'Le provider de séparation nécessite un provider d’identité vocale spécifique dans les paramètres.',
+        providerId: settings.source_separation_provider,
+        fallbackProviderId: settings.source_separation_provider,
+        requiredProviderIds: requiredEmbeddingIds,
+        linkTask: 'speaker_embedding',
+      });
+    }
     return [...unique.values()];
   }
+
+  /** Import needs the selected media provider; report it before uploading a large file. */
+  readonly mediaImportBlocked = computed(() => {
+    const providers = this.providers();
+    const settings = this.settings();
+    if (providers === null || !settings) return false;
+    const media = providers.find(provider => provider.task === 'media' && provider.id === settings.media_provider);
+    return !media || !media.ready;
+  });
 
   perJobValues(provider: ProviderStatus): Record<string, unknown> {
     return { ...(this.settings()?.provider_options[provider.id] ?? {}), ...(this.perJobOverrides()[provider.id] ?? {}) };
@@ -303,7 +358,8 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
   }
 
   numberValue(value: string | number): number { return Number(value); }
-  formatLabel(value: string): string { return ({ auto: 'Automatique', summary: 'Synthèse générale', daily: 'Daily — compte rendu de réunion', technical: 'Technique', formal: 'Formel', brainstorm: 'Brainstorming' } as Record<string, string>)[value] ?? value; }
+  formatLabel(value: string): string { return summaryFormatLabel(value); }
+  formatDescription(value: string): string { return summaryFormatDescription(value); }
   profileDescription(profile: GlimioSettings['processing_profile']): string {
     return ({
       turbo: 'Petits budgets, peu de reprises et sans relecture finale : le plus rapide, avec moins de détails.',
@@ -451,6 +507,10 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
     const file = this.selectedFile();
     const preferences = this.preferences.preferences();
     if (!file || !preferences) return;
+    if (this.mediaImportBlocked()) {
+      this.toast.show('Import impossible : le moteur d’importation sélectionné n’est pas prêt. Vérifiez ses dépendances dans les paramètres.', 'error');
+      return;
+    }
     this.importing.set(true);
     this.api.importFile(file, this.settingsForJob(preferences.settings), this.importAction, this.normalizeWindows, Number(this.normalizeGain)).subscribe({
       next: () => { this.toast.show('Fichier ajouté à la file de traitement.', 'success'); this.importing.set(false); this.selectedFile.set(null); const fileInput = document.getElementById('import-file') as HTMLInputElement | null; if (fileInput) fileInput.value = ''; this.refreshJobs(); },
@@ -458,7 +518,7 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  jobLabel(job: Job): string { return ({ recording: 'Enregistrement', transcribe: 'Transcription Whisper', summarize: 'Résumé', process: 'Traitement complet', import: 'Import audio / vidéo' } as Record<string, string>)[job.kind] ?? job.kind; }
+  jobLabel(job: Job): string { return ({ recording: 'Enregistrement', transcribe: 'Transcription Whisper', summarize: 'Résumé', process: 'Traitement complet', 'translate-summary': 'Traduction du résumé', import: 'Import audio / vidéo' } as Record<string, string>)[job.kind] ?? job.kind; }
   stateLabel(state: string): string { return ({ queued: 'Dans la file', running: 'En cours', stopping: 'Finalisation', completed: 'Terminé', cancelled: 'Annulé', error: 'Erreur' } as Record<string, string>)[state] ?? state; }
   isDeletable(job: Job): boolean { return !['running', 'stopping', 'queued'].includes(job.state); }
   hasDeletableJobs(): boolean { return this.jobs().some(job => this.isDeletable(job)); }

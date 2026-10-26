@@ -7,14 +7,17 @@ import numpy as np
 import pytest
 
 from seance.processing.transcription import _checkpoint_signature, _contiguous_cached_chunks
+from seance.providers import audio_processing
 from seance.providers.audio_processing import (
     NO_EMBEDDING_INFO,
     SPEECHBRAIN_SEPARATION_INFO,
     SpeechBrainSepFormerProvider,
+    create_audio_enhancement_provider,
     create_source_separation_provider,
     provider_readiness,
     verify_provider_dependencies,
 )
+from seance.providers.contracts import AudioEnhancementRequest
 
 
 def test_no_embedding_provider_is_available_without_model_or_heavy_runtime() -> None:
@@ -77,6 +80,28 @@ def test_source_identity_is_stable_when_sepformer_reverses_output_order(monkeypa
     restored.load_state_dict(state)
     assert restored.state_dict() == state
 
+
+
+def test_ffmpeg_denoise_failure_points_to_ffmpeg_provider_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    provider = create_audio_enhancement_provider("ffmpeg-denoise")
+
+    def failing_popen(*_args, **_kwargs):
+        raise OSError("programme introuvable")
+
+    monkeypatch.setattr(audio_processing.subprocess, "Popen", failing_popen)
+    request = AudioEnhancementRequest(
+        audio_path=str(tmp_path / "source.wav"),
+        output_path=str(tmp_path / "enhanced" / "source.wav"),
+        ffmpeg="C:/tools/ffmpeg/bin/ffmpeg.exe",
+        options={"noise_reduction": "strong"},
+    )
+
+    with pytest.raises(RuntimeError) as error:
+        provider.enhance(request)
+
+    message = str(error.value)
+    assert "configurez le provider FFmpeg dans les paramètres" in message
+    assert "Aucune amélioration" in message
 
 
 def test_transcription_checkpoint_reuses_only_a_contiguous_prefix() -> None:

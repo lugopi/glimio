@@ -19,7 +19,7 @@ Les changements récents rendent les couleurs de texte principales plus contrast
 
 ## Contraste : résultats calculés sur les jetons de thème
 
-État recalculé pour les jetons de thème actuels de la version 0.2.0. La table mesure le ratio WCAG entre chaque couleur de texte/statut et `--c-surface-raised`, ainsi que le contraste du texte du bouton primaire (`--c-accent-contrast`) sur son fond (`--c-accent`). Le ratio est calculé à partir de la luminance relative sRGB avec `scripts/check_theme_contrast.py`.
+État recalculé pour les jetons de thème actuels de la version 0.5.0. La table mesure le ratio WCAG entre chaque couleur de texte/statut et `--c-surface-raised`, ainsi que le contraste du texte du bouton primaire (`--c-accent-contrast`) sur son fond (`--c-accent`). Le ratio est calculé à partir de la luminance relative sRGB avec `scripts/check_theme_contrast.py`.
 
 | Thème | Texte principal | Texte atténué | Texte secondaire | Succès | Avertissement | Erreur | Texte du bouton primaire |
 |---|---:|---:|---:|---:|---:|---:|---:|

@@ -3,64 +3,24 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 import threading
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Mapping
 
 from ..layout import ensure_session_layout, metadata_output_path
-
-
-def _ffprobe_for(ffmpeg: str) -> str | None:
-    """Find ffprobe beside FFmpeg or on PATH; fail rather than silently discard tracks."""
-    candidate = Path(ffmpeg).expanduser()
-    if "/" in ffmpeg or "\\" in ffmpeg:
-        sibling = candidate.with_name("ffprobe.exe" if candidate.suffix.lower() == ".exe" else "ffprobe")
-        if sibling.is_file():
-            return str(sibling)
-    found = shutil.which("ffprobe")
-    if found and Path(found).name.casefold().startswith("ffprobe"):
-        return found
-    return None
-
-
-def _audio_streams(source: Path, ffmpeg: str) -> list[dict[str, int]]:
-    """Return audio-stream metadata without decoding the recording."""
-    executable = _ffprobe_for(ffmpeg)
-    if not executable:
-        raise RuntimeError(
-            "ffprobe est requis pour inspecter les pistes audio sans en perdre. "
-            "Installez ffprobe depuis la même distribution que FFmpeg et réessayez."
-        )
-    command = [
-        executable, "-v", "error", "-select_streams", "a",
-        "-show_entries", "stream=index,channels", "-of", "json", str(source),
-    ]
-    try:
-        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20)
-        if result.returncode != 0:
-            detail = (result.stderr or "aucun détail").strip()
-            raise RuntimeError(f"Impossible d'inspecter les flux audio avec ffprobe : {detail[-2000:]}")
-        payload = json.loads(result.stdout or "{}")
-        streams = payload.get("streams", []) if isinstance(payload, dict) else []
-        discovered = [
-            {"audio_index": index, "stream_index": int(item.get("index", index)), "channels": max(1, int(item.get("channels") or 1))}
-            for index, item in enumerate(streams) if isinstance(item, dict)
-        ]
-        if not discovered:
-            raise RuntimeError("Aucun flux audio exploitable n'a été trouvé dans ce fichier.")
-        return discovered
-    except RuntimeError:
-        raise
-    except (OSError, ValueError, TypeError, subprocess.SubprocessError) as exc:
-        raise RuntimeError(f"Impossible d'inspecter le fichier pour conserver toutes ses pistes audio : {exc}") from exc
+from ..providers.contracts import AudioTrackRequest
+from ..providers.media_tools import create_media_provider, ensure_media_toolchain_ready
 
 
 def import_audio_file(
     path: str | Path,
     directory: str | Path = "seances",
     *,
+    media_provider: str = "ffmpeg",
+    media_options: Mapping[str, Any] | None = None,
     ffmpeg: str = "ffmpeg",
+    ffprobe: str = "ffprobe",
     normalize: bool = False,
     max_gain_db: float = 30.0,
     split_channels: bool = True,
@@ -73,6 +33,10 @@ def import_audio_file(
     them together at import time. Input gain is preserved by default so quiet noise does
     not get peak-amplified; set ``normalize=True`` for an explicit capped peak normalization.
     Set ``split_channels=False`` to downmix each stream.
+
+    ``media_options`` defaults to the historical ``ffmpeg``/``ffprobe`` arguments so
+    existing callers keep their behaviour; the selected provider owns decoding and
+    conversion while normalization stays a business rule of this use case.
     """
     if not 0.0 <= float(max_gain_db) <= 30.0:
         raise ValueError("max_gain_db must be between 0 and 30 dB")
@@ -82,12 +46,19 @@ def import_audio_file(
     if source.stat().st_size <= 0:
         raise RuntimeError(f"Le fichier audio/vidéo est vide : {source}")
 
-    executable = str(ffmpeg or "ffmpeg").strip() or "ffmpeg"
-    has_path_separator = "/" in executable or "\\" in executable
-    if has_path_separator and not Path(executable).expanduser().is_file():
-        raise FileNotFoundError(f"Exécutable FFmpeg introuvable : {executable}")
-    if not has_path_separator and shutil.which(executable) is None:
-        raise FileNotFoundError(f"FFmpeg est introuvable dans le PATH : {executable}")
+    options = (
+        {"ffmpeg": ffmpeg, "ffprobe": ffprobe}
+        if media_options is None
+        else dict(media_options)
+    )
+    if media_provider == "ffmpeg":
+        # Keep the historical keyword arguments meaningful even when a caller
+        # forwards an empty provider-options mapping.
+        options.setdefault("ffmpeg", ffmpeg)
+        options.setdefault("ffprobe", ffprobe)
+    media = create_media_provider(media_provider, options)
+    # Fail before creating the session directory so a missing tool leaves no empty séance.
+    ensure_media_toolchain_ready(media.info, options)
 
     root = Path(directory).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -103,11 +74,11 @@ def import_audio_file(
     audio_dir = layout["audio"]
     imported_tracks: list[dict[str, object]] = []
     try:
-        stream_info = _audio_streams(source, executable)
+        stream_info = media.probe_audio_streams(str(source))
         for stream_number, stream in enumerate(stream_info, start=1):
             if cancel_event is not None and cancel_event.is_set():
                 raise RuntimeError("Import annulé.")
-            channels = max(1, int(stream.get("channels", 1)))
+            channels = max(1, int(stream.channels))
             channel_numbers: list[int | None] = list(range(channels)) if split_channels and channels > 1 else [None]
             base_stem = "audio_import" if stream_number == 1 else f"audio_import-{stream_number}"
             for channel_number in channel_numbers:
@@ -118,39 +89,19 @@ def import_audio_file(
                 else:
                     filename = f"{base_stem}-ch{channel_number + 1}.wav"
                 output = audio_dir / filename
-                command = [
-                    executable, "-hide_banner", "-loglevel", "error", "-y",
-                    "-i", str(source), "-vn", "-map", f"0:a:{int(stream['audio_index'])}",
-                ]
-                if channel_number is not None:
-                    command.extend(["-af", f"pan=mono|c0=c{channel_number}"])
-                command.extend(["-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(output)])
-                try:
-                    process = subprocess.Popen(
-                        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                        encoding="utf-8", errors="replace",
+                media.extract_track(AudioTrackRequest(
+                    source=str(source),
+                    output=str(output),
+                    stream_index=int(stream.stream_index),
+                    audio_index=int(stream.audio_index),
+                    channel=channel_number,
+                    cancel_event=cancel_event,
+                ))
+                if not output.is_file() or output.stat().st_size <= 44:
+                    raise RuntimeError(
+                        f"Le provider média {media.info.id} n'a produit aucune piste exploitable "
+                        f"pour le flux {stream_number}."
                     )
-                except OSError as exc:
-                    raise RuntimeError(f"Impossible de lancer FFmpeg pour la piste {stream_number} : {exc}") from exc
-                while True:
-                    if cancel_event is not None and cancel_event.is_set():
-                        process.terminate()
-                        try:
-                            process.communicate(timeout=2)
-                        except subprocess.TimeoutExpired:
-                            process.kill()
-                            process.communicate()
-                        raise RuntimeError("Import annulé.")
-                    try:
-                        stdout, stderr = process.communicate(timeout=0.25)
-                        result = subprocess.CompletedProcess(command, process.returncode or 0, stdout, stderr)
-                        break
-                    except subprocess.TimeoutExpired:
-                        continue
-                if result.returncode != 0 or not output.is_file() or output.stat().st_size <= 44:
-                    detail = (result.stderr or result.stdout or "aucune piste audio exploitable").strip()
-                    label = f"flux {stream_number}" + (f", canal {channel_number + 1}" if channel_number is not None else "")
-                    raise RuntimeError(f"Impossible de convertir le {label} avec FFmpeg : {detail[-3000:]}")
 
                 # Normalize each independent channel, never combine the channels first.
                 from .audio import _normalize_wav_peak
@@ -165,8 +116,8 @@ def import_audio_file(
                     "filename": filename,
                     "name": track_name,
                     "kind": "import",
-                    "stream_index": int(stream.get("stream_index", stream.get("audio_index", 0))),
-                    "audio_index": int(stream["audio_index"]),
+                    "stream_index": int(stream.stream_index),
+                    "audio_index": int(stream.audio_index),
                     "source_channel": (channel_number + 1) if channel_number is not None else None,
                     "channels_in_source": channels,
                     "normalization": normalization_info,

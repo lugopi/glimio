@@ -10,6 +10,6 @@
 .selectable-list-row.is-highlighted { @apply bg-accent-soft; }
 .selectable-list-row.is-highlighted::before {
   content: '';
-  @apply pointer-events-none absolute inset-y-0 left-0 z-10 w-[3px] bg-accent;
+  @apply pointer-events-none absolute inset-y-0 left-0 z-10 w-1 bg-accent;
 }
 .selectable-list-row.is-muted { @apply opacity-70; }

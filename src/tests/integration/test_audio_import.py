@@ -4,17 +4,29 @@ import json
 import wave
 from pathlib import Path
 
+import numpy as np
 import pytest
 
-from seance.media.audio_import import _audio_streams as _real_audio_streams, import_audio_file
+from seance.media.audio_import import import_audio_file
+from seance.providers.contracts import AudioStreamInfo
 
 
 @pytest.fixture(autouse=True)
 def _default_probe_reports_one_audio_stream(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Individual import tests focus on conversion/normalization, not ffprobe itself.
+    # Individual import tests focus on conversion/normalization, not probing itself.
     monkeypatch.setattr(
-        "seance.media.audio_import._audio_streams",
-        lambda _source, _ffmpeg: [{"audio_index": 0, "stream_index": 0, "channels": 1}],
+        "seance.providers.media_tools.FFmpegMediaToolchain.probe_audio_streams",
+        lambda _self, _source: [AudioStreamInfo(stream_index=0, audio_index=0, channels=1)],
+    )
+    # The media-tool preflight has its own dedicated tests below.
+    monkeypatch.setattr(
+        "seance.media.audio_import.ensure_media_toolchain_ready",
+        lambda *_args, **_kwargs: None,
+    )
+    # Fake Popen tests must not depend on a real FFmpeg installation.
+    monkeypatch.setattr(
+        "seance.providers.media_tools.resolve_command",
+        lambda value, default=None: "/usr/bin/ffmpeg",
     )
 
 
@@ -81,8 +93,7 @@ def test_import_audio_converts_to_durable_session_and_writes_metadata(tmp_path: 
     sessions = tmp_path / "sessions"
     calls = []
 
-    monkeypatch.setattr("seance.media.audio_import.subprocess.Popen", make_fake_popen(on_output=write_silence_wav, calls=calls))
-    monkeypatch.setattr("seance.media.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr("seance.providers.media_tools.subprocess.Popen", make_fake_popen(on_output=write_silence_wav, calls=calls))
     result = import_audio_file(source, sessions, ffmpeg="ffmpeg")
 
     assert result.parent == sessions
@@ -99,8 +110,7 @@ def test_import_audio_removes_partial_session_when_ffmpeg_fails(tmp_path: Path, 
     source = tmp_path / "broken.wav"
     source.write_bytes(b"not a real wav")
     sessions = tmp_path / "sessions"
-    monkeypatch.setattr("seance.media.audio_import.subprocess.Popen", make_fake_popen(returncode=1, stderr="decode failed"))
-    monkeypatch.setattr("seance.media.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr("seance.providers.media_tools.subprocess.Popen", make_fake_popen(returncode=1, stderr="decode failed"))
 
     with pytest.raises(RuntimeError, match="decode failed"):
         import_audio_file(source, sessions, ffmpeg="ffmpeg")
@@ -112,8 +122,7 @@ def test_import_audio_applies_shared_peak_normalization(tmp_path: Path, monkeypa
     source.write_bytes(b"fake media")
     sessions = tmp_path / "sessions"
 
-    monkeypatch.setattr("seance.media.audio_import.subprocess.Popen", make_fake_popen(on_output=write_quiet_wav))
-    monkeypatch.setattr("seance.media.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr("seance.providers.media_tools.subprocess.Popen", make_fake_popen(on_output=write_quiet_wav))
     result = import_audio_file(source, sessions, ffmpeg="ffmpeg", normalize=True, max_gain_db=30)
 
     from seance.media.audio import _wav_pcm16_stats
@@ -128,8 +137,7 @@ def test_import_audio_preserves_quiet_input_gain_by_default(tmp_path: Path, monk
     source.write_bytes(b"fake media")
     sessions = tmp_path / "sessions"
 
-    monkeypatch.setattr("seance.media.audio_import.subprocess.Popen", make_fake_popen(on_output=write_quiet_wav))
-    monkeypatch.setattr("seance.media.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr("seance.providers.media_tools.subprocess.Popen", make_fake_popen(on_output=write_quiet_wav))
     result = import_audio_file(source, sessions, ffmpeg="ffmpeg")
 
     from seance.media.audio import _wav_pcm16_stats
@@ -145,8 +153,7 @@ def test_import_audio_respects_disabled_normalization(tmp_path: Path, monkeypatc
     source.write_bytes(b"fake media")
     sessions = tmp_path / "sessions"
 
-    monkeypatch.setattr("seance.media.audio_import.subprocess.Popen", make_fake_popen(on_output=write_quiet_wav))
-    monkeypatch.setattr("seance.media.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr("seance.providers.media_tools.subprocess.Popen", make_fake_popen(on_output=write_quiet_wav))
     result = import_audio_file(source, sessions, ffmpeg="ffmpeg", normalize=False, max_gain_db=30)
 
     from seance.media.audio import _wav_pcm16_stats
@@ -163,11 +170,13 @@ def test_import_audio_preserves_multiple_audio_streams(tmp_path: Path, monkeypat
     calls = []
 
     monkeypatch.setattr(
-        "seance.media.audio_import._audio_streams",
-        lambda _source, _ffmpeg: [{"audio_index": 0, "channels": 2}, {"audio_index": 1, "channels": 1}],
+        "seance.providers.media_tools.FFmpegMediaToolchain.probe_audio_streams",
+        lambda _self, _source: [
+            AudioStreamInfo(stream_index=0, audio_index=0, channels=2),
+            AudioStreamInfo(stream_index=1, audio_index=1, channels=1),
+        ],
     )
-    monkeypatch.setattr("seance.media.audio_import.subprocess.Popen", make_fake_popen(on_output=write_silence_wav, calls=calls))
-    monkeypatch.setattr("seance.media.audio_import.shutil.which", lambda _name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr("seance.providers.media_tools.subprocess.Popen", make_fake_popen(on_output=write_silence_wav, calls=calls))
 
     result = import_audio_file(source, sessions, ffmpeg="ffmpeg")
 
@@ -185,15 +194,109 @@ def test_import_audio_preserves_multiple_audio_streams(tmp_path: Path, monkeypat
 
 
 def test_import_audio_fails_explicitly_when_ffprobe_is_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from seance.media import audio_import
+    from seance.providers import media_tools
 
     source = tmp_path / "multitrack.mkv"
     source.write_bytes(b"fake media")
     sessions = tmp_path / "sessions"
-    monkeypatch.setattr("seance.media.audio_import.shutil.which", lambda name: "/usr/bin/ffmpeg" if name == "ffmpeg" else None)
-    monkeypatch.setattr("seance.media.audio_import._ffprobe_for", lambda _ffmpeg: None)
-    monkeypatch.setattr("seance.media.audio_import._audio_streams", _real_audio_streams)
+    ffmpeg = tmp_path / "ffmpeg.exe"
+    ffmpeg.write_bytes(b"test executable placeholder")
+    monkeypatch.setattr(
+        "seance.media.audio_import.ensure_media_toolchain_ready",
+        media_tools.ensure_media_toolchain_ready,
+    )
+    monkeypatch.setattr("seance.providers.media_tools.resolve_ffprobe", lambda *_args, **_kwargs: None)
 
-    with pytest.raises(RuntimeError, match="ffprobe est requis"):
-        audio_import.import_audio_file(source, sessions, ffmpeg="ffmpeg")
-    assert list(sessions.iterdir()) == []
+    with pytest.raises(RuntimeError, match="ffprobe introuvable"):
+        import_audio_file(source, sessions, ffmpeg=str(ffmpeg))
+    assert not sessions.exists()
+
+
+def test_import_audio_forwards_configured_ffprobe_to_the_probe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "multitrack.mkv"
+    source.write_bytes(b"fake media")
+    sessions = tmp_path / "sessions"
+    captured: list[tuple[str, str]] = []
+
+    def fake_probe(self, _source: str) -> list[AudioStreamInfo]:
+        captured.append((str(self.options.get("ffmpeg")), str(self.options.get("ffprobe"))))
+        return [AudioStreamInfo(stream_index=0, audio_index=0, channels=1)]
+
+    monkeypatch.setattr("seance.providers.media_tools.FFmpegMediaToolchain.probe_audio_streams", fake_probe)
+    monkeypatch.setattr("seance.providers.media_tools.subprocess.Popen", make_fake_popen(on_output=write_silence_wav))
+
+    result = import_audio_file(source, sessions, ffmpeg="ffmpeg", ffprobe="ffprobe-custom")
+
+    assert (result / "audio" / "audio_import.wav").is_file()
+    assert captured == [("ffmpeg", "ffprobe-custom")]
+
+
+def _write_interleaved_pcm16(path: Path, left: int, right: int, samples: int = 1600) -> None:
+    interleaved = np.empty(samples * 2, dtype="<i2")
+    interleaved[0::2] = left
+    interleaved[1::2] = right
+    with wave.open(str(path), "wb") as stream:
+        stream.setnchannels(2)
+        stream.setsampwidth(2)
+        stream.setframerate(16000)
+        stream.writeframes(interleaved.tobytes())
+
+
+def _wav_samples(path: Path) -> tuple[int, int, np.ndarray]:
+    with wave.open(str(path), "rb") as stream:
+        channels = stream.getnchannels()
+        rate = stream.getframerate()
+        data = np.frombuffer(stream.readframes(stream.getnframes()), dtype="<i2")
+    return channels, rate, data
+
+
+def test_import_audio_with_native_provider_splits_stereo_pcm16_without_ffmpeg(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "stereo.wav"
+    _write_interleaved_pcm16(source, left=1000, right=3000)
+    sessions = tmp_path / "sessions"
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("the native media provider must not launch FFmpeg")
+
+    monkeypatch.setattr("seance.providers.media_tools.subprocess.Popen", forbidden)
+    monkeypatch.setattr("seance.providers.media_tools.subprocess.run", forbidden)
+
+    result = import_audio_file(source, sessions, media_provider="native")
+
+    first = result / "audio" / "audio_import.wav"
+    second = result / "audio" / "audio_import-ch2.wav"
+    assert first.is_file() and second.is_file()
+    channels, rate, first_samples = _wav_samples(first)
+    assert (channels, rate) == (1, 16000)
+    assert set(first_samples.tolist()) == {1000}
+    _, _, second_samples = _wav_samples(second)
+    assert set(second_samples.tolist()) == {3000}
+
+    metadata = json.loads((result / "metadata" / "seance.json").read_text(encoding="utf-8"))
+    assert metadata["captured_tracks"] == ["audio_import", "audio_import-ch2"]
+    assert metadata["audio_sources"] == [
+        {
+            "filename": "audio_import.wav",
+            "name": "Audio importé · Canal 1",
+            "kind": "import",
+            "stream_index": 0,
+            "audio_index": 0,
+            "source_channel": 1,
+            "channels_in_source": 2,
+            "normalization": metadata["audio_sources"][0]["normalization"],
+        },
+        {
+            "filename": "audio_import-ch2.wav",
+            "name": "Audio importé · Canal 2",
+            "kind": "import",
+            "stream_index": 0,
+            "audio_index": 0,
+            "source_channel": 2,
+            "channels_in_source": 2,
+            "normalization": metadata["audio_sources"][1]["normalization"],
+        },
+    ]

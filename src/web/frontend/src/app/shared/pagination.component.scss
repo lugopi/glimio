@@ -1,23 +1,35 @@
 @reference '../../styles/tailwind-ref.scss';
 
-:host { @apply block min-w-0; container-type: inline-size; }
+:host {
+  @apply block min-w-0;
+  container-type: inline-size;
+}
 .pagination { @apply flex w-full min-w-0 flex-nowrap items-center justify-end gap-3; }
-.pagination-summary { @apply m-0 shrink-0 whitespace-nowrap text-xs text-muted; font-variant-numeric: tabular-nums; }
+.pagination-summary { @apply m-0 shrink-0 whitespace-nowrap text-xs text-muted tabular-nums; }
 .pagination-controls { @apply flex min-w-0 flex-1 flex-nowrap items-center justify-end gap-1.5; }
 .pagination-pages { @apply flex min-w-0 flex-nowrap items-center gap-1; }
 .pagination-arrow, .pagination-page { @apply inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface-raised px-2 text-xs font-semibold text-text; }
 .pagination-arrow { @apply px-2.5; }
-.pagination-arrow glimio-icon { @apply inline-flex size-4 shrink-0 items-center justify-center; font-size: 1rem; }
+.pagination-arrow glimio-icon { @apply inline-flex size-4 shrink-0 items-center justify-center text-base; }
 .pagination-arrow glimio-icon .icon, .pagination-arrow glimio-icon svg { @apply block size-full; }
 .pagination-arrow:disabled { @apply cursor-not-allowed opacity-45; }
-.pagination-page:hover:not(.is-current), .pagination-arrow:hover:not(:disabled) { border-color: var(--c-accent); background: var(--c-accent-soft); }
+.pagination-page:hover:not(.is-current),
+.pagination-arrow:hover:not(:disabled) {
+  @apply border-accent bg-accent-soft;
+}
 .pagination-page.is-current { @apply border-accent bg-accent-soft text-accent; }
-.pagination-page[aria-current="page"] { outline: 1px solid color-mix(in srgb, var(--c-accent) 35%, transparent); outline-offset: 1px; }
-.pagination-arrow:focus-visible, .pagination-page:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+.pagination-page[aria-current="page"] {
+  @apply outline-1 outline-offset-1;
+  outline-color: color-mix(in srgb, var(--c-accent) 35%, transparent);
+}
+.pagination-arrow:focus-visible,
+.pagination-page:focus-visible {
+  @apply outline-2 outline-accent outline-offset-2;
+}
 .pagination-ellipsis { @apply inline-flex min-h-9 min-w-4 items-center justify-center text-muted; }
 @media (width < theme(--breakpoint-sm)) {
   .pagination { @apply gap-2; }
-  .pagination-summary { @apply text-[0.6875rem]; }
+  .pagination-summary { @apply text-caption; }
   .pagination-controls { @apply flex-1 gap-0.5; }
   .pagination-arrow { @apply min-w-8 px-1.5; }
   .pagination-arrow span { @apply sr-only; }
@@ -35,7 +47,9 @@
 }
 @container (max-width: 300px) {
   .pagination { @apply gap-1; }
-  .pagination-summary { @apply text-[0.625rem]; }
+  .pagination-summary { @apply text-micro; }
   .pagination-controls { @apply gap-1; }
-  .pagination-pages { display: none; }
+  .pagination-pages {
+    @apply hidden;
+  }
 }

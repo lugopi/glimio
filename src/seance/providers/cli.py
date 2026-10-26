@@ -11,7 +11,8 @@ from typing import Any
 
 from .contracts import ProviderInfo
 from .installer import ProviderInstallManager
-from .registry import BUILTIN_PROVIDERS, default_provider_options, get_provider_info, get_provider_statuses
+from .registry import ALL_PROVIDER_INFOS, BUILTIN_PROVIDERS, default_provider_options, get_provider_info, get_provider_statuses
+from .plugins import get_provider_plugin
 
 
 def add_provider_cli_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -30,7 +31,7 @@ def add_provider_cli_parser(commands: argparse._SubParsersAction[argparse.Argume
     list_parser.add_argument("--json", action="store_true", help="Afficher les états au format JSON.")
 
     info_parser = subcommands.add_parser("info", help="Afficher l’aide, les options et les liens d’un provider.")
-    info_parser.add_argument("provider_id", choices=tuple(item.id for item in BUILTIN_PROVIDERS))
+    info_parser.add_argument("provider_id", choices=tuple(item.id for item in ALL_PROVIDER_INFOS))
 
     install_parser = subcommands.add_parser(
         "install", help="Installer les dépendances Python d’un provider dans l’environnement adapté.",
@@ -201,6 +202,13 @@ def run_provider_command(args: argparse.Namespace, *, project_root: str | Path) 
         _print_info(info, root)
         return 0
     if command == "install":
+        plugin = get_provider_plugin(info.id)
+        if plugin is not None and plugin.info is info:
+            print(
+                f"{info.id} est un provider tiers. Gérez ses dépendances avec le gestionnaire de paquets de sa distribution Python.",
+                file=sys.stderr,
+            )
+            return 2
         return _install_provider(info, root)
     print(f"Commande provider inconnue : {command}", file=sys.stderr)
     return 2

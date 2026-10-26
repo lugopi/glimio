@@ -9,7 +9,7 @@
 }
 
 .settings-panel {
-  @apply overflow-hidden rounded-[11px] border border-border-soft p-0;
+  @apply overflow-hidden rounded-xl border border-border-soft p-0;
 }
 
 .settings-panel > .settings-body {
@@ -26,7 +26,7 @@
 }
 
 .settings-section > .field-note {
-  @apply mb-4 block max-w-[78ch];
+  @apply mb-4 block max-w-prose;
 }
 
 .settings-grid {
@@ -91,7 +91,11 @@
   @apply text-muted;
 }
 
+.provider-dependency-link { @apply inline font-semibold underline decoration-dotted underline-offset-2 hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border; }
+
 .voice-provider-block { @apply mt-4 grid min-w-0 gap-3 rounded-lg border border-border-soft p-4; }
+.provider-dependency-item[data-ready='true'] { @apply gap-2 p-3; }
+.provider-dependency-item[data-ready='true'] > .field-note { @apply text-xs; }
 .voice-provider-block > .card-title { @apply m-0 text-sm; }
 .voice-provider-block > .field-note { @apply m-0; }
 .voice-disabled-note { @apply mt-3 rounded-md bg-surface-raised p-3; }

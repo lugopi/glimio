@@ -27,9 +27,15 @@ glimio import ./meeting.mp4 --import-action process
 glimio transcribe ./seances/2026-10-24_12-00-00
 glimio summarize ./seances/2026-10-24_12-00-00
 glimio process ./seances/2026-10-24_12-00-00
+# Formats de résumé — les mêmes choix sont proposés dans Enregistrement et Bibliothèque
+glimio summarize ./seances/2026-10-24_12-00-00 --format narrative
+glimio summarize ./seances/2026-10-24_12-00-00 --format dialogue
+glimio summarize ./seances/2026-10-24_12-00-00 --format learning
 ```
 
-`import` creates the same session layout as Web import, preserves detected streams/channels separately, and optionally starts transcription or the full pipeline. FFmpeg and ffprobe must be available for import.
+`--format auto` choisit prudemment entre `summary` (synthèse générale), `narrative` (récit, fiction, livre audio ou roleplay), `dialogue` (conversation, interview ou débat), `learning` (cours, tutoriel ou conférence pédagogique), `daily` (point d’avancement), `technical` (analyse technique), `formal` (procès-verbal) et `brainstorm` (idéation). Les formats spécialisés ne sont choisis automatiquement que lorsque la source étaye clairement leur structure ; en cas de doute, Glimio utilise `summary`.
+
+`import` creates the same session layout as Web import, preserves detected streams/channels separately, and optionally starts transcription or the full pipeline. Import and audio chunking go through the media provider selected with `--media-provider` (`ffmpeg` by default, or `native`). With `ffmpeg`, ffprobe must be resolvable too; configure their paths with `--ffmpeg` and `--ffprobe` (or the corresponding provider options) when they are not on `PATH`. `--ffmpeg` and `--ffprobe` remain aliases of the `ffmpeg` provider options and are ignored by other media providers. Work that does not need them — short recordings, `--audio-enhancement-provider no-enhancement`, `no-separation`, and native WAV chunking — runs without FFmpeg. `--media-provider native` additionally restricts import to PCM WAV files at 16-bit/16 kHz, without any external executable.
 
 ## Library and audio tracks
 

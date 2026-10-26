@@ -44,6 +44,13 @@ def _run(argv: list[str], project_root: Path) -> int | None:
     return run_application_cli_command(args, project_root=project_root)
 
 
+def test_cli_exposes_the_new_generic_summary_formats() -> None:
+    parser = build_parser()
+    for report_format in ("narrative", "dialogue", "learning", "daily", "technical", "formal", "brainstorm"):
+        args = parser.parse_args(["summarize", "--format", report_format])
+        assert args.format == report_format
+
+
 def test_cli_has_library_jobs_preferences_search_and_devices_commands() -> None:
     parser = build_parser()
     for command_line in (

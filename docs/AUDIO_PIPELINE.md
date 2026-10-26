@@ -6,6 +6,8 @@ Glimio sépare les responsabilités du pipeline : l'import, le prétraitement, l
 
 | Rôle | Provider | Dépendances fortes | Usage |
 |---|---|---|---|
+| Import et découpage | `ffmpeg` | FFmpeg et ffprobe | Décode tous les formats pris en charge, préserve chaque flux/canal et découpe les longues séances. |
+| Import et découpage | `native` | aucune | Repli sans exécutable : WAV PCM 16 bits à 16 kHz uniquement, extraction de canal et downmix. |
 | Prétraitement | `no-enhancement` | aucune | Préserve le signal de chaque piste, sans filtre. |
 | Prétraitement | `ffmpeg-denoise` | `ffmpeg` | Filtre passe-haut/bas et réduction spectrale modérée ; réglable. Ne sépare pas les interlocuteurs. |
 | Prétraitement | `deepfilternet` | `ffmpeg`, binaire `deep-filter` et modèle local | Réduction neuronale du bruit ; dépendance externe facultative. |
@@ -40,7 +42,7 @@ Quand vous ajoutez un provider, déclarez ses liens et sa méthode d'installatio
 
 ## Multipiste et synchro
 
-L'import FFmpeg/ffprobe conserve chaque flux audio et divise les canaux d'un flux multicanal en fichiers mono quand `split_channels=True`. Chaque fichier WAV a 16 kHz PCM16, est associé à ses métadonnées d'origine, et est transcrit séparément. Le gain du signal est conservé par défaut ; la normalisation de crête est disponible en passant `normalize=True`, mais elle peut amplifier le bruit d'un canal peu actif.
+L'import média passe par le provider choisi (`media_provider`, `ffmpeg` par défaut). Le provider FFmpeg/ffprobe conserve chaque flux audio et divise les canaux d'un flux multicanal en fichiers mono quand `split_channels=True`. Le provider `native` ne traite que les WAV PCM 16 bits à 16 kHz et applique la même séparation des canaux ; il sert de repli sans exécutable, au prix d'un refus explicite des autres conteneurs, fréquences et largeurs d'échantillon. Chaque fichier WAV a 16 kHz PCM16, est associé à ses métadonnées d'origine, et est transcrit séparément. Le gain du signal est conservé par défaut ; la normalisation de crête est disponible en passant `normalize=True`, mais elle peut amplifier le bruit d'un canal peu actif.
 
 Les pistes extraites de la même vidéo démarrent à zéro et sont alignées sur la même horloge média. Cette hypothèse convient aux fichiers multipistes synchronisés. Pour des fichiers enregistrés séparément avec des débuts/dérives d'horloge différents, il faut aligner la synchro avant de les traiter comme une séance commune.
 
@@ -48,7 +50,7 @@ La diarisation classique traite chaque piste séparément par fenêtres de 15 mi
 
 ## Longues séances, silences et checkpoints
 
-- La transcription sans séparation utilise des blocs de 15 minutes avec chevauchement de 10 secondes. Les segments sont affectés par le milieu de leur intervalle à un seul bloc logique pour limiter les doublons.
+- La transcription sans séparation utilise des blocs de 15 minutes avec chevauchement de 10 secondes. Le découpage passe par le provider média sélectionné : `ffmpeg` si l'exécutable est disponible, sinon repli natif pour les pistes WAV PCM déjà au bon format (module `wave`, mêmes bornes), les autres formats conservant l'erreur explicite demandant FFmpeg. Les segments sont affectés par le milieu de leur intervalle à un seul bloc logique pour limiter les doublons.
 - Quand SepFormer est activé, l'orchestrateur découpe en fenêtres courtes (10–60 secondes, 30 secondes par défaut), avec contexte de 2 secondes ; cela préserve l'état de lien des identités mais fait augmenter la durée de calcul.
 - La diarisation lit des fenêtres WAV à la demande au lieu de charger toutes les quatre heures en mémoire. L'état par fenêtre (tours, centroïdes, compteurs) est sauvegardé atomiquement sous `transcript/checkpoints/diarization/state.json`.
 - Chaque piste de transcription a des checkpoints JSON par bloc. Si un bloc ancien manque, les checkpoints plus tardifs ne sont pas réutilisés, car les identités de locuteurs sont un état séquentiel.

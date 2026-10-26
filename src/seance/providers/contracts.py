@@ -39,6 +39,8 @@ class ProviderOption:
     per_job: bool = False
     depends_on: str | None = None
     depends_value: Any = True
+    # A path can point to a local asset or to an executable that may be found on PATH.
+    path_role: Literal["asset", "executable"] = "asset"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -56,6 +58,7 @@ class ProviderOption:
             "per_job": self.per_job,
             "depends_on": self.depends_on,
             "depends_value": self.depends_value,
+            "path_role": self.path_role,
         }
 
 
@@ -94,6 +97,47 @@ class TranscriptionRequest:
     output_prefix: str
     language: str = "auto"
     threads: int = 1
+
+
+@dataclass(frozen=True, slots=True)
+class AudioStreamInfo:
+    """One audio stream discovered in a source file without decoding it."""
+
+    stream_index: int
+    audio_index: int
+    channels: int
+
+
+@dataclass(frozen=True, slots=True)
+class AudioTrackRequest:
+    """Extract one stream/channel into a WAV track.
+
+    Output invariant: mono PCM signed 16-bit at 16 kHz, whatever the source
+    container or sample rate. Normalization remains a use-case business rule; the
+    provider only decodes and converts the selected channel or downmix.
+    """
+
+    source: str
+    output: str
+    stream_index: int
+    audio_index: int
+    channel: int | None = None
+    cancel_event: Any = None
+
+
+@dataclass(frozen=True, slots=True)
+class AudioChunkRequest:
+    """Extract a time range that an ASR engine can read.
+
+    Output invariant: decodable by the ASR pipeline, preferably PCM WAV. When the
+    source allows it, the extracted range must last at least 0.1 s.
+    """
+
+    source: str
+    target: str
+    start_seconds: float
+    end_seconds: float
+    cancel_event: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +181,24 @@ class AudioSeparationResult:
     source_ids: tuple[str | None, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class SpeakerTurn:
+    """One provider-independent detected speaker turn, relative to an audio window."""
+
+    start_seconds: float
+    end_seconds: float
+    speaker_index: int
+
+
+class SpeakerDiarizationProvider(Protocol):
+    """Adapter contract for detecting speaker turns in a single audio window."""
+
+    info: ProviderInfo
+    sample_rate: int
+
+    def process(self, audio: Any) -> list[SpeakerTurn]: ...
+
+
 class SpeakerEmbeddingProvider(Protocol):
     info: ProviderInfo
 
@@ -153,6 +215,34 @@ class AudioSeparationProvider(Protocol):
     info: ProviderInfo
 
     def separate(self, request: AudioSeparationRequest) -> AudioSeparationResult: ...
+
+
+class MediaToolchainError(RuntimeError):
+    """Domain error raised when a media toolchain cannot complete an operation.
+
+    It derives from ``RuntimeError`` so existing use-case cleanup paths keep
+    handling provider failures without knowing about individual engines.
+    """
+
+
+class MediaToolchainUnavailable(MediaToolchainError):
+    """The selected media backend cannot run (missing tool or unsupported input)."""
+
+
+class MediaCancelled(MediaToolchainError):
+    """The caller cancelled a media operation."""
+
+
+class MediaToolchainProvider(Protocol):
+    """Adapter contract for probing and converting media without importing engines."""
+
+    info: ProviderInfo
+
+    def probe_audio_streams(self, source: str) -> list[AudioStreamInfo]: ...
+
+    def extract_track(self, request: AudioTrackRequest) -> None: ...
+
+    def extract_chunk(self, request: AudioChunkRequest) -> None: ...
 
 
 class TextGenerationProvider(Protocol):

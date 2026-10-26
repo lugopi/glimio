@@ -5,7 +5,6 @@ import hashlib
 import json
 import math
 import os
-import subprocess
 import tempfile
 import wave
 from pathlib import Path
@@ -18,8 +17,10 @@ from ..providers import DEFAULT_TRANSCRIPTION_PROVIDER, create_transcription_pro
 from ..providers.audio_processing import (
     create_audio_enhancement_provider, create_source_separation_provider,
 )
-from ..providers.contracts import AudioEnhancementRequest, AudioSeparationRequest
+from ..providers.contracts import AudioChunkRequest, AudioEnhancementRequest, AudioSeparationRequest
 from ..providers.contracts import TranscriptionRequest
+from ..providers.contracts import MediaCancelled, MediaToolchainError, MediaToolchainUnavailable
+from ..providers.media_tools import DEFAULT_MEDIA_PROVIDER, create_media_provider
 from ..project_paths import discover_project_root
 from ..session_paths import resolve_session
 from .diarization_process import diarize_transcription_isolated
@@ -72,19 +73,68 @@ def _audio_duration(path: Path) -> float | None:
         return None
 
 
-def _extract_chunk(source: Path, target: Path, start: float, end: float, ffmpeg: str,
-                   cancel_event: Any = None) -> None:
-    command = [
-        ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-ss", f"{start:.3f}",
-        "-i", str(source), "-t", f"{max(0.1, end - start):.3f}", "-c", "copy", str(target),
-    ]
+def _extract_wav_chunk(source: Path, target: Path, start: float, end: float,
+                       cancel_event: Any = None) -> bool:
+    """Copy a PCM WAV range natively; return False when the source is not a PCM WAV."""
     try:
-        result = _run_cancellable_command(command, cwd=source.parent, cancel_event=cancel_event)
-    except OSError as exc:
-        raise SystemExit(f"Could not extract an audio chunk with {ffmpeg}: {exc}") from exc
-    if result.returncode != 0 or not target.is_file() or target.stat().st_size == 0:
-        detail = result.stderr.strip()[-2000:]
-        raise SystemExit(f"Could not extract audio chunk from {source.name}: {detail or result.returncode}")
+        with wave.open(str(source), "rb") as reader:
+            rate = reader.getframerate()
+            if rate <= 0:
+                return False
+            channels = reader.getnchannels()
+            sample_width = reader.getsampwidth()
+            total_frames = reader.getnframes()
+            start_frame = min(total_frames, max(0, int(start * rate)))
+            end_frame = min(total_frames, max(start_frame, int(end * rate)))
+            # Match the FFmpeg path, which always extracts at least 0.1 s when possible.
+            minimum_frames = max(1, int(round(0.1 * rate)))
+            end_frame = min(total_frames, max(end_frame, start_frame + minimum_frames))
+            frame_count = max(0, end_frame - start_frame)
+            reader.setpos(start_frame)
+            data = reader.readframes(frame_count)
+            if cancel_event is not None and cancel_event.is_set():
+                raise SystemExit("Traitement annulé.")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with wave.open(str(target), "wb") as writer:
+                writer.setparams((channels, sample_width, rate, frame_count, "NONE", "not compressed"))
+                writer.writeframes(data)
+        return target.is_file() and target.stat().st_size > 0
+    except (OSError, wave.Error, EOFError):
+        target.unlink(missing_ok=True)
+        return False
+
+
+def _extract_chunk(source: Path, target: Path, start: float, end: float, media: Any,
+                   cancel_event: Any = None) -> None:
+    """Extract a chunk through the selected media provider with a native WAV fallback.
+
+    Only an unavailable toolchain triggers the native fallback. A cancelled operation
+    and a provider that ran but failed stay fatal, so a broken conversion is never
+    silently replaced by incomplete audio.
+    """
+    try:
+        media.extract_chunk(AudioChunkRequest(
+            source=str(source), target=str(target),
+            start_seconds=start, end_seconds=end, cancel_event=cancel_event,
+        ))
+    except MediaCancelled as exc:
+        raise SystemExit("Traitement annulé.") from exc
+    except MediaToolchainUnavailable as exc:
+        # FFmpeg could not even be launched (missing/corrupt executable) or the
+        # backend does not support this source. A PCM WAV source can still be
+        # chunked natively, without any external tool.
+        if _extract_wav_chunk(source, target, start, end, cancel_event):
+            log(f"Provider média indisponible ({exc}) ; découpage WAV natif pour {source.name}.")
+            return
+        raise SystemExit(
+            f"Impossible de découper le segment audio de {source.name} : le provider média n'a pas pu "
+            f"être utilisé ({exc}). Installez FFmpeg, configurez son chemin dans les paramètres, ou "
+            "désactivez l'amélioration audio et la séparation des voix."
+        ) from exc
+    except MediaToolchainError as exc:
+        raise SystemExit(f"Could not extract audio chunk from {source.name}: {exc}") from exc
+    if not target.is_file() or target.stat().st_size == 0:
+        raise SystemExit(f"Could not extract audio chunk from {source.name}: empty output")
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -105,6 +155,7 @@ def _checkpoint_signature(
     enhancement_provider: str, enhancement_options: dict[str, Any],
     separation_provider: str, separation_options: dict[str, Any],
     chunk_seconds: int, chunk_overlap_seconds: float,
+    media_provider: str = DEFAULT_MEDIA_PROVIDER,
     identity_context_paths: list[Path] | None = None,
 ) -> str:
     """Fingerprint source audio, model, and every setting that changes transcription."""
@@ -118,6 +169,9 @@ def _checkpoint_signature(
         "audio": {"path": str(audio_path.resolve()), "size": audio_stat.st_size, "mtime_ns": audio_stat.st_mtime_ns},
         "model": {"path": str(model_path.resolve()), **model_signature},
         "provider": provider_id, "provider_options": provider_options,
+        # Only the provider identity is part of the fingerprint. An executable path
+        # can differ between machines without changing the produced transcript.
+        "media_provider": media_provider,
         "optional_assets": {
             "enhancement": _asset_signature(enhancement_options),
             "separation": _asset_signature(separation_options),
@@ -125,7 +179,7 @@ def _checkpoint_signature(
         "language": language, "threads": threads,
         "enhancement_provider": enhancement_provider, "enhancement_options": enhancement_options,
         "separation_provider": separation_provider, "separation_options": separation_options,
-        "pipeline_version": 4,
+        "pipeline_version": 5,
         "chunk_seconds": chunk_seconds,
         "chunk_overlap_seconds": chunk_overlap_seconds,
         # Separator speaker IDs are linked across tracks in a deterministic order.
@@ -226,39 +280,30 @@ def _render_transcript(segments: list[dict[str, Any]], *, in_progress: bool = Fa
     return "\n".join(lines) + "\n"
 
 
-def _run_cancellable_command(command: list[str], *, cwd: Path, cancel_event: Any = None) -> subprocess.CompletedProcess[str]:
-    if cancel_event is not None and cancel_event.is_set():
-        raise SystemExit("Traitement annulé.")
-    process = subprocess.Popen(
-        command, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True, encoding="utf-8", errors="replace",
-    )
-    while True:
-        if cancel_event is not None and cancel_event.is_set():
-            process.terminate()
-            try:
-                process.communicate(timeout=2)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.communicate()
-            raise SystemExit("Traitement annulé.")
-        try:
-            stdout, stderr = process.communicate(timeout=0.25)
-            return subprocess.CompletedProcess(command, process.returncode or 0, stdout, stderr)
-        except subprocess.TimeoutExpired:
-            continue
-
-
 def transcribe(args: argparse.Namespace) -> None:
     executable = Path(args.whisper_cli).expanduser().resolve()
     model_path = Path(args.model).expanduser().resolve()
+    raw_provider_options = getattr(args, "provider_options", {}) or {}
+    if not isinstance(raw_provider_options, dict):
+        raw_provider_options = {}
+    media_provider_id = str(getattr(args, "media_provider", DEFAULT_MEDIA_PROVIDER) or DEFAULT_MEDIA_PROVIDER)
+    saved_media_options = raw_provider_options.get(media_provider_id, {})
+    media_options = dict(saved_media_options) if isinstance(saved_media_options, dict) else {}
+    if media_provider_id == "ffmpeg":
+        # Historical CLI flags and settings fields remain a compatibility alias.
+        media_options.setdefault("ffmpeg", getattr(args, "ffmpeg", "ffmpeg") or "ffmpeg")
+        media_options.setdefault("ffprobe", getattr(args, "ffprobe", "ffprobe") or "ffprobe")
+    media = create_media_provider(media_provider_id, media_options)
 
     requested = getattr(args, "folder", None)
     if requested and Path(requested).expanduser().is_file():
         folder = import_audio_file(
             requested,
             getattr(args, "directory", "seances"),
+            media_provider=media_provider_id,
+            media_options=media_options,
             ffmpeg=getattr(args, "ffmpeg", "ffmpeg"),
+            ffprobe=getattr(args, "ffprobe", "ffprobe"),
         )
     else:
         folder = resolve_session(
@@ -293,26 +338,28 @@ def transcribe(args: argparse.Namespace) -> None:
     tracks = [path for path in list_audio_paths(folder) if path.name not in disabled_tracks]
     (transcript_dir / "transcription_en_cours.md").unlink(missing_ok=True)
     provider_id = getattr(args, "transcription_provider", DEFAULT_TRANSCRIPTION_PROVIDER)
-    raw_provider_options = getattr(args, "provider_options", {}) or {}
     saved_provider_options = raw_provider_options.get(provider_id, {})
     provider_options = dict(saved_provider_options) if isinstance(saved_provider_options, dict) else {}
-    # Resolve model assets against the project root, not the caller's current directory.
+    # Resolve every path declared by the selected provider. The provider metadata
+    # distinguishes model/assets from executable commands that may be on PATH.
     project_root = discover_project_root(package_file=__file__)
-    for option_name in ("model", "vad_model"):
-        value = provider_options.get(option_name)
-        if isinstance(value, str) and value.strip():
-            path_value = Path(value).expanduser()
-            provider_options[option_name] = str(path_value.resolve() if path_value.is_absolute() else (project_root / path_value).resolve())
-    for option_name in ("whisper_cli",):
-        value = provider_options.get(option_name)
-        if isinstance(value, str) and ("/" in value or "\\" in value):
-            path_value = Path(value).expanduser()
-            provider_options[option_name] = str(path_value.resolve() if path_value.is_absolute() else (project_root / path_value).resolve())
+    from ..providers import get_provider_info
+    from ..providers.options import resolve_provider_option_paths
+    transcription_info = get_provider_info(provider_id)
+    if transcription_info is not None:
+        for option in transcription_info.options:
+            if option.key not in provider_options:
+                if hasattr(args, option.key) and getattr(args, option.key) is not None:
+                    provider_options[option.key] = getattr(args, option.key)
+                else:
+                    provider_options[option.key] = option.default
+    provider_options = resolve_provider_option_paths(transcription_info, provider_options, project_root)
     # Explicit CLI flags take precedence over the saved provider settings.
     for arg_name, option_name in (("vad_mode", "vad_mode"), ("vad_model", "vad_model"), ("vad_threshold", "vad_threshold")):
         value = getattr(args, arg_name, None)
         if value is not None:
             provider_options[option_name] = value
+    provider_options = resolve_provider_option_paths(transcription_info, provider_options, project_root)
     provider = create_transcription_provider(
         provider_id, executable, cancel_event=getattr(args, "_cancel_event", None), options=provider_options,
     )
@@ -337,14 +384,20 @@ def transcribe(args: argparse.Namespace) -> None:
     embedding_provider_id = str(getattr(args, "speaker_embedding_provider", "speechbrain-ecapa") or "speechbrain-ecapa")
     embedding_options = dict(provider_options_all.get(embedding_provider_id, {}) or {})
 
-    for options in (enhancement_options, separation_options, embedding_options):
-        for key, value in list(options.items()):
-            if not isinstance(value, str) or not value.strip():
-                continue
-            # Path settings are project-relative. Bare executable commands remain on PATH.
-            if key.endswith(("_model", "_dir", "_executable")) or key in {"model_dir", "deep_filter_model", "deep_filter_executable"}:
-                path_value = Path(value).expanduser()
-                options[key] = str(path_value.resolve() if path_value.is_absolute() else (project_root / path_value).resolve())
+    from ..providers.options import resolve_provider_option_paths
+    from ..providers import get_provider_info
+    provider_option_groups = (
+        (enhancement_provider_id, enhancement_options),
+        (separation_provider_id, separation_options),
+        (embedding_provider_id, embedding_options),
+    )
+    for selected_id, options in provider_option_groups:
+        info = get_provider_info(selected_id)
+        if info is not None:
+            for option in info.options:
+                if option.key not in options:
+                    options[option.key] = option.default
+            options.update(resolve_provider_option_paths(info, options, project_root))
     # The provider chain is independent from ASR. Selecting a source separator also
     # injects its declared embedding-provider dependency for stable identities between
     # short processing chunks. The default is no-separation (no extra heavy runtime).
@@ -404,6 +457,7 @@ def transcribe(args: argparse.Namespace) -> None:
             enhancement_options=enhancement_options, separation_provider=separation_provider_id,
             separation_options={**separation_options, "embedding_provider": embedding_provider_id, "embedding_options": embedding_options},
             chunk_seconds=chunk_seconds, chunk_overlap_seconds=chunk_overlap_seconds,
+            media_provider=media_provider_id,
             identity_context_paths=tracks[:track_position] if separation_provider_id != "no-separation" else [],
         )
         checkpoint_path = checkpoints_dir / f"{audio_path.stem}.json"
@@ -471,7 +525,7 @@ def transcribe(args: argparse.Namespace) -> None:
                 source_path = audio_path
                 if chunk_count > 1:
                     source_path = temp_path / f"audio_{chunk_index + 1:04d}.wav"
-                    _extract_chunk(audio_path, source_path, media_start, media_end, str(getattr(args, "ffmpeg", "ffmpeg")), cancel_event)
+                    _extract_chunk(audio_path, source_path, media_start, media_end, media, cancel_event)
 
                 # Noise reduction precedes source separation: separators trained on cleaner
                 # mixtures usually fare better when persistent hum/fan noise has been reduced.

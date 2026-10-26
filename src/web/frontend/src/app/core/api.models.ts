@@ -1,21 +1,25 @@
 export type ThemeName = 'dark' | 'light' | 'midnight' | 'forest' | 'dracula' | 'monokai';
 export type ViewName = 'recording' | 'jobs' | 'library' | 'search' | 'settings';
 export type JobState = 'queued' | 'running' | 'stopping' | 'completed' | 'cancelled' | 'error';
-export type JobAction = 'transcribe' | 'summarize' | 'process';
+export type JobAction = 'transcribe' | 'summarize' | 'process' | 'translate-summary';
 
 export interface GlimioSettings {
   processing_profile: 'turbo' | 'balanced' | 'quality' | 'pixel-perfect' | 'custom';
   model: string;
   transcription_provider: string;
+  media_provider: string;
   audio_enhancement_provider: string;
   source_separation_provider: string;
   speaker_embedding_provider: string;
   provider_options: Record<string, Record<string, unknown>>;
   whisper_cli: string;
   language: string;
+  summary_language: 'auto' | 'fr' | 'en' | 'de' | 'it' | 'es' | 'pt' | 'nl';
   threads: number;
   ffmpeg: string;
+  ffprobe: string;
   diarize: boolean;
+  diarization_provider: string;
   diarization_segmentation_model: string;
   diarization_embedding_model: string;
   diarization_num_speakers: number;
@@ -106,6 +110,7 @@ export interface ProviderOption {
   per_job: boolean;
   depends_on: string | null;
   depends_value: unknown;
+  path_role: 'asset' | 'executable';
 }
 
 export interface ProvidersResponse {
@@ -196,12 +201,14 @@ export interface SessionPage {
 
 export interface SessionDetail extends SessionSummary {
   metadata?: Record<string, unknown>;
+  summary_translations?: string[];
   files?: { summary: boolean; transcript: boolean; audio_tracks: string[]; analysis: boolean };
 }
 
 export interface SessionArtifact {
   session_id: string;
   kind: 'summary' | 'transcript';
+  language?: string;
   filename: string;
   revision: string;
   unchanged?: boolean;

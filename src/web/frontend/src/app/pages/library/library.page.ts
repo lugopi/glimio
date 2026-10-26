@@ -19,6 +19,8 @@ import { renderMarkdownToHtml } from '../../shared/markdown';
 import { estimateRemainingProcessingSeconds, type ProcessingDurationSample } from '../../shared/processing-eta';
 import { ProgressiveTextReveal, codePointLength, codePointTailHash, sliceCodePoints } from '../../shared/progressive-text';
 import { providerSupportsTranscriptionLanguage, transcriptionLanguageOptions } from '../../shared/transcription-languages';
+import { SummaryTranslationLanguageCode, summaryLanguageLabel as getSummaryLanguageLabel, summaryLanguageOptions, summaryTranslationOptions } from '../../shared/summary-languages';
+import { summaryFormatDescription, summaryFormatLabel, summaryFormatOptions } from '../../shared/summary-formats';
 import { JobEventsService } from '../../core/job-events.service';
 
 const ARTIFACT_REFRESH_DEBOUNCE_MS = 100;
@@ -55,7 +57,12 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   private etaRefreshTimer?: number;
   readonly providers = signal<ProviderStatus[] | null>(null);
   readonly transcriptionLanguages = computed(() => transcriptionLanguageOptions(this.preferences.preferences()?.ui.language ?? 'fr'));
-  readonly formats = ['auto', 'summary', 'daily', 'technical', 'formal', 'brainstorm'];
+  readonly formats = summaryFormatOptions.map(option => option.code);
+  readonly summaryLanguages = summaryLanguageOptions;
+  readonly summaryTranslationLanguages = summaryTranslationOptions;
+  readonly availableSummaryTranslations = computed(() => this.selected()?.summary_translations ?? []);
+  readonly artifactLanguage = signal<'source' | SummaryTranslationLanguageCode>('source');
+  readonly translationTarget = signal<SummaryTranslationLanguageCode>('en');
   readonly speakerCounts = [...Array.from({ length: 20 }, (_, index) => index + 1), 25, 30, 40, 50, 100];
   readonly artifactTitle = signal('');
   readonly artifactContent = signal('');
@@ -92,6 +99,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   private pendingSettingsSave: { sessionId: string; settings: GlimioSettings } | null = null;
   private settingsSaveChain: Promise<void> = Promise.resolve();
   private pendingSessionId: string | null = null;
+  private translationJob: { id: string; sessionId: string; language: SummaryTranslationLanguageCode } | null = null;
   private initialized = false;
   private jobsSubscription?: Subscription;
   private artifactSubscription?: Subscription;
@@ -158,7 +166,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     if (state === 'running') {
       const activePhaseLabels: Record<string, string> = {
         starting: 'Préparation', preparing: 'Préparation', importing: 'Importation',
-        transcribing: 'Transcription en cours', summarizing: 'Génération du résumé',
+        transcribing: 'Transcription en cours', summarizing: 'Génération du résumé', translating: 'Traduction du résumé',
         diarizing: 'Diarisation en cours',
         processing: 'Traitement', recording: 'Enregistrement', finalizing: 'Finalisation',
         completed: 'Terminé', cancelled: 'Annulé', error: 'Échec',
@@ -232,6 +240,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     this.summaryDraft.set('');
     const changingSession = this.selectedId() !== id;
     if (changingSession) {
+      this.artifactLanguage.set('source');
       void this.flushPendingSessionSettings().catch(error => this.toast.show(`Impossible d’enregistrer les options : ${error.message}`, 'error'));
       this.sessionSettings.set(null);
       this.liveArtifactPhaseKey = '';
@@ -324,7 +333,8 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   }
 
   numberValue(value: string | number): number { return Number(value); }
-  formatLabel(value: string): string { return ({ auto: 'Automatique', summary: 'Synthèse générale', daily: 'Daily — compte rendu de réunion', technical: 'Technique', formal: 'Formel', brainstorm: 'Brainstorming' } as Record<string, string>)[value] ?? value; }
+  formatLabel(value: string): string { return summaryFormatLabel(value); }
+  formatDescription(value: string): string { return summaryFormatDescription(value); }
 
   private scheduleSessionSettingsSave(): void {
     const sessionId = this.selectedId();
@@ -392,6 +402,56 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
         if (this.fullProcessStartingSessionId() === session.id) this.fullProcessStartingSessionId.set(null);
         this.working.set(false);
       });
+  }
+
+  translateSummary(targetLanguage: string): void {
+    const target = this.summaryTranslationLanguages.find(option => option.code === targetLanguage)?.code;
+    if (!target) {
+      this.toast.show('Choisissez une langue cible prise en charge.', 'error');
+      return;
+    }
+    if (this.sessionProcessingActive() || this.working() || this.summaryEditing()) return;
+    const session = this.selected();
+    const baseSettings = this.sessionSettings() ?? this.preferences.preferences()?.settings;
+    if (!session || !session.summary || !baseSettings) {
+      this.toast.show('Aucun résumé existant à traduire.', 'error');
+      return;
+    }
+    this.translationTarget.set(target);
+    this.working.set(true);
+    const translationSettings = { ...baseSettings, summary_language: target };
+    void this.flushPendingSessionSettings().catch(() => undefined)
+      .then(() => firstValueFrom(this.api.startSessionJob(
+        'translate-summary', session.id, this.settingsForJob(translationSettings), false,
+      )))
+      .then(job => {
+        this.translationJob = { id: job.id, sessionId: session.id, language: target };
+        if (this.selectedId() === session.id) {
+          this.selected.update(current => current ? { ...current, processing: this.processingInfo(job) } : current);
+        }
+        this.toast.show('Traduction du résumé ajoutée à la file.', 'success');
+        this.working.set(false);
+      })
+      .catch(error => {
+        this.toast.show(`Impossible de lancer la traduction : ${error?.message ?? String(error)}`, 'error');
+        this.working.set(false);
+      });
+  }
+
+  loadSummaryVersion(language: string): void {
+    if (this.summaryEditing() || !this.selected()?.summary) return;
+    if (language === 'source') {
+      this.loadArtifact('summary', 'source');
+      return;
+    }
+    const translation = this.summaryTranslationLanguages.find(option => option.code === language)?.code;
+    if (translation && this.availableSummaryTranslations().includes(translation)) {
+      this.loadArtifact('summary', translation);
+    }
+  }
+
+  summaryLanguageLabel(language: string): string {
+    return getSummaryLanguageLabel(language);
   }
 
   renameSession(): void {
@@ -574,12 +634,17 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  loadArtifact(kind: 'summary' | 'transcript'): void {
+  loadArtifact(kind: 'summary' | 'transcript', summaryLanguage?: string): void {
     if (this.summaryEditing() && this.artifactKind() !== kind) return;
     const session = this.selected();
     if (!session || session.id !== this.selectedId()
         || (kind === 'summary' && !session.summary)
         || (kind === 'transcript' && !session.transcript)) return;
+    const requestedLanguage = kind === 'summary'
+      ? (summaryLanguage ?? this.artifactLanguage())
+      : 'source';
+    const translation = requestedLanguage !== 'source' ? requestedLanguage : null;
+    if (kind === 'summary') this.artifactLanguage.set(requestedLanguage as 'source' | SummaryTranslationLanguageCode);
     const request = ++this.artifactRequest;
     window.clearTimeout(this.artifactRefreshTimer);
     this.artifactRefreshTimer = undefined;
@@ -594,7 +659,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     this.artifactLoading.set(true);
     this.artifactPending.set(false);
     this.artifactLive.set(false);
-    this.api.sessionArtifact(session.id, kind).subscribe({
+    this.api.sessionArtifact(session.id, kind, null, undefined, null, translation).subscribe({
       next: result => {
         if (this.destroyed || request !== this.artifactRequest || this.selectedId() !== session.id) return;
         this.applyArtifactResult(result, true);
@@ -626,6 +691,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   private handleArtifactUpdate(update: { session_id: string; kind: 'summary' | 'transcript'; revision?: string }): void {
     if (this.selectedId() !== update.session_id) return;
+    if (update.kind === 'summary' && this.artifactLanguage() !== 'source') return;
     const selected = this.selected();
     if (!selected || selected.id !== update.session_id) {
       // The detail request is still in flight: remember the kind and load it
@@ -663,7 +729,8 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     const tailHash = offset > 0 ? codePointTailHash(content, ARTIFACT_TAIL_CODE_POINTS) : null;
     this.artifactRefreshRunning = true;
     try {
-      const result = await firstValueFrom(this.api.sessionArtifact(sessionId, kind, revision, offset, tailHash));
+      const translation = kind === 'summary' && this.artifactLanguage() !== 'source' ? this.artifactLanguage() : null;
+      const result = await firstValueFrom(this.api.sessionArtifact(sessionId, kind, revision, offset, tailHash, translation));
       if (this.destroyed || request !== this.artifactRequest
           || this.selectedId() !== sessionId || this.artifactKind() !== kind) return;
       this.applyArtifactResult(result, false);
@@ -707,6 +774,28 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
       return job ? { ...item, processing: this.processingInfo(job) } : item;
     }));
     if (discoveredSession) this.loadSessions();
+
+    const translation = this.translationJob
+      ? response.items.find(item => item.id === this.translationJob!.id)
+      : undefined;
+    if (translation && !['queued', 'running', 'stopping'].includes(translation.state)) {
+      const completedTranslation = this.translationJob!;
+      this.translationJob = null;
+      if (translation.state === 'completed') {
+        if (this.selectedId() === completedTranslation.sessionId) {
+          this.artifactLanguage.set(completedTranslation.language);
+          this.translationTarget.set(completedTranslation.language);
+          this.selected.update(current => current ? {
+            ...current,
+            summary_translations: [...new Set([...(current.summary_translations ?? []), completedTranslation.language])],
+          } : current);
+          this.loadArtifact('summary', completedTranslation.language);
+        }
+        this.toast.show('Traduction du résumé terminée.', 'success');
+      } else if (translation.state === 'error' || translation.state === 'cancelled') {
+        this.toast.show(translation.error || 'La traduction du résumé n’a pas abouti.', 'error');
+      }
+    }
 
     const sessionId = this.selectedId();
     const current = this.selected();

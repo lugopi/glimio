@@ -8,7 +8,7 @@
           <button class="mobile-nav-toggle btn btn--secondary btn--icon" type="button" (click)="toggleMobileMenu()"
             [attr.aria-label]="mobileMenuOpen() ? 'Fermer le menu principal' : 'Ouvrir le menu principal'"
             aria-controls="main-navigation" [attr.aria-expanded]="mobileMenuOpen()">
-            <glimio-icon [name]="mobileMenuOpen() ? 'x-mark' : 'bars-3'" />
+            <glimio-icon class="menu-toggle-icon" [name]="mobileMenuOpen() ? 'x-mark' : 'bars-3'" />
           </button>
         </div>
         <div class="side-label">ESPACE DE TRAVAIL</div>

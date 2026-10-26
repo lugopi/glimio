@@ -26,17 +26,26 @@ from pydantic import BaseModel, Field, model_validator
 
 from seance.media.audio import _soundcard, audio_com_apartment, record
 from seance.layout import get_audio_path, get_transcript_path, has_audio, list_audio_paths
-from seance.processing.pipeline import minutes_folder, process_folder, transcribe_folder
+from seance.processing.pipeline import minutes_folder, process_folder, transcribe_folder, translate_summary_folder
+from seance.processing.report_formats import REPORT_FORMATS
 from seance.processing.quality_profiles import apply_processing_profile, PROFILE_GENERATION_SETTINGS
 from seance.llm import (
     LLMCancelled, LLMError, run_completion_resilient,
 )
 from seance.project_paths import DEFAULT_LLAMA_COMPLETION_PATH, DEFAULT_WHISPER_CLI_PATH
+from seance.summary_languages import TRANSLATION_LANGUAGE_CODES, available_summary_translations, summary_translation_path
 from seance.providers import (
+    DEFAULT_DIARIZATION_PROVIDER, DIARIZATION_PROVIDER_IDS,
     DEFAULT_TEXT_PROVIDER, DEFAULT_TRANSCRIPTION_PROVIDER,
     TEXT_PROVIDER_IDS, TRANSCRIPTION_PROVIDER_IDS, default_provider_options,
     get_provider_info, get_provider_statuses, normalize_provider_options,
 )
+from seance.providers.media_tools import (
+    DEFAULT_MEDIA_PROVIDER, MEDIA_PROVIDER_IDS, ensure_media_toolchain_ready,
+)
+from seance.providers.contracts import MediaToolchainUnavailable
+from seance.providers.plugins import get_provider_plugin
+from seance.providers.options import resolve_provider_option_paths
 
 from seance.project_paths import discover_project_root, resolve_session_root
 from seance.core.library import (
@@ -49,6 +58,9 @@ from seance.core.preferences_store import PreferencesStore
 from seance.core.devices import list_audio_devices
 from seance.core.sessions import (
     SessionServiceError, get_session as get_core_session,
+    read_metadata as read_core_metadata,
+    write_metadata as write_core_metadata,
+    mark_audio_outputs_stale as mark_core_audio_outputs_stale,
     rename_session as rename_core_session, delete_session as delete_core_session,
     set_audio_track_disabled as set_core_audio_track_disabled,
     delete_audio_track as delete_core_audio_track,
@@ -188,7 +200,7 @@ DEFAULT_WHISPER_CLI = DEFAULT_WHISPER_CLI_PATH
 DEFAULT_GGUF = "models/llm/model.gguf"
 DEFAULT_LLAMA_COMPLETION = DEFAULT_LLAMA_COMPLETION_PATH
 DEFAULT_THREADS = max(1, (os.cpu_count() or 4) // 2)
-VALID_FORMATS = {"summary", "auto", "daily", "technical", "formal", "brainstorm"}
+VALID_FORMATS = set(REPORT_FORMATS)
 
 
 def _project_path(value: str | Path) -> str:
@@ -262,15 +274,19 @@ class Settings(BaseModel):
     processing_profile: Literal["turbo", "balanced", "quality", "pixel-perfect", "custom"] = "balanced"
     model: str = DEFAULT_WHISPER_MODEL
     transcription_provider: str = "whisper.cpp"
+    media_provider: str = DEFAULT_MEDIA_PROVIDER
     audio_enhancement_provider: str = "ffmpeg-denoise"
     source_separation_provider: str = "no-separation"
     speaker_embedding_provider: str = "speechbrain-ecapa"
     provider_options: dict[str, dict[str, Any]] = Field(default_factory=dict)
     whisper_cli: str = DEFAULT_WHISPER_CLI
     language: str = "auto"
+    summary_language: str = Field(default="auto", pattern="^(auto|fr|en|de|it|es|pt|nl)$")
     threads: int = Field(default=DEFAULT_THREADS, ge=1, le=256)
     ffmpeg: str = "ffmpeg"
+    ffprobe: str = "ffprobe"
     diarize: bool = False
+    diarization_provider: str = DEFAULT_DIARIZATION_PROVIDER
     diarization_segmentation_model: str = "models/diarization/segmentation/segmentation.onnx"
     diarization_embedding_model: str = "models/diarization/embedding/embedding.onnx"
     diarization_num_speakers: int = Field(default=-1, ge=-1, le=256)
@@ -304,6 +320,16 @@ class Settings(BaseModel):
             value["source_separation_provider"] = "no-separation"
         if "speaker_embedding_provider" not in value:
             value["speaker_embedding_provider"] = "speechbrain-ecapa"
+        # Keep the top-level media commands aligned with the provider options, which
+        # are the only values the settings UI writes.
+        raw_options = value.get("provider_options")
+        if isinstance(raw_options, dict):
+            media_options = raw_options.get("ffmpeg")
+            if isinstance(media_options, dict):
+                for key in ("ffmpeg", "ffprobe"):
+                    configured = media_options.get(key)
+                    if isinstance(configured, str) and configured.strip():
+                        value[key] = configured.strip()
         if not value.get("openvino_device"):
             return value
         raw_provider_options = value.get("provider_options")
@@ -323,6 +349,10 @@ class Settings(BaseModel):
             raise HTTPException(status_code=422, detail="Provider de génération inconnu.")
         if values.get("transcription_provider") not in TRANSCRIPTION_PROVIDER_IDS:
             raise HTTPException(status_code=422, detail="Provider de transcription inconnu.")
+        if values.get("media_provider") not in MEDIA_PROVIDER_IDS:
+            raise HTTPException(status_code=422, detail="Provider média inconnu.")
+        if values.get("diarization_provider") not in DIARIZATION_PROVIDER_IDS:
+            raise HTTPException(status_code=422, detail="Provider de diarisation inconnu.")
         from seance.providers.audio_processing import ENHANCEMENT_PROVIDER_FACTORIES, SEPARATION_PROVIDER_FACTORIES, EMBEDDING_PROVIDER_FACTORIES
         if values.get("audio_enhancement_provider") not in ENHANCEMENT_PROVIDER_FACTORIES:
             raise HTTPException(status_code=422, detail="Provider d’amélioration audio inconnu.")
@@ -333,37 +363,68 @@ class Settings(BaseModel):
         values["provider_options"] = normalize_provider_options(
             values.get("provider_options", {}), legacy_values=values,
         )
-        text_options = values["provider_options"].get(values["text_provider"], {})
-        transcription_options = values["provider_options"].get(values["transcription_provider"], {})
-        for key in ("gguf", "llama_completion"):
-            if key in text_options:
-                values[key] = text_options[key]
-        for key in ("model", "whisper_cli"):
-            if key in transcription_options:
-                values[key] = transcription_options[key]
-        sherpa_options = values["provider_options"].get("sherpa-onnx", {})
-        for key in ("diarization_segmentation_model", "diarization_embedding_model"):
-            if key in sherpa_options:
-                values[key] = sherpa_options[key]
+        # Bridge the active provider's declared options into legacy use-case fields
+        # only when those fields exist. New plug-ins receive the full provider_options
+        # mapping and do not require adding engine-specific branches here.
+        active_provider_ids = {
+            values["text_provider"], values["transcription_provider"], values["media_provider"],
+            values["diarization_provider"], values["audio_enhancement_provider"],
+            values["source_separation_provider"], values["speaker_embedding_provider"],
+        }
+        pending = list(active_provider_ids)
+        while pending:
+            current_id = pending.pop()
+            current_info = get_provider_info(current_id)
+            if current_info is None:
+                continue
+            for dependency in current_info.requires:
+                if dependency not in active_provider_ids:
+                    active_provider_ids.add(dependency)
+                    pending.append(dependency)
+        for provider_id in active_provider_ids:
+            info = get_provider_info(provider_id)
+            if info is None:
+                continue
+            options = values["provider_options"].get(provider_id, {})
+            for option in info.options:
+                if option.key in values and option.key in options:
+                    values[option.key] = options[option.key]
         media_options = values["provider_options"].get("ffmpeg", {})
         if "ffmpeg" in media_options:
             values["ffmpeg"] = media_options["ffmpeg"]
+        if "ffprobe" in media_options:
+            values["ffprobe"] = media_options["ffprobe"]
         values["folder"] = folder
         values["directory"] = str(SESSION_ROOT)
-        for key in (
-            "model", "whisper_cli", "diarization_segmentation_model",
-            "diarization_embedding_model", "gguf", "llama_completion",
-        ):
-            if values.get(key):
+        # Normalize legacy top-level settings through the same provider metadata
+        # used by the CLI. This keeps asset paths project-relative while allowing
+        # executable commands such as ``whisper-cli`` to resolve from PATH.
+        legacy_path_provider_ids = {
+            "model": (values.get("transcription_provider"), "whisper.cpp"),
+            "whisper_cli": (values.get("transcription_provider"), "whisper.cpp"),
+            "diarization_segmentation_model": (values.get("diarization_provider"), "sherpa-onnx"),
+            "diarization_embedding_model": (values.get("diarization_provider"), "sherpa-onnx"),
+            "gguf": (values.get("text_provider"), "llama.cpp"),
+            "llama_completion": (values.get("text_provider"), "llama.cpp"),
+        }
+        for key, (active_provider_id, legacy_provider_id) in legacy_path_provider_ids.items():
+            if not values.get(key):
+                continue
+            info = get_provider_info(str(active_provider_id or ""))
+            declared_keys = {option.key for option in info.options} if info else set()
+            if key not in declared_keys:
+                info = get_provider_info(legacy_provider_id)
+            if info and key in {option.key for option in info.options}:
+                values[key] = resolve_provider_option_paths(info, {key: values[key]}, PROJECT_ROOT)[key]
+            else:
                 values[key] = _project_path(values[key])
         for provider_id, options in values["provider_options"].items():
             info = get_provider_info(provider_id)
             if info is None:
                 continue
-            for option in info.options:
-                if option.type == "path" and options.get(option.key):
-                    options[option.key] = _project_path(str(options[option.key]))
+            options.update(resolve_provider_option_paths(info, options, PROJECT_ROOT))
         values["ffmpeg"] = _program_path(values.get("ffmpeg", "ffmpeg"))
+        values["ffprobe"] = _program_path(values.get("ffprobe", "ffprobe"))
         if values["format"] not in VALID_FORMATS:
             raise HTTPException(status_code=422, detail="Format de résumé invalide.")
         if values.get("diarization_num_speakers") == 0:
@@ -390,7 +451,7 @@ class SaveSummaryRequest(BaseModel):
 
 
 class JobRequest(BaseModel):
-    action: Literal["transcribe", "summarize", "process"]
+    action: Literal["transcribe", "summarize", "process", "translate-summary"]
     session_id: str
     settings: Settings = Field(default_factory=Settings)
     force: bool = False
@@ -773,7 +834,7 @@ def _worker_from_payload_from_record(job: dict[str, Any]) -> Any:
     if payload.get("type") == "session":
         action = payload.get("action") or job.get("kind")
         session_id = payload.get("session_id") or job.get("session_id")
-        if action not in {"transcribe", "summarize", "process"} or not session_id:
+        if action not in {"transcribe", "summarize", "process", "translate-summary"} or not session_id:
             raise ValueError("action ou session_id manquant")
         Settings(**(payload.get("settings") or {}))
         return True
@@ -848,6 +909,10 @@ def _get_preferences() -> dict[str, Any]:
             saved_settings["text_provider"] = next(iter(TEXT_PROVIDER_IDS), DEFAULT_TEXT_PROVIDER)
         if saved_settings.get("transcription_provider") not in TRANSCRIPTION_PROVIDER_IDS:
             saved_settings["transcription_provider"] = next(iter(TRANSCRIPTION_PROVIDER_IDS), DEFAULT_TRANSCRIPTION_PROVIDER)
+        if saved_settings.get("media_provider") not in MEDIA_PROVIDER_IDS:
+            saved_settings["media_provider"] = DEFAULT_MEDIA_PROVIDER
+        if saved_settings.get("diarization_provider") not in DIARIZATION_PROVIDER_IDS:
+            saved_settings["diarization_provider"] = DEFAULT_DIARIZATION_PROVIDER
         settings = Settings(**saved_settings)
         settings_value = _serialize_model(settings)
         settings_value["provider_options"] = normalize_provider_options(
@@ -1146,6 +1211,8 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
             phase = "completed"
         elif "réutilisation du texte" in folded:
             phase = "processing"
+        elif "traduction du résumé" in folded:
+            phase = "translating"
         elif any(term in folded for term in (
             "llm", "analyse", "résumé", "synthèse", "génération", "rédaction", "relecture",
         )):
@@ -1185,9 +1252,10 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
     args.artifact_event_callback = publish_artifact_update
 
     def publish_provider_event(event: Any) -> None:
-        phase = {"transcription": "transcribing", "generation": "summarizing"}.get(
-            event.task, "processing",
-        )
+        phase = {
+            "transcription": "transcribing",
+            "generation": "translating" if action == "translate-summary" else "summarizing",
+        }.get(event.task, "translating" if action == "translate-summary" else "processing")
         current = _job_payload(job_id)
         current["provider_event"] = event.to_dict()
         _set_job(job_id, phase=phase, message=event.message, _payload=current)
@@ -1227,6 +1295,14 @@ def _run_session_job(action: str, folder: Path, settings: Settings, job_id: str,
             minutes_folder(folder, args, on_status=publish)
             mark_outputs_current(summary=True)
             save_checkpoint("summarized")
+    elif action == "translate-summary":
+        target_language = settings.summary_language
+        if target_language == "auto":
+            raise SystemExit("Choisissez une langue cible explicite pour traduire le résumé.")
+        publish(f"Traduction du résumé en {target_language}…")
+        translate_summary_folder(folder, args, target_language=target_language, on_status=publish)
+        publish("Traduction du résumé terminée · variante enregistrée")
+        save_checkpoint("translated")
     elif action == "process":
         if checkpoint not in {"transcribed", "summarized"}:
             # If power was lost during Whisper, a partially written transcript must not be
@@ -1275,14 +1351,23 @@ def _run_import_job(job_id: str) -> None:
         from seance.media.audio_import import import_audio_file
         display_name = str(payload.get("display_name") or source_file.name)
         _set_job(job_id, state="running", phase="importing", message=f"Import local de {display_name}…")
-        folder = import_audio_file(
-            source_file,
-            SESSION_ROOT,
-            ffmpeg=_program_path(settings.ffmpeg),
-            normalize=normalize_audio,
-            max_gain_db=normalize_max_gain_db,
-            cancel_event=CANCEL_EVENTS.get(job_id),
-        )
+        try:
+            folder = import_audio_file(
+                source_file,
+                SESSION_ROOT,
+                media_provider=settings.media_provider,
+                media_options=settings.provider_options.get(settings.media_provider, {}),
+                # Historical keyword arguments keep their meaning for the ffmpeg provider.
+                ffmpeg=_program_path(settings.ffmpeg),
+                ffprobe=_program_path(settings.ffprobe),
+                normalize=normalize_audio,
+                max_gain_db=normalize_max_gain_db,
+                cancel_event=CANCEL_EVENTS.get(job_id),
+            )
+        except BaseException:
+            # No session owns this upload yet, so never leave the temporary file behind.
+            source_file.unlink(missing_ok=True)
+            raise
         _save_session_processing_settings(folder, settings)
         # Persist the destination session before deleting the temporary upload. If the
         # machine stops now, recovery resumes processing from the session instead of importing twice.
@@ -1341,7 +1426,7 @@ def config() -> dict[str, Any]:
         "offline_local_mode": True,
         "defaults": _default_preferences()["settings"],
         "preferences": preferences,
-        "formats": ["auto", "summary", "daily", "technical", "formal", "brainstorm"],
+        "formats": list(REPORT_FORMATS),
         "processing_profiles": PROFILE_GENERATION_SETTINGS,
     }
 
@@ -1356,10 +1441,19 @@ def providers() -> dict[str, Any]:
     payloads = []
     for item in get_provider_statuses(Settings(**settings), project_root=PROJECT_ROOT):
         payload = item.to_dict()
+        plugin = get_provider_plugin(item.provider.id)
+        is_third_party_plugin = plugin is not None and plugin.info is item.provider
+        if is_third_party_plugin:
+            # Glimio's managed installer only installs in-tree dependencies;
+            # an entry point is code from an independently installed distribution.
+            payload["python_install_available"] = False
         payload["python_install_runtime_available"] = bool(
             payload["python_install_available"] and runtime_can_install_python
         )
-        payload["python_install_block_reason"] = ""
+        payload["python_install_block_reason"] = (
+            "Les dépendances de ce provider tiers sont gérées par son paquet Python."
+            if is_third_party_plugin else ""
+        )
         if payload["python_install_available"] and runtime_is_frozen and not runtime_can_install_python:
             payload["python_install_block_reason"] = (
                 "L’installation des providers Python est actuellement prise en charge dans les éditions précompilées "
@@ -1388,6 +1482,9 @@ def install_provider_python(provider_id: str, request: Request) -> dict[str, Any
     provider = get_provider_info(provider_id)
     if provider is None:
         raise HTTPException(status_code=404, detail="Provider inconnu.")
+    plugin = get_provider_plugin(provider_id)
+    if plugin is not None and plugin.info is provider:
+        raise HTTPException(status_code=400, detail="Les dépendances d’un provider tiers doivent être gérées par son paquet Python.")
     if not (provider.python_install_extra or provider.python_install_packages):
         raise HTTPException(status_code=400, detail="Ce provider n’a pas de dépendances Python installables en un clic.")
     try:
@@ -1580,6 +1677,7 @@ def session_detail(session_id: str) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError, UnicodeError):
         pass
     item["metadata"] = metadata
+    item["summary_translations"] = available_summary_translations(folder)
     _decorate_session_processing(item)
     processing = item.get("processing") or {}
     if processing.get("active"):
@@ -1604,66 +1702,40 @@ def session_detail(session_id: str) -> dict[str, Any]:
 
 def _save_session_processing_settings(folder: Path, settings: Settings) -> dict[str, Any]:
     """Persist the settings last chosen for this session without dropping other metadata."""
-    path = _session_metadata_path(folder)
-    metadata: dict[str, Any] = {}
-    if path.is_file():
-        try:
-            value = json.loads(path.read_text(encoding="utf-8-sig"))
-            if isinstance(value, dict):
-                metadata = value
-        except (OSError, json.JSONDecodeError, UnicodeError):
-            metadata = {}
-    metadata["processing_settings"] = _serialize_model(settings)
     try:
-        _write_metadata_atomically(path, metadata)
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Impossible d’enregistrer les options de la séance : {exc}") from exc
+        metadata = dict(read_core_metadata(folder))
+    except SessionServiceError:
+        # An unreadable metadata file must not prevent saving the chosen options.
+        metadata = {}
+    metadata["processing_settings"] = _serialize_model(settings)
+    _write_session_metadata(folder, metadata)
     return metadata
 
 
-def _session_metadata_path(folder: Path) -> Path:
-    structured = folder / "metadata" / "seance.json"
-    legacy = folder / "seance.json"
-    if structured.is_file() or not legacy.is_file():
-        return structured
-    return legacy
-
-
-def _write_metadata_atomically(path: Path, metadata: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        temporary.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        temporary.replace(path)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
 def _read_session_metadata(folder: Path) -> dict[str, Any]:
-    path = _session_metadata_path(folder)
-    if not path.is_file():
-        return {}
     try:
-        value = json.loads(path.read_text(encoding="utf-8-sig"))
-        return value if isinstance(value, dict) else {}
-    except (OSError, json.JSONDecodeError, UnicodeError):
-        raise HTTPException(status_code=409, detail="Les métadonnées de la séance sont illisibles ; aucune piste n’a été modifiée.")
+        return read_core_metadata(folder)
+    except SessionServiceError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Les métadonnées de la séance sont illisibles ; aucune piste n’a été modifiée.",
+        ) from exc
 
 
 def _write_session_metadata(folder: Path, metadata: dict[str, Any]) -> None:
     try:
-        _write_metadata_atomically(_session_metadata_path(folder), metadata)
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Impossible d’enregistrer les métadonnées de la séance : {exc}") from exc
+        write_core_metadata(folder, metadata)
+    except SessionServiceError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Impossible d’enregistrer les métadonnées de la séance : {exc}",
+        ) from exc
 
 
 def _mark_audio_outputs_stale(folder: Path, metadata: dict[str, Any]) -> None:
     # Keep generated artifacts but explicitly tell the UI they no longer reflect
     # the currently enabled audio set. Successful jobs clear each flag separately.
-    if transcript_path(folder) is not None:
-        metadata["audio_transcript_stale"] = True
-    if summary_path(folder) is not None:
-        metadata["audio_summary_stale"] = True
+    mark_core_audio_outputs_stale(folder, metadata)
 
 
 def _ensure_session_idle_for_audio_edit(folder: Path) -> None:
@@ -1875,14 +1947,16 @@ def _artifact_tail_hash(value: str) -> str:
 @app.get("/api/sessions/{session_id}/{kind}")
 def session_artifact(session_id: str, kind: str, response: Response,
                      revision: str | None = None, offset: int = 0,
-                     tail_hash: str | None = None) -> dict[str, Any]:
+                     tail_hash: str | None = None, translation: str | None = None) -> dict[str, Any]:
     if kind not in {"summary", "transcript"}:
         raise HTTPException(status_code=404, detail="Document inconnu.")
     try:
         folder = resolve_session_folder(SESSION_ROOT, session_id)
         response.headers["Cache-Control"] = "no-store"
-        active_job = _active_session_artifact_job(session_id, kind)
-        live_path = _live_session_artifact(folder, session_id, kind)
+        if translation is not None and (kind != "summary" or translation not in TRANSLATION_LANGUAGE_CODES):
+            raise HTTPException(status_code=422, detail="Langue de traduction invalide.")
+        active_job = None if translation is not None else _active_session_artifact_job(session_id, kind)
+        live_path = None if translation is not None else _live_session_artifact(folder, session_id, kind)
         if active_job and live_path is None:
             # Never fall back to the previous completed file while its replacement
             # is being prepared. Otherwise the detail pane can show stale content
@@ -1896,7 +1970,8 @@ def session_artifact(session_id: str, kind: str, response: Response,
                 "content": "",
                 "live": False,
             }
-        path = live_path or (summary_path(folder) if kind == "summary" else transcript_path(folder))
+        path = (summary_translation_path(folder, translation) if translation is not None else
+                live_path or (summary_path(folder) if kind == "summary" else transcript_path(folder)))
         if path is None:
             raise FileNotFoundError(f"Aucun document {kind} trouvé pour cette séance.")
         stat = path.stat()
@@ -1908,6 +1983,7 @@ def session_artifact(session_id: str, kind: str, response: Response,
             "filename": path.name,
             "revision": current_revision,
             "live": is_live,
+            "language": translation or "source",
         }
         if revision == current_revision:
             result["unchanged"] = True
@@ -2076,6 +2152,8 @@ def job(job_id: str) -> dict[str, Any]:
 
 @app.post("/api/jobs")
 def start_session_job(request: JobRequest) -> dict[str, Any]:
+    if request.action == "translate-summary" and request.settings.summary_language == "auto":
+        raise HTTPException(status_code=422, detail="Choisissez une langue cible explicite pour traduire le résumé.")
     try:
         folder = resolve_session_folder(SESSION_ROOT, request.session_id)
     except ValueError as exc:
@@ -2092,19 +2170,22 @@ def start_session_job(request: JobRequest) -> dict[str, Any]:
     if active:
         raise HTTPException(status_code=409, detail="Un traitement est déjà en cours pour cette séance.")
 
-    metadata_path = _session_metadata_path(folder)
     try:
-        existing_metadata = json.loads(metadata_path.read_text(encoding="utf-8-sig")) if metadata_path.is_file() else {}
-    except (OSError, json.JSONDecodeError, UnicodeError):
+        existing_metadata = read_core_metadata(folder)
+    except SessionServiceError:
+        # Keep the previous tolerant behavior: invalid metadata is replaced below.
         existing_metadata = {}
-    if not isinstance(existing_metadata, dict) or not isinstance(existing_metadata.get("processing_settings"), dict):
+    if request.action != "translate-summary" and (
+        not isinstance(existing_metadata, dict)
+        or not isinstance(existing_metadata.get("processing_settings"), dict)
+    ):
         _save_session_processing_settings(folder, request.settings)
 
     def worker(job_id: str) -> None:
         _run_session_job(request.action, folder, request.settings, job_id,
                          force=request.force)
 
-    label = {"transcribe": "Transcription lancée", "summarize": "Résumé lancé", "process": "Traitement complet lancé"}[request.action]
+    label = {"transcribe": "Transcription lancée", "summarize": "Résumé lancé", "process": "Traitement complet lancé", "translate-summary": "Traduction du résumé lancée"}[request.action]
     return _start_job(
         request.action, label, worker, session_id=folder.name,
         payload={"type": "session", "action": request.action, "session_id": folder.name,
@@ -2239,6 +2320,18 @@ async def import_and_process(
         raise HTTPException(status_code=422, detail=f"Paramètres d'importation invalides : {exc}") from exc
     if not 0.0 <= normalize_windows_max_gain_db <= 30.0:
         raise HTTPException(status_code=422, detail="Le gain maximal de normalisation doit être compris entre 0 et 30 dB.")
+    media_info = get_provider_info(settings.media_provider)
+    if media_info is None or media_info.task != "media":
+        raise HTTPException(status_code=422, detail="Provider média inconnu.")
+    media_options = dict(settings.provider_options.get(settings.media_provider) or {})
+    if settings.media_provider == DEFAULT_MEDIA_PROVIDER:
+        # Historical top-level settings remain aliases for the ffmpeg provider options.
+        media_options.setdefault("ffmpeg", _program_path(settings.ffmpeg))
+        media_options.setdefault("ffprobe", _program_path(settings.ffprobe))
+    try:
+        ensure_media_toolchain_ready(media_info, media_options, PROJECT_ROOT)
+    except MediaToolchainUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     SESSION_ROOT.mkdir(parents=True, exist_ok=True)
     upload_dir = SESSION_ROOT / ".web-uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
@@ -2256,10 +2349,13 @@ async def import_and_process(
                     break
                 total += len(chunk)
                 if total > MAX_IMPORT_BYTES:
-                    target.close()
-                    file_path.unlink(missing_ok=True)
                     raise HTTPException(status_code=413, detail="Fichier trop volumineux (limite : 5 Go).")
-                target.write(chunk)
+                await asyncio.to_thread(target.write, chunk)
+    except BaseException:
+        # No job owns this temporary file yet, so never leave it behind.
+        if file_path is not None:
+            file_path.unlink(missing_ok=True)
+        raise
     finally:
         await file.close()
 
@@ -2283,7 +2379,8 @@ async def import_and_process(
             "import", f"Import de {display_name} en préparation",
             _run_import_job, payload=job_payload,
         )
-    except HTTPException:
+    except BaseException:
+        # The queue rejected the job: its source file is still unowned.
         file_path.unlink(missing_ok=True)
         raise
 

@@ -168,7 +168,7 @@ def test_ffmpeg_provider_requires_ffprobe_for_media_import(tmp_path: Path, monke
     ffmpeg = tmp_path / "ffmpeg.exe"
     ffmpeg.write_bytes(b"test executable placeholder")
     monkeypatch.setattr(
-        "seance.providers.registry.shutil.which",
+        "seance.executables.shutil.which",
         lambda command: str(ffmpeg) if command == "ffmpeg" else None,
     )
     settings = Settings(**_default_preferences()["settings"])
@@ -182,12 +182,76 @@ def test_ffmpeg_provider_requires_ffprobe_for_media_import(tmp_path: Path, monke
     assert statuses["ffmpeg"].ready is True
 
 
+def test_ffmpeg_provider_accepts_a_configured_ffprobe_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from seance.providers.registry import get_provider_statuses
+    from web.app import Settings, _default_preferences
+
+    ffmpeg = tmp_path / "ffmpeg.exe"
+    ffmpeg.write_bytes(b"test executable placeholder")
+    ffprobe = tmp_path / "custom" / "ffprobe.exe"
+    ffprobe.parent.mkdir(parents=True)
+    ffprobe.write_bytes(b"test executable placeholder")
+    monkeypatch.setattr(
+        "seance.executables.shutil.which",
+        lambda command: str(ffmpeg) if command == "ffmpeg" else None,
+    )
+    preferences = _default_preferences()["settings"]
+    preferences["provider_options"]["ffmpeg"]["ffprobe"] = str(ffprobe)
+    settings = Settings(**preferences)
+
+    statuses = {status.provider.id: status for status in get_provider_statuses(settings, project_root=tmp_path)}
+
+    assert statuses["ffmpeg"].ready is True
+    assert statuses["ffmpeg"].details["ffprobe_executable"] == str(ffprobe.resolve())
+    assert settings.ffprobe == str(ffprobe)
+
+
+def test_ffmpeg_provider_reports_a_missing_configured_ffprobe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from seance.providers.registry import get_provider_statuses
+    from web.app import Settings, _default_preferences
+
+    ffmpeg = tmp_path / "ffmpeg.exe"
+    ffmpeg.write_bytes(b"test executable placeholder")
+    # A probe beside FFmpeg must not mask an explicit, broken setting.
+    (tmp_path / "ffprobe.exe").write_bytes(b"test executable placeholder")
+    missing_ffprobe = tmp_path / "custom" / "ffprobe.exe"
+    monkeypatch.setattr(
+        "seance.executables.shutil.which",
+        lambda command: str(ffmpeg) if command == "ffmpeg" else None,
+    )
+    preferences = _default_preferences()["settings"]
+    preferences["provider_options"]["ffmpeg"]["ffprobe"] = str(missing_ffprobe)
+    settings = Settings(**preferences)
+
+    statuses = {status.provider.id: status for status in get_provider_statuses(settings, project_root=tmp_path)}
+
+    assert statuses["ffmpeg"].ready is False
+    assert str(missing_ffprobe) in statuses["ffmpeg"].missing
+
+
 def test_all_builtin_providers_expose_provider_owned_english_metadata() -> None:
     from seance.providers.registry import BUILTIN_PROVIDERS
 
     assert BUILTIN_PROVIDERS
     for info in BUILTIN_PROVIDERS:
         assert info.translations.get("en"), f"{info.id} should keep its own English metadata translations"
+
+
+def test_native_media_provider_is_ready_without_external_tools(tmp_path: Path) -> None:
+    from seance.providers.registry import get_provider_statuses
+    from web.app import Settings, _default_preferences
+
+    settings = Settings(**_default_preferences()["settings"])
+    statuses = {status.provider.id: status for status in get_provider_statuses(settings, project_root=tmp_path)}
+
+    assert statuses["native"].ready is True
+    assert statuses["native"].missing == ()
+    assert statuses["native"].provider.execution == "embedded"
+    assert statuses["native"].provider.task == "media"
 
 
 def test_managed_runtime_bootstraps_pip_if_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

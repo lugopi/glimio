@@ -5,7 +5,7 @@
 :host .jobs-page-heading > div { @apply min-w-0; }
 :host .jobs-page-refresh { @apply size-11 min-w-11 shrink-0; }
 :host .jobs-page-panel { @apply p-5; }
-:host .jobs-page-row { @apply grid min-w-0 grid-cols-[31px_minmax(0,1fr)_auto_auto] items-center gap-3 border-t border-border-soft py-3; }
+:host .jobs-page-row { @apply grid min-w-0 items-center gap-3 border-t border-border-soft py-3; grid-template-columns: 2rem minmax(0, 1fr) auto auto; }
 :host .jobs-page-row > .job-main { @apply min-w-0; }
 :host .jobs-page-actions { @apply flex min-w-0 items-center justify-end gap-2; }
 :host .jobs-page-row > .jobs-page-actions { @apply col-span-2 col-start-3; }
@@ -16,7 +16,7 @@
 
 @media (width < theme(--breakpoint-md)) {
   :host .jobs-page-heading { @apply flex-row; }
-  :host .jobs-page-row { @apply grid-cols-[31px_minmax(0,1fr)]; }
+  :host .jobs-page-row { grid-template-columns: 2rem minmax(0, 1fr); }
   :host .jobs-page-row > .jobs-page-actions { @apply col-span-1 col-start-2 justify-between; }
 }
 

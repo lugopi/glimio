@@ -59,11 +59,13 @@ export class ApiService {
   }
 
   sessionArtifact(id: string, kind: 'summary' | 'transcript',
-                  revision?: string | null, offset?: number, tailHash?: string | null): Observable<SessionArtifact> {
+                  revision?: string | null, offset?: number, tailHash?: string | null,
+                  translationLanguage?: string | null): Observable<SessionArtifact> {
     let params = new HttpParams();
     if (revision) params = params.set('revision', revision);
     if (offset) params = params.set('offset', offset);
     if (tailHash) params = params.set('tail_hash', tailHash);
+    if (translationLanguage) params = params.set('translation', translationLanguage);
     return this.get<SessionArtifact>(`/api/sessions/${encodeURIComponent(id)}/${kind}`, params);
   }
 

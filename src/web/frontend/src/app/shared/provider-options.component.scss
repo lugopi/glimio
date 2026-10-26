@@ -3,10 +3,20 @@
 :host { @apply block min-w-0; }
 .provider-settings { @apply grid min-w-0 content-start gap-3; }
 .provider-settings__heading { @apply flex flex-wrap items-center justify-between gap-2; }
-.provider-status { @apply rounded-full border border-border-soft px-2 py-1 text-xs; }
+.provider-description { @apply m-0 text-xs leading-relaxed text-subtle; }
+.provider-status { @apply inline-flex  items-center rounded-full border border-border-soft px-2 py-0.5 text-xs leading-4; }
 .provider-status[data-ready='true'] { @apply border-emerald-700/40 text-emerald-700; }
 .provider-status[data-ready='false'] { @apply border-amber-700/40 text-amber-700; }
-.provider-missing { @apply break-all text-sm text-amber-700; }
+.provider-missing { @apply break-words text-sm text-amber-700; }
+.provider-dependency-link { @apply inline-flex min-h-6 items-center rounded-sm font-semibold underline decoration-dotted underline-offset-2 hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2; }
+.provider-dependency-link:focus-visible { @apply outline-border; }
+.provider-parameters { @apply rounded-lg border border-border-soft px-3 py-2; }
+.provider-parameters > summary { @apply flex min-h-9 flex-wrap items-center justify-between gap-2 cursor-pointer text-sm font-medium; }
+.provider-parameters > summary::-webkit-details-marker { @apply hidden; }
+.provider-parameters__chevron { @apply size-4 shrink-0 transition-transform; }
+.provider-parameters[open] .provider-parameters__chevron { @apply rotate-180; }
+.provider-parameters[open] > summary { @apply mb-3 border-b border-border-soft pb-2; }
+.provider-parameters__body { @apply grid gap-4 py-1; }
 .provider-readiness-help { @apply flex min-w-0 flex-wrap items-center gap-2; }
 .provider-readiness-help .text-link-button { @apply inline-flex min-h-8 items-center gap-1.5 text-left text-xs; }
 .provider-readiness-help glimio-icon { @apply size-3.5; }
@@ -82,7 +92,13 @@
   @apply m-0 rounded-md border border-border-soft p-3 text-sm text-amber-700;
 }
 
-.provider-resources { @apply rounded-lg border border-border-soft px-3 py-2; }
-.provider-resources > summary { @apply min-h-9 cursor-pointer text-sm font-medium text-muted; }
-.provider-resources[open] > summary { @apply mb-3 border-b border-border-soft pb-2 text-text; }
+.provider-maintenance { @apply rounded-lg border border-border-soft px-3 py-1; }
+.provider-maintenance > summary { @apply flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-muted; }
+.provider-maintenance > summary::-webkit-details-marker { @apply hidden; }
+.provider-maintenance[open] > summary { @apply mb-3 border-b border-border-soft pb-2 text-text; }
+.provider-maintenance__chevron { @apply size-4 shrink-0 transition-transform; }
+.provider-maintenance[open] .provider-maintenance__chevron { @apply rotate-180; }
+.provider-maintenance__body { @apply grid gap-4 pb-3; }
+.provider-resources { @apply grid gap-3 border-t border-border-soft pt-3; }
+.provider-resources__title { @apply m-0 text-sm font-medium; }
 .provider-resources .provider-setup-links__list { @apply grid gap-3; }

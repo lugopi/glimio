@@ -5,61 +5,88 @@
 .library-list-panel { @apply p-5; }
 .session-processing-options {
   /* Align with adjacent detail sections: the outer panel owns the common horizontal gutter. */
-  @apply border-t border-border-soft px-0 pb-1 pt-5;
-  > .detail-section-heading { @apply mb-4; }
+  @apply border-t border-border-soft px-0 pb-1 pt-4;
+  > .detail-section-heading { @apply mb-3; }
   > .settings-grid { @apply mt-0; }
-  .common-processing-fields { @apply mt-4 gap-x-4 gap-y-4; }
-  .field-label { @apply mb-2; }
-  .field-note { @apply mt-2; }
+  .common-processing-fields { @apply mt-3 gap-x-3 gap-y-3; }
+  .field-label { @apply mb-1.5; }
+  .field-note { @apply mt-1.5; }
 }
-.session-action-row { @apply hidden; }
-.card-actions { @apply mt-4; }
-.library-pagination-footer { @apply mt-4 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border-t border-border-soft pt-3.5; }
+.library-pagination-footer { @apply mt-3 grid min-w-0 items-center gap-3 border-t border-border-soft pt-3; grid-template-columns: auto minmax(0, 1fr); }
 .library-pagination-footer glimio-pagination { @apply min-w-0; }
 .page-size-control .field-label { @apply mb-0 whitespace-nowrap; }
 .page-size-control .select { @apply w-20 min-w-20; }
 .session-live-progress { @apply w-full min-w-0; }
 .session-progress-icon > .spinner { @apply size-4; }
 .session-progress-heading { @apply min-w-0; }
-.session-progress-heading strong { color: var(--c-text); }
-.session-live-progress.is-completed .session-progress-icon { color: var(--c-success); background: color-mix(in srgb, var(--c-success) 12%, transparent); }
-.session-live-progress.is-error .session-progress-icon { color: var(--c-danger); background: var(--c-danger-soft); }
+.session-progress-heading strong {
+  @apply text-text;
+}
+.session-live-progress.is-completed .session-progress-icon {
+  @apply text-success bg-success-soft;
+}
+.session-live-progress.is-error .session-progress-icon {
+  @apply text-danger bg-danger-soft;
+}
 
 .detail-heading-copy { @apply min-w-0 flex-1; }
-.detail-heading-copy .card-title { @apply my-1; margin-bottom: 5px; overflow-wrap: anywhere; }
+.detail-heading-copy .card-title {
+  @apply my-1 wrap-anywhere;
+}
 .detail-heading-copy > .eyebrow { @apply whitespace-nowrap; }
 .detail-meta { @apply m-0; }
 .detail-header { @apply gap-2; }
 .detail-actions { @apply shrink-0 items-center; }
-.detail-process-button { @apply min-h-11 whitespace-nowrap; }
-.session-actions-toggle { @apply flex size-11 min-h-11 min-w-11 items-stretch justify-stretch p-0; box-sizing: border-box; }
-.session-actions-icon { @apply flex size-full min-h-0 min-w-0 flex-1 items-center justify-center; }
-.session-actions-icon glimio-icon { @apply flex size-full flex-1 items-center justify-center; font-size: 36px; }
+.detail-process-button { @apply min-h-10 whitespace-nowrap; }
 .detail-processing-status { @apply m-0 flex w-full min-w-0 items-start gap-2 rounded-lg border border-border-soft bg-surface-raised px-3 py-2 text-xs leading-relaxed text-muted; }
 .detail-processing-status > glimio-icon { @apply mt-px flex size-4 shrink-0; }
 .detail-processing-status > .spinner { @apply mt-0.5 size-3.5 shrink-0; }
-.detail-processing-status.is-running { color: var(--c-accent); }
-.detail-processing-status.is-completed { color: var(--c-success); }
-.detail-processing-status.is-error { color: var(--c-danger); border-color: color-mix(in srgb, var(--c-danger) 30%, var(--c-border)); background: var(--c-danger-soft); }
-.detail-actions .session-actions-menu { @apply shrink-0; }
+.detail-processing-status.is-running {
+  @apply text-accent;
+}
+.detail-processing-status.is-completed {
+  @apply text-success;
+}
+.detail-processing-status.is-error {
+  @apply text-danger bg-danger-soft border-danger-border;
+}
 
 .detail-section-heading { @apply flex-wrap; }
 .detail-section-heading .field-note { @apply mt-1 mb-0; }
 .artifact-tabs { @apply mt-0 flex flex-wrap items-stretch gap-0 overflow-hidden rounded-t-xl border border-b-0 border-border-soft bg-surface-raised; }
-.artifact-tab { @apply inline-flex min-h-11 items-center justify-center gap-2 border-0 border-b-2 border-transparent px-4 py-2 text-left text-sm font-semibold text-muted; background: transparent; cursor: pointer; }
-.artifact-tab[tabindex="-1"] { outline: none; }
-.artifact-tab:hover { color: var(--c-text); background: var(--c-surface-raised); }
-.artifact-tabs.is-disabled { cursor: not-allowed; }
+.artifact-tab {
+  @apply inline-flex min-h-10 items-center justify-center gap-2 border-0 border-b-2 border-transparent bg-transparent px-4 py-2 text-left text-sm font-semibold text-muted cursor-pointer;
+}
+.artifact-tab[tabindex="-1"] {
+  @apply outline-none;
+}
+.artifact-tab:hover {
+  @apply text-text bg-surface-raised;
+}
+.artifact-tabs.is-disabled {
+  @apply cursor-not-allowed;
+}
 .artifact-toolbar { @apply flex min-w-0 flex-wrap items-center justify-between gap-2 border-x border-border-soft bg-surface px-3 py-2; }
 .artifact-format-label { @apply min-w-0 text-xs text-muted; }
 .artifact-toolbar-actions { @apply flex min-w-0 flex-wrap items-center gap-2; }
-.summary-markdown-editor { min-height: 22rem; resize: vertical; font-family: var(--font-code); line-height: 1.6; white-space: pre-wrap; }
+.summary-markdown-editor {
+  @apply min-h-80 resize-y font-mono leading-relaxed whitespace-pre-wrap;
+}
 .summary-editor-note { @apply mt-2; }
-.artifact-tab:disabled { cursor: not-allowed; opacity: .58; }
-.artifact-tab:disabled:hover { color: var(--c-muted); background: transparent; }
-.artifact-tab.is-active { color: var(--c-accent); border-bottom-color: var(--c-accent); background: var(--c-accent-soft); }
-.artifact-tab:focus-visible { outline: 2px solid var(--c-accent); outline-offset: -2px; }
-.artifact-tab glimio-icon { @apply size-[17px]; }
+.artifact-tab:disabled {
+  @apply cursor-not-allowed opacity-60;
+}
+.artifact-tab:disabled:hover {
+  @apply text-muted bg-transparent;
+}
+.artifact-tab.is-active {
+  @apply text-accent bg-accent-soft border-b-accent;
+}
+.artifact-tab:focus-visible {
+  @apply outline-2 outline-accent;
+  outline-offset: -2px;
+}
+.artifact-tab glimio-icon { @apply size-4; }
 .artifact-loading { @apply flex items-center gap-2 text-sm text-muted; }
 .documents-empty { @apply mt-4 flex items-start gap-3 rounded-xl border border-dashed border-border-soft p-4 text-sm text-muted; }
 .documents-empty > glimio-icon { @apply mt-0.5 size-5 shrink-0 text-accent; }
@@ -68,7 +95,7 @@
 .session-card-top { @apply min-w-0 gap-1.5; }
 .session-date { @apply shrink-0 whitespace-nowrap; }
 .session-markers { @apply min-w-0 items-center; }
-.session-markers .badge { @apply min-h-6 shrink-0 justify-center gap-1 px-[5px] py-[3px] text-[.6875rem]; }
+.session-markers .badge { @apply shrink-0 justify-center; }
 .session-markers .badge > glimio-icon { @apply inline-flex size-3 flex-none items-center justify-center; }
 
 @media (width < theme(--breakpoint-sm)) {
@@ -76,37 +103,55 @@
   .library-pagination-footer glimio-pagination { @apply w-full; }
   .page-size-control { @apply justify-between; }
   .detail-header-top { @apply flex-col; }
-  .session-actions-menu { flex: 0 0 44px; }
+  .library-list-panel, .session-detail-panel { @apply p-4; }
   .artifact-tab { @apply flex-1 px-3; }
 }
 
 @media (width < theme(--breakpoint-md)) {
   .detail-actions { @apply w-full flex-nowrap justify-between gap-2; }
   .detail-process-button { @apply min-w-0 flex-1; }
-  .session-actions-menu { @apply shrink-0; }
 }
 
 .audio-stale-notice { @apply my-4 flex min-w-0 items-start gap-3 rounded-xl border border-warning bg-surface-raised p-4 text-sm text-muted; }
-.audio-stale-notice > glimio-icon { @apply mt-0.5 size-[19px] shrink-0 text-warning; }
+.audio-stale-notice > glimio-icon { @apply mt-0.5 size-5 shrink-0 text-warning; }
 .audio-stale-notice > div { @apply min-w-0 flex-1; }
-.audio-stale-notice strong { color: var(--c-text); }
+.audio-stale-notice strong {
+  @apply text-text;
+}
 .audio-stale-notice p { @apply mt-1 mb-0 leading-relaxed; }
-.audio-track-list { min-width: 0; }
+.audio-track-list {
+  @apply min-w-0;
+}
 @media (width < theme(--breakpoint-sm)) {
   .audio-stale-notice { @apply flex-wrap; }
   .audio-stale-notice > .btn { @apply w-full; }
 }
 
-/* Library polish: tab panel and status icons remain centered. */
-.session-card-status { @apply items-start; }
-.session-card-status > glimio-icon { @apply mt-px size-4 shrink-0 self-start; flex: 0 0 16px; }
-.session-card-status > .spinner { @apply mt-px shrink-0; }
-@media (width < theme(--breakpoint-sm)) {
+/* Keep live status icons aligned with the first line of text. */
+.session-card-status > glimio-icon {
+  @apply mt-px size-4 grow-0 shrink-0 basis-4 self-start;
 }
-
+.session-card-status > .spinner { @apply mt-px shrink-0; }
 /* Compact the page-size control when the list column is narrow, without wrapping the paginator. */
 @container (max-width: 360px) {
   .page-size-control .field-label { @apply sr-only; }
   .page-size-control .select { @apply w-16 min-w-16; }
   .library-pagination-footer { @apply gap-2; }
+}
+
+.summary-version-switcher { @apply grid gap-1 border-x border-border-soft bg-surface px-3 py-2.5; }
+@media (width >= theme(--breakpoint-sm)) {
+  .summary-version-switcher { @apply items-center justify-between; grid-template-columns: minmax(8rem, auto) minmax(12rem, 20rem); }
+}
+.summary-actions-panel {
+  @apply min-w-60;
+}
+.summary-translation-controls {
+  @apply mt-1.5 grid gap-2 border-t border-border px-1.5 pt-2.5 pb-1;
+}
+.summary-translation-controls .field-label {
+  @apply text-xs;
+}
+.summary-translation-controls .select {
+  @apply w-full min-w-0;
 }

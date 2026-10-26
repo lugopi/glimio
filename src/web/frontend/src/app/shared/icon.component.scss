@@ -17,5 +17,11 @@
 }
 
 /* Fill the icon host when a parent control gives it an explicit size. */
-.icon-host--fill { @apply size-full min-h-0 min-w-0; font-size: inherit; }
-.icon--fill { @apply size-full min-h-0 min-w-0; font-size: inherit; }
+.icon-host--fill {
+  @apply size-full min-h-0 min-w-0;
+  font-size: inherit;
+}
+.icon--fill {
+  @apply size-full min-h-0 min-w-0;
+  font-size: inherit;
+}

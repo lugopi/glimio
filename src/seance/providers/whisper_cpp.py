@@ -128,7 +128,7 @@ WHISPER_CPP_INFO = ProviderInfo(
             key="whisper_cli", label="Moteur de transcription", type="path",
             default=DEFAULT_WHISPER_CLI_PATH,
             description="Exécutable whisper-cli fourni avec l’installation.",
-            required=True, advanced=True,
+            required=True, advanced=True, path_role="executable",
         ),
         ProviderOption(
             key="beam_size", label="Recherche de transcription", type="select",
