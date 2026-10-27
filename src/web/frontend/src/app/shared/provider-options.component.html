@@ -1,13 +1,19 @@
-<div class="provider-settings">
+<div class="provider-settings grid min-w-0 content-start gap-3">
   @if (!perJobOnly()) {
-    <div class="provider-settings__heading">
+    <div class="provider-settings__heading flex flex-wrap items-center justify-between gap-2">
       <strong data-no-translate>{{ providerText(provider().name) }}</strong>
       <span class="provider-status" [attr.data-ready]="provider().ready">{{ provider().ready ? 'Prêt' : provider().message }}</span>
     </div>
-    <small class="provider-description" data-no-translate>{{ providerText(provider().description) }}</small>
+    <small class="provider-description m-0 text-xs leading-relaxed text-subtle" data-no-translate>{{ providerText(provider().description) }}</small>
+    @if (warnings().length) {
+      <div class="provider-advisories flex min-w-0 items-start gap-2 rounded-md border border-warning-border bg-warning-banner p-3 text-sm text-muted" role="status">
+        <glimio-icon class="mt-0.5 size-4 shrink-0 text-warning" name="information-circle" />
+        <div>@for (warning of warnings(); track warning) { <p class="m-0" data-no-translate>{{ providerText(warning) }}</p> }</div>
+      </div>
+    }
     @if (missingItems().length) {
       <div class="provider-readiness-help">
-        <small class="provider-missing">
+        <small class="provider-missing break-words text-sm text-amber-700">
         À configurer :
         @for (item of missingItems(); track $index) {
           @if ($index) { <span>, </span> }
@@ -26,7 +32,7 @@
         }
       </div>
     }
-    @if (readinessError(); as error) { <small class="provider-readiness-error" role="status">{{ error }}</small> }
+    @if (readinessError(); as error) { <small class="provider-readiness-error text-sm text-danger" role="status">{{ error }}</small> }
   }
 
   @if (!perJobOnly() && (provider().python_install_available || (showSetupLinks() && provider().setup_links.length))) {
@@ -37,8 +43,8 @@
       </summary>
       <div class="provider-maintenance__body">
         @if (provider().python_install_available) {
-          <section class="provider-install" aria-label="Installer les dépendances Python">
-            <div class="provider-setup-heading">
+          <section class="provider-install grid gap-2 rounded-lg border border-border-soft p-3" aria-label="Installer les dépendances Python">
+            <div class="provider-setup-heading flex flex-wrap items-center justify-between gap-2">
               <strong>Dépendances Python</strong>
               @if (provider().python_install_runtime_available) {
                 <button class="btn btn--secondary btn--small" type="button" [disabled]="installingPython()" (click)="installPythonDependencies()">
@@ -49,31 +55,31 @@
             <small class="field-note">Installe les dépendances Python nécessaires au provider. Depuis les sources, elles rejoignent l’environnement Python actif ; dans une édition précompilée, elles s’installent dans un runtime Python isolé téléchargé à la première installation. Internet est nécessaire. Les modèles et binaires natifs restent séparés.</small>
             @if (provider().python_install_note) { <small class="field-note" data-no-translate>{{ providerText(provider().python_install_note) }}</small> }
             @if (!provider().python_install_runtime_available && provider().python_install_block_reason) {
-              <p class="provider-install-unavailable">{{ provider().python_install_block_reason }} Les liens d’installation et de modèles ci-dessous restent disponibles.</p>
+              <p class="provider-install-unavailable m-0 rounded-md border border-border-soft p-3 text-sm text-amber-700">{{ provider().python_install_block_reason }} Les liens d’installation et de modèles ci-dessous restent disponibles.</p>
             }
             @if (installation(); as state) {
-              <div class="provider-install-status" [attr.data-state]="state.state" role="status" aria-live="polite">
+              <div class="provider-install-status grid gap-2 rounded-md border border-border-soft p-3 text-sm" [attr.data-state]="state.state" role="status" aria-live="polite">
                 <strong>{{ state.message }}</strong>
                 @if (state.state === 'succeeded') {
                   @if (checkingReadiness()) {
-                    <p class="provider-install-help">Vérification des dépendances et ressources…</p>
+                    <p class="provider-install-help m-0 text-sm text-muted">Vérification des dépendances et ressources…</p>
                   } @else {
                     @if (postInstallStatus(); as verified) {
                       @if (verified.ready) {
-                        <p class="provider-ready-note">Le provider a été détecté comme prêt après l’installation. Aucun redémarrage n’est nécessaire.</p>
+                        <p class="provider-ready-note m-0 text-sm text-emerald-700">Le provider a été détecté comme prêt après l’installation. Aucun redémarrage n’est nécessaire.</p>
                       } @else if (missingPythonPackages(verified).length) {
-                        <p>Les dépendances ont été installées, mais Glimio ne les détecte pas encore toutes. Redémarrez l’application puis vérifiez à nouveau.</p>
+                        <p class="m-0 text-sm">Les dépendances ont été installées, mais Glimio ne les détecte pas encore toutes. Redémarrez l’application puis vérifiez à nouveau.</p>
                       } @else {
-                        <p class="provider-install-help">Les dépendances Python sont détectées. Il reste des ressources à configurer, comme les modèles ou chemins indiqués ci-dessus ; un redémarrage n’est pas nécessaire pour ces ressources.</p>
+                        <p class="provider-install-help m-0 text-sm text-muted">Les dépendances Python sont détectées. Il reste des ressources à configurer, comme les modèles ou chemins indiqués ci-dessus ; un redémarrage n’est pas nécessaire pour ces ressources.</p>
                       }
                     } @else if (state.restart_required) {
-                      <p>Installation terminée, mais l’état du provider n’a pas pu être re-vérifié. Redémarrez Glimio puis contrôlez son état dans les paramètres.</p>
+                      <p class="m-0 text-sm">Installation terminée, mais l’état du provider n’a pas pu être re-vérifié. Redémarrez Glimio puis contrôlez son état dans les paramètres.</p>
                     }
                   }
                 }
                 @if (state.output) {
-                  <details class="provider-install-log">
-                    <summary>Journal d’installation</summary>
+                  <details class="provider-install-log grid gap-2">
+                    <summary class="cursor-pointer font-medium">Journal d’installation</summary>
                     <pre>{{ state.output }}</pre>
                   </details>
                 }
@@ -83,12 +89,12 @@
         }
 
         @if (showSetupLinks() && provider().setup_links.length) {
-          <section class="provider-resources" aria-label="Aide à l’installation, modèles, binaires et documentation">
-            <strong class="provider-resources__title">Aide à l’installation · modèles, binaires et documentation</strong>
-            <div class="provider-setup-links__list">
+          <section class="provider-resources grid gap-3 border-t border-border-soft pt-3" aria-label="Aide à l’installation, modèles, binaires et documentation">
+            <strong class="provider-resources__title m-0 text-sm font-medium">Aide à l’installation · modèles, binaires et documentation</strong>
+            <div class="provider-setup-links__list grid gap-3">
               @for (resource of provider().setup_links; track resource.url) {
-                <div class="provider-setup-link" data-no-translate>
-                  <a class="text-link-button" [href]="resource.url" target="_blank" rel="noopener noreferrer" data-no-translate>{{ providerText(resource.label) }}</a>
+                <div class="provider-setup-link grid gap-1" data-no-translate>
+                  <a class="text-link-button w-fit text-left" [href]="resource.url" target="_blank" rel="noopener noreferrer" data-no-translate>{{ providerText(resource.label) }}</a>
                   @if (resource.description) { <small class="field-note" data-no-translate>{{ providerText(resource.description) }}</small> }
                 </div>
               }
@@ -112,7 +118,7 @@
         @if (!showAllOptions() && options(true).length) {
           <details class="provider-advanced">
             <summary>Options avancées</summary>
-            <div class="provider-option-list">
+            <div class="provider-option-list mt-4 grid gap-4">
               @for (option of options(true); track option.key) {
                 <ng-container *ngTemplateOutlet="optionField; context: { $implicit: option }" />
               }
@@ -128,7 +134,7 @@
     @if (!showAllOptions() && options(true).length) {
       <details class="provider-advanced">
         <summary>Options avancées</summary>
-        <div class="provider-option-list">
+        <div class="provider-option-list mt-4 grid gap-4">
           @for (option of options(true); track option.key) {
             <ng-container *ngTemplateOutlet="optionField; context: { $implicit: option }" />
           }
@@ -142,7 +148,7 @@
   @if (option.type === 'boolean') {
     <glimio-checkbox-field [attr.data-no-translate]="''" [fieldId]="fieldId(option)" [title]="providerText(option.label) + (option.required ? ' *' : '')" [description]="providerText(option.description)" [checked]="!!value(option)" (checkedChange)="update(option, $event)" />
   } @else {
-    <label class="provider-option" data-no-translate>
+    <label class="provider-option grid min-w-0" data-no-translate>
       <span class="field-label">{{ providerText(option.label) }}{{ option.required ? ' *' : '' }}</span>
       @switch (option.type) {
         @case ('select') {

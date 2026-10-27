@@ -151,6 +151,48 @@ def get_provider_statuses(settings: Any, *, project_root: str | Path) -> list[Pr
             missing = tuple(str(path) for path in paths if path is None or not path.is_file())
             if not details["package_available"]:
                 missing = (*missing, "Python package sherpa-onnx")
+        elif provider.id == "whisper.cpp":
+            configured = provider_options.get(provider.id, {})
+            configured = dict(configured) if isinstance(configured, dict) else {}
+            missing_values: list[str] = []
+            details = {}
+            for option in provider.options:
+                value = configured.get(option.key, option.default)
+                if option.type != "path":
+                    continue
+                raw_text = str(value).strip() if value is not None else ""
+                raw_path = Path(raw_text).expanduser() if raw_text else None
+                is_bare_executable = (
+                    option.path_role == "executable"
+                    and raw_path is not None
+                    and not raw_path.is_absolute()
+                    and "/" not in raw_text
+                    and "\\" not in raw_text
+                )
+                if is_bare_executable:
+                    executable = shutil.which(raw_text)
+                    details[option.key] = executable or raw_text
+                    if option.required and executable is None:
+                        missing_values.append(raw_text or option.label)
+                    continue
+                resolved = _resolved_path(value, root)
+                details[option.key] = str(resolved) if resolved else None
+                if option.required and (resolved is None or not resolved.is_file()):
+                    missing_values.append(str(resolved or option.label))
+
+            vad_mode = str(configured.get("vad_mode", "auto") or "auto").strip().lower()
+            vad_model = _resolved_path(configured.get("vad_model", "models/asr/ggml-silero-v6.2.0.bin"), root)
+            vad_available = bool(vad_model and vad_model.is_file())
+            details["vad_model_path"] = str(vad_model) if vad_model else None
+            details["vad_model_available"] = vad_available
+            if vad_mode != "off" and not vad_available:
+                if vad_mode == "on":
+                    missing_values.append(str(vad_model or "Modèle VAD Silero"))
+                elif vad_mode == "auto":
+                    details["warnings"] = [
+                        "Modèle VAD Silero introuvable : le mode automatique désactive temporairement le VAD."
+                    ]
+            missing = tuple(missing_values)
         elif provider.id in MEDIA_PROVIDER_IDS:
             configured = provider_options.get(provider.id, {})
             configured = dict(configured) if isinstance(configured, dict) else {}

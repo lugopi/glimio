@@ -1,124 +1,34 @@
 @reference '../../../styles/tailwind-ref.scss';
 
 :host { @apply block min-w-0; }
-:host .search-hero { @apply mb-4 p-5; border-color: color-mix(in srgb, var(--c-border) 68%, var(--c-surface)); }
-:host .search-hero > label { @apply mb-3 block text-compact font-bold; }
+:host .search-hero { border-color: color-mix(in srgb, var(--c-border) 68%, var(--c-surface)); }
 :host .ai-composer {
-  @apply relative overflow-hidden rounded-lg border border-border-soft bg-surface-raised;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .025);
   transition: border-color .16s ease, box-shadow .16s ease;
 }
 :host .ai-composer:focus-within {
-  @apply border-accent;
   box-shadow: 0 0 0 2px var(--c-accent-soft);
-}
-:host .ai-query-input.textarea {
-  @apply block h-auto min-h-20 max-h-64 w-full resize-none overflow-y-hidden rounded-none border-0 bg-transparent p-4 text-compact leading-relaxed outline-none;
-  box-shadow: none;
 }
 :host .ai-query-input.textarea:focus {
   @apply border-0 outline-none;
   box-shadow: none;
 }
-:host .ai-query-input.textarea.is-overflowing {
-  @apply overflow-y-auto;
-}
-:host .ai-query-input::placeholder {
-  @apply text-subtle;
-}
-:host .ai-composer-footer { @apply flex flex-wrap items-center justify-between gap-3 border-t border-border-soft px-3 py-2.5; background: color-mix(in srgb, var(--c-surface-raised) 76%, var(--c-surface)); }
-:host .ai-query-shortcut { @apply font-mono text-xs text-subtle; }
-:host .ai-search-actions { @apply ml-auto flex items-center justify-end gap-2; }
-:host .ai-run-button {
-  @apply min-w-32;
-}
-:host .search-hint {
-  @apply mt-4 mb-0 flex items-start gap-2 px-0 text-compact leading-relaxed text-subtle;
-}
-:host .search-hint glimio-icon { @apply size-3.5 shrink-0; }
-:host .search-results { @apply grid min-w-0 gap-3; }
-:host .answer-card { @apply rounded-xl border-0 bg-surface p-5 shadow-none; }
-:host .result-card-head { @apply mb-3 flex flex-wrap items-center justify-between gap-2.5; }
-:host .result-card-head h2 { @apply m-0 text-compact font-bold; }
-:host .result-chip { @apply rounded-md border-0 bg-surface-raised px-2 py-1 font-mono text-xs text-muted; }
-:host .answer-text {
-  @apply text-xs leading-6 text-muted wrap-anywhere;
-}
+:host .ai-composer-footer { background: color-mix(in srgb, var(--c-surface-raised) 76%, var(--c-surface)); }
 :host .answer-text h1,
 :host .answer-text h2,
 :host .answer-text h3 {
   @apply text-text;
 }
-:host .source-list { @apply grid min-w-0 gap-0; }
-:host .source-item {
-  @apply box-border grid w-full min-w-0 items-start gap-3 rounded-xl border-0 bg-surface p-4 text-sm;
-  @apply mx-0;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
-  transition: background .15s ease;
-}
-:host .source-item + .source-item { @apply border-t border-border-soft; }
-:host .source-item:hover {
-  @apply bg-surface-hover;
-}
-:host .source-number { @apply font-mono text-compact text-accent; }
-:host .source-item strong { @apply text-compact; }
-:host .source-meta {
-  @apply mt-1 text-xs text-subtle wrap-anywhere;
-}
-:host .source-excerpt {
-  @apply mt-2 whitespace-pre-wrap text-compact leading-relaxed text-muted;
-}
-:host .search-answer-markdown { @apply mt-0 rounded-none border-0 bg-transparent p-0; }
 :host .search-answer-markdown > :first-child { @apply mt-0; }
-@media (width < theme(--breakpoint-md)) {
-  :host .ai-composer-footer { @apply items-center; }
-}
-@media (width < theme(--breakpoint-sm)) {
-  :host .search-hero { @apply p-4; }
-  :host .ai-composer-footer { @apply gap-2 p-2; }
-  :host .ai-query-shortcut { @apply text-xs; }
-  :host .ai-run-button {
-    @apply min-w-28;
-  }
-  :host .source-item {
-    grid-template-columns: 24px minmax(0, 1fr);
-  }
-  :host .source-item .source-open {
-    @apply col-start-2 justify-self-start;
-  }
-}
 
-:host .selected-session-list { @apply mb-3 flex flex-wrap items-center gap-2; }
-:host .selected-session-chip { @apply inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 text-xs text-muted; }
-:host .selected-session-chip > span { @apply max-w-60 truncate; }
-:host .selected-session-chip > glimio-icon { @apply size-3.5 shrink-0 text-accent; }
-:host .chip-remove { @apply inline-flex size-5 shrink-0 items-center justify-center rounded-full text-subtle; }
 :host .chip-remove:hover {
   @apply bg-surface-hover text-text;
 }
 :host .chip-remove glimio-icon { @apply size-3; }
-:host .text-action { @apply px-1 py-1 text-xs text-accent underline underline-offset-2; }
-:host .session-suggestions {
-  @apply relative z-20 max-h-64 overflow-y-auto border-x border-t border-border-soft bg-surface p-2;
-  box-shadow: 0 8px 18px rgb(0 0 0 / .12);
-}
-:host .session-suggestions-label { @apply px-2 py-1.5 text-xs font-bold uppercase tracking-wide text-subtle; }
-:host .session-suggestion { @apply flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-left text-xs; }
+:host .session-suggestions { box-shadow: 0 8px 18px rgb(0 0 0 / .12); }
 :host .session-suggestion:hover,
 :host .session-suggestion:focus-visible {
   @apply bg-surface-hover outline-none;
 }
-:host .session-suggestion > glimio-icon { @apply size-4 shrink-0 text-accent; }
-:host .session-suggestion-copy { @apply grid min-w-0 flex-1 gap-0.5; }
-:host .session-suggestion-copy strong { @apply truncate font-semibold text-text; }
-:host .session-suggestion-copy small { @apply truncate text-xs text-subtle; }
-@media (width < theme(--breakpoint-sm)) {
-  :host .ai-search-actions { @apply w-full flex-wrap; }
-  :host .ai-search-actions .ai-run-button { @apply ml-auto; }
-}
-
 
 /* Match the session picker to the library's card list while retaining checkbox selection. */
-:host .search-answer-heading { @apply items-center; }
-:host .search-answer-heading h2 { @apply min-w-0 flex-1; }
-:host .search-summary-actions-menu .session-actions-panel { @apply min-w-48; }

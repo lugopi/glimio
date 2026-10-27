@@ -9,13 +9,8 @@
   > .detail-section-heading { @apply mb-3; }
   > .settings-grid { @apply mt-0; }
   .common-processing-fields { @apply mt-3 gap-x-3 gap-y-3; }
-  .field-label { @apply mb-1.5; }
-  .field-note { @apply mt-1.5; }
 }
 .library-pagination-footer { @apply mt-3 grid min-w-0 items-center gap-3 border-t border-border-soft pt-3; grid-template-columns: auto minmax(0, 1fr); }
-.library-pagination-footer glimio-pagination { @apply min-w-0; }
-.page-size-control .field-label { @apply mb-0 whitespace-nowrap; }
-.page-size-control .select { @apply w-20 min-w-20; }
 .session-live-progress { @apply w-full min-w-0; }
 .session-progress-icon > .spinner { @apply size-4; }
 .session-progress-heading { @apply min-w-0; }
@@ -30,14 +25,6 @@
 }
 
 .detail-heading-copy { @apply min-w-0 flex-1; }
-.detail-heading-copy .card-title {
-  @apply my-1 wrap-anywhere;
-}
-.detail-heading-copy > .eyebrow { @apply whitespace-nowrap; }
-.detail-meta { @apply m-0; }
-.detail-header { @apply gap-2; }
-.detail-actions { @apply shrink-0 items-center; }
-.detail-process-button { @apply min-h-10 whitespace-nowrap; }
 .detail-processing-status { @apply m-0 flex w-full min-w-0 items-start gap-2 rounded-lg border border-border-soft bg-surface-raised px-3 py-2 text-xs leading-relaxed text-muted; }
 .detail-processing-status > glimio-icon { @apply mt-px flex size-4 shrink-0; }
 .detail-processing-status > .spinner { @apply mt-0.5 size-3.5 shrink-0; }
@@ -51,7 +38,6 @@
   @apply text-danger bg-danger-soft border-danger-border;
 }
 
-.detail-section-heading { @apply flex-wrap; }
 .detail-section-heading .field-note { @apply mt-1 mb-0; }
 .artifact-tabs { @apply mt-0 flex flex-wrap items-stretch gap-0 overflow-hidden rounded-t-xl border border-b-0 border-border-soft bg-surface-raised; }
 .artifact-tab {
@@ -72,7 +58,6 @@
 .summary-markdown-editor {
   @apply min-h-80 resize-y font-mono leading-relaxed whitespace-pre-wrap;
 }
-.summary-editor-note { @apply mt-2; }
 .artifact-tab:disabled {
   @apply cursor-not-allowed opacity-60;
 }
@@ -139,19 +124,12 @@
   .library-pagination-footer { @apply gap-2; }
 }
 
-.summary-version-switcher { @apply grid gap-1 border-x border-border-soft bg-surface px-3 py-2.5; }
 @media (width >= theme(--breakpoint-sm)) {
-  .summary-version-switcher { @apply items-center justify-between; grid-template-columns: minmax(8rem, auto) minmax(12rem, 20rem); }
+  .summary-version-switcher { grid-template-columns: minmax(8rem, auto) minmax(12rem, 20rem); }
 }
 .summary-actions-panel {
   @apply min-w-60;
 }
 .summary-translation-controls {
   @apply mt-1.5 grid gap-2 border-t border-border px-1.5 pt-2.5 pb-1;
-}
-.summary-translation-controls .field-label {
-  @apply text-xs;
-}
-.summary-translation-controls .select {
-  @apply w-full min-w-0;
 }

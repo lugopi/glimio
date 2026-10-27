@@ -128,6 +128,27 @@ class JobEventCoalescingTests(unittest.TestCase):
             _coalesce_job_event_locked("job", {"id": "job-2"}, "job:job-2")
         self.assertEqual(JOB_EVENT_PENDING, {})
 
+    def test_sse_client_disconnect_unregisters_without_failing_the_job_stream(self) -> None:
+        class _DisconnectedRequest:
+            async def is_disconnected(self) -> bool:
+                raise ConnectionResetError("browser closed the event stream")
+
+        async def open_stream():
+            response = await web_app.job_events(_DisconnectedRequest())
+            iterator = response.body_iterator
+            retry = await iterator.__anext__()
+            snapshot = await iterator.__anext__()
+            with self.assertRaises(StopAsyncIteration):
+                await iterator.__anext__()
+            return retry, snapshot
+
+        with patch("web.app._initialize_persistence"):
+            retry, snapshot = asyncio.run(open_stream())
+
+        self.assertTrue(retry.startswith("retry:"))
+        self.assertTrue(snapshot.startswith("event: snapshot\ndata: "))
+        self.assertEqual(web_app.JOB_EVENT_SUBSCRIBERS, {})
+
     def test_sse_registration_flushes_pending_before_registering_and_snapshot(self) -> None:
         existing_queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue(maxsize=8)
         with JOB_EVENT_LOCK:

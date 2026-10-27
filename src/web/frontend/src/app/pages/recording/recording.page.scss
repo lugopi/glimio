@@ -3,30 +3,7 @@
 :host { @apply block min-w-0; }
 .control-grid > *, .device-grid > * { @apply min-w-0; }
 
-.audio-source-builder { @apply mt-2 grid min-w-0 gap-3; }
-.source-add-row { @apply grid min-w-0 items-end gap-2.5; grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr) auto; }
-.source-add-row > * { @apply min-w-0; }
-.source-add-button { @apply min-h-11 whitespace-nowrap; }
-.source-add-button glimio-icon { @apply size-4 text-base; }
-.device-meta { @apply min-w-0; }
-.device-meta > span {
-  @apply min-w-0 wrap-anywhere;
-}
-.device-meta .text-link-button { @apply inline-flex min-h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap; }
-.device-meta .text-link-button glimio-icon {
-  @apply inline-flex size-4 grow-0 shrink-0 basis-4 text-lg;
-}
-.selected-audio-sources { @apply grid min-w-0 gap-2; }
-.selected-audio-source { @apply flex min-w-0 items-center gap-3 rounded-xl border border-border-soft bg-surface-raised px-3 py-2.5; }
-.selected-source-icon { @apply flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent; }
-.selected-source-icon glimio-icon { @apply flex size-5; }
-.selected-source-copy { @apply flex min-w-0 flex-1 flex-col gap-0.5; }
-.selected-source-copy strong { @apply text-sm font-semibold text-text; }
-.selected-source-copy small {
-  @apply text-xs text-muted wrap-anywhere;
-}
-.remove-audio-source { @apply flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted; }
-.remove-audio-source glimio-icon { @apply flex size-4; }
+.source-add-row { grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr) auto; }
 .remove-audio-source:hover:not(:disabled) {
   @apply border-danger bg-danger-soft text-danger;
 }
@@ -34,9 +11,7 @@
 .remove-audio-source:focus-visible {
   @apply outline-2 outline-accent outline-offset-2;
 }
-.source-validation-message { @apply m-0 rounded-lg border border-danger bg-danger-soft p-3 text-sm text-danger; }
 .file-dropzone {
-  @apply mt-2 flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-surface-raised px-4 py-5 text-center;
   transition: border-color .15s, background-color .15s;
 }
 .file-dropzone:hover,
@@ -44,41 +19,13 @@
   @apply border-accent bg-accent-soft;
 }
 .file-dropzone.has-file {
-  @apply border-solid;
   border-color: color-mix(in srgb, var(--c-accent) 50%, var(--c-border));
 }
 .file-dropzone:focus-within {
   @apply outline-2 outline-accent outline-offset-3;
 }
-.file-dropzone > strong {
-  @apply max-w-full text-sm wrap-anywhere;
-}
-.file-dropzone > small { @apply text-xs leading-normal text-muted; }
-.file-dropzone-icon { @apply flex size-11 items-center justify-center rounded-xl border border-border bg-accent-soft text-accent; }
-.file-dropzone-icon glimio-icon { @apply flex size-6; }
-.import-panel .workflow-options { @apply mt-4; }
-.import-panel .workflow-options + .btn { @apply mt-4; }
-.import-panel > .field-note { @apply mt-2; }
-.recording-live-row { @apply flex min-w-0 flex-1 items-stretch gap-2.5; }
-.recording-live-status { @apply flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border-soft bg-surface-raised px-3 py-2; }
-.recording-live-status .status-dot { @apply size-2 shrink-0; }
 .recording-live-status .status-dot.is-recording {
   @apply bg-danger shadow-danger-live-ring animate-recording-pulse;
-}
-.recording-live-copy {
-  @apply min-w-0 flex-1 text-sm text-muted wrap-anywhere;
-}
-.recording-live-status strong { @apply shrink-0 font-mono text-xs text-text; }
-.recording-live-row .stop-recording-button { @apply w-auto min-w-28 min-h-11 shrink-0 justify-center whitespace-nowrap; }
-.card-actions > .btn--primary { @apply min-h-12 w-full; }
-.jobs-footer { @apply flex min-w-0 flex-wrap items-center justify-between gap-3; }
-.jobs-footer > glimio-pagination { @apply min-w-0 flex-1; }
-.jobs-footer > .btn--danger {
-  @apply text-danger;
-  border-color: color-mix(in srgb, var(--c-danger) 40%, var(--c-border));
-}
-.jobs-footer > .btn--danger:hover:not(:disabled) {
-  @apply bg-danger-soft border-danger;
 }
 
 @media (width < theme(--breakpoint-md)) {
@@ -91,18 +38,6 @@
   .source-add-row { @apply grid-cols-1; }
   .source-add-button { @apply col-auto; }
   .recording-live-row { @apply flex-col; }
-  .recording-live-row .stop-recording-button { @apply w-full; }
   .jobs-footer { @apply items-stretch; }
-  .jobs-footer > .btn { @apply w-full justify-center; }
-  .jobs-footer > glimio-pagination { @apply grow shrink basis-full; }
 }
 
-.provider-setup-notice { @apply mb-4 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-700/30 bg-amber-700/5 p-3; }
-.provider-setup-notice__copy { @apply grid min-w-0 flex-1 gap-1; }
-.provider-setup-notice__copy strong { @apply text-sm font-semibold; }
-.provider-setup-notice__copy p { @apply m-0 text-sm text-muted; }
-.provider-setup-notice__issue { @apply break-words; }
-.provider-setup-notice__provider-link { @apply inline font-semibold text-text underline decoration-dotted underline-offset-2 hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2; }
-.provider-setup-notice__copy small { @apply break-words text-xs text-muted; }
-.provider-setup-notice > a { @apply shrink-0; }
-@media (width < theme(--breakpoint-sm)) { .provider-setup-notice > a { @apply w-full justify-center; } }

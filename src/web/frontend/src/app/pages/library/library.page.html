@@ -55,8 +55,8 @@
         </ng-template>
       </glimio-selectable-list>
       <div class="library-pagination-footer">
-        <div class="page-size-control"><label class="field-label" for="session-page-size">Séances par page</label><select class="select" id="session-page-size" [ngModel]="pageSize()" (ngModelChange)="changePageSize($event)"><option [ngValue]="10">10</option><option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option></select></div>
-        <glimio-pagination [page]="page()" [pageSize]="pageSize()" [totalItems]="total()" label="Pagination de la bibliothèque" (pageChange)="changePage($event)" />
+        <div class="page-size-control"><label class="field-label mb-0 whitespace-nowrap" for="session-page-size">Séances par page</label><select class="select w-20 min-w-20" id="session-page-size" [ngModel]="pageSize()" (ngModelChange)="changePageSize($event)"><option [ngValue]="10">10</option><option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option></select></div>
+        <glimio-pagination class="min-w-0" [page]="page()" [pageSize]="pageSize()" [totalItems]="total()" label="Pagination de la bibliothèque" (pageChange)="changePage($event)" />
       </div>
     </div>
 
@@ -65,15 +65,15 @@
         <glimio-icon name="chevron-left" /> Toutes les séances
       </button>
       @if (selected(); as session) {
-        <header class="detail-header">
+        <header class="detail-header gap-2">
           <div class="detail-header-top">
             <div class="detail-heading-copy">
-              <div class="eyebrow">DÉTAIL DE LA SÉANCE</div>
-              <h2 class="card-title" data-no-translate="true">{{ session.title }}</h2>
-              <p class="field-note detail-meta">{{ dateLabel(session.started_at, session.id) }}@if (session.duration_seconds != null) { <span aria-hidden="true"> · </span><span>Durée {{ durationLabel(session.duration_seconds) }}</span> }</p>
+              <div class="eyebrow whitespace-nowrap">DÉTAIL DE LA SÉANCE</div>
+              <h2 class="card-title my-1 wrap-anywhere" data-no-translate="true">{{ session.title }}</h2>
+              <p class="field-note detail-meta m-0">{{ dateLabel(session.started_at, session.id) }}@if (session.duration_seconds != null) { <span aria-hidden="true"> · </span><span>Durée {{ durationLabel(session.duration_seconds) }}</span> }</p>
             </div>
-            <div class="detail-actions">
-              <button class="btn btn--primary btn--small detail-process-button" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="runJob('process', true)"><glimio-icon name="play" /> Traiter complètement</button>
+            <div class="detail-actions shrink-0">
+              <button class="btn btn--primary btn--small detail-process-button min-h-10 whitespace-nowrap" type="button" [disabled]="processingActionDisabled() || summaryEditing()" (click)="runJob('process', true)"><glimio-icon name="play" /> Traiter complètement</button>
               <details class="session-actions-menu" #sessionActionsMenu>
                 <summary class="session-actions-toggle" aria-label="Autres actions sur la séance"><glimio-icon class="menu-toggle-icon" name="bars-3" /></summary>
                 <div class="session-actions-panel">
@@ -109,7 +109,7 @@
         }
 
         <section class="detail-section available-documents" aria-labelledby="available-documents-title">
-          <div class="detail-section-heading"><div><h3 id="available-documents-title">Contenus de la séance</h3></div></div>
+          <div class="detail-section-heading flex-wrap"><div><h3 id="available-documents-title">Contenus de la séance</h3></div></div>
           @if (session.summary || session.transcript || isFullProcessActive()) {
             <div class="artifact-tabs" role="tablist" aria-label="Contenu à afficher" [attr.aria-disabled]="artifactTabsDisabled() ? 'true' : null" [class.is-disabled]="artifactTabsDisabled()">
               @if (session.summary || isFullProcessActive()) {
@@ -122,8 +122,8 @@
           }
 
           @if (artifactKind() === 'summary' && session.summary && availableSummaryTranslations().length && !summaryEditing()) {
-            <div class="summary-version-switcher">
-              <label class="field-label" for="summary-version">Version affichée</label>
+            <div class="summary-version-switcher grid border-x border-border-soft bg-surface px-3 py-2.5 sm:gap-3 sm:items-center sm:justify-between">
+              <label class="field-label sm:mb-0" for="summary-version">Version affichée</label>
               <select class="select" id="summary-version" [ngModel]="artifactLanguage()" (ngModelChange)="loadSummaryVersion($event)" [disabled]="sessionProcessingActive() || isFullProcessActive() || artifactLoading()">
                 <option value="source">Résumé original</option>
                 @for (language of availableSummaryTranslations(); track language) { <option [value]="language">Résumé traduit — {{ summaryLanguageLabel(language) }}</option> }
@@ -151,10 +151,12 @@
                       <button class="btn btn--ghost btn--small" type="button" (click)="exportSummaryMarkdown(); summaryActionsMenu.open = false"><glimio-icon name="arrow-down-tray" /><span class="btn-label">Exporter .md</span></button>
                       <button class="btn btn--ghost btn--small" type="button" (click)="printSummaryPdf(); summaryActionsMenu.open = false"><glimio-icon name="document-text" /><span class="btn-label">Imprimer / PDF</span></button>
                       <div class="summary-translation-controls">
-                        <label class="field-label" for="summary-translation-target">Langue cible</label>
-                        <select class="select" id="summary-translation-target" [ngModel]="translationTarget()" (ngModelChange)="translationTarget.set($event)" [disabled]="processingActionDisabled()">
-                          @for (language of summaryTranslationLanguages; track language.code) { <option [value]="language.code">{{ language.label }}</option> }
-                        </select>
+                        <div class="summary-translation-field">
+                          <label class="field-label text-xs" for="summary-translation-target">Langue cible</label>
+                          <select class="select" id="summary-translation-target" [ngModel]="translationTarget()" (ngModelChange)="translationTarget.set($event)" [disabled]="processingActionDisabled()">
+                            @for (language of summaryTranslationLanguages; track language.code) { <option [value]="language.code">{{ language.label }}</option> }
+                          </select>
+                        </div>
                         <button class="btn btn--ghost btn--small" type="button" [disabled]="processingActionDisabled() || summarySaving()" (click)="translateSummary(translationTarget()); summaryActionsMenu.open = false"><glimio-icon name="arrow-path" /><span class="btn-label">Traduire le résumé</span></button>
                       </div>
                     </div>
@@ -178,7 +180,7 @@
               @if (artifactLoading() || artifactPending()) { <div class="artifact-loading" role="status"><span class="spinner" aria-hidden="true"></span> {{ artifactPending() ? 'Préparation du document…' : 'Chargement du contenu…' }}</div> }
               @else if (artifactKind() === 'summary' && summaryEditing()) {
                 <textarea class="textarea summary-markdown-editor" id="summary-markdown-editor" aria-label="Modifier le résumé en Markdown" rows="20" maxlength="2000000" spellcheck="true" [ngModel]="summaryDraft()" (ngModelChange)="summaryDraft.set($event)"></textarea>
-                <p class="field-note summary-editor-note">Le résumé est enregistré au format Markdown. Les titres, listes, tableaux et liens sont rendus dans l’aperçu après l’enregistrement.</p>
+                <p class="field-note">Le résumé est enregistré au format Markdown. Les titres, listes, tableaux et liens sont rendus dans l’aperçu après l’enregistrement.</p>
               }
               @else if (artifactContent()) { <article class="artifact-rendered" [attr.aria-busy]="artifactLive()" [innerHTML]="artifactHtml()"></article> }
               @if (isArtifactLive() && (artifactPending() || artifactContent())) {
@@ -211,7 +213,7 @@
 
         @if (sessionSettings(); as options) {
           <section class="detail-section session-processing-options" aria-labelledby="session-processing-options-title">
-            <div class="detail-section-heading"><div><h3 id="session-processing-options-title">Options de traitement de cette séance</h3><p class="field-note">Les changements sont enregistrés automatiquement. @if (sessionSettingsSaving()) { <span>Enregistrement…</span> }</p></div></div>
+            <div class="detail-section-heading flex-wrap"><div><h3 id="session-processing-options-title">Options de traitement de cette séance</h3><p class="field-note">Les changements sont enregistrés automatiquement. @if (sessionSettingsSaving()) { <span>Enregistrement…</span> }</p></div></div>
             <div class="settings-grid common-processing-fields">
               <div class="session-processing-column">
                 <div><label class="field-label" for="session-processing-profile">Qualité du traitement</label><select class="select" id="session-processing-profile" [ngModel]="options.processing_profile" (ngModelChange)="patchSessionSetting('processing_profile', $event)"><option value="turbo">Turbo · rapide, détails réduits</option><option value="balanced">Équilibré · recommandé</option><option value="quality">Haute qualité · plus détaillé</option><option value="pixel-perfect">Pixel perfect · très détaillé, très lent</option><option value="custom">Personnalisé · réglages avancés</option></select><small class="field-note">Le profil ajuste le budget de génération et les étapes d’analyse.</small></div>

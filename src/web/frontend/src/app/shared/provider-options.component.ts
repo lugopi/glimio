@@ -80,6 +80,11 @@ export class ProviderOptionsComponent implements OnDestroy {
 
   missingText(value: string): string { return this.providerText(value); }
 
+  warnings(): string[] {
+    const warnings = this.provider().details['warnings'];
+    return Array.isArray(warnings) ? warnings.filter((value): value is string => typeof value === 'string') : [];
+  }
+
   missingItems(): Array<{ text?: string; providerId?: string }> {
     const items: Array<{ text?: string; providerId?: string }> = this.provider().missing.map(value => {
       const match = value.match(/^(?:provider requis|required provider)\s*:\s*(.+)$/i);

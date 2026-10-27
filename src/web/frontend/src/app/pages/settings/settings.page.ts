@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -30,6 +30,8 @@ export class SettingsPageComponent implements OnInit, OnDestroy {
   private requestedProviderNavigation: { providerId: string; fallbackProviderId: string | null; task: string | null } | null = null;
   readonly settings = computed(() => this.preferences.preferences()?.settings ?? null);
   readonly ui = computed(() => this.preferences.preferences()?.ui ?? null);
+  readonly sessionRootDraft = signal('');
+  private sessionRootDirty = false;
   readonly requiredProviderDependencies = computed(() => {
     const value = this.settings();
     if (!value) return [];
@@ -43,6 +45,15 @@ export class SettingsPageComponent implements OnInit, OnDestroy {
       value.text_provider,
     ]);
   });
+
+  constructor() {
+    // Preferences normalize relative paths to absolute paths on save. Keep the
+    // local draft independent while typing, then accept the normalized value.
+    effect(() => {
+      const savedRoot = this.ui()?.session_root ?? this.preferences.config()?.session_root ?? '';
+      if (!this.sessionRootDirty) this.sessionRootDraft.set(savedRoot);
+    });
+  }
 
   providerText(provider: ProviderStatus, value: string): string {
     const language = this.preferences.preferences()?.ui.language ?? 'fr';
@@ -166,9 +177,18 @@ export class SettingsPageComponent implements OnInit, OnDestroy {
     this.preferences.updatePreferences(updated);
   }
 
-  patchSessionRoot(value: string): void {
+  onSessionRootInput(value: string): void {
+    this.sessionRootDirty = true;
+    this.sessionRootDraft.set(value);
+  }
+
+  commitSessionRoot(): void {
+    if (!this.sessionRootDirty) return;
+    const value = this.sessionRootDraft().trim();
+    this.sessionRootDirty = false;
     const current = this.preferences.preferences();
-    if (current) this.preferences.updatePreferences({ ...current, ui: { ...current.ui, session_root: value } });
+    if (!current || value === (current.ui.session_root ?? '')) return;
+    this.preferences.updatePreferences({ ...current, ui: { ...current.ui, session_root: value } });
   }
 
   patchLanguage(value: 'fr' | 'en'): void {

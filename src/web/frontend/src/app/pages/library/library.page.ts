@@ -114,7 +114,9 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.etaRefreshTimer = window.setInterval(() => this.etaNow.set(Date.now()), 30_000);
+    // Re-estimate while a phase is running; SSE announces phase changes, this
+    // clock also lets overruns move the predicted completion time continuously.
+    this.etaRefreshTimer = window.setInterval(() => this.etaNow.set(Date.now()), 5_000);
     this.api.providers().subscribe({ next: response => this.providers.set(response.providers), error: () => this.providers.set([]) });
     this.route.queryParamMap.subscribe(params => {
       const requestedId = params.get('session');
@@ -840,6 +842,8 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
       error: job.error,
       started_at: job.started_at,
       finished_at: job.finished_at,
+      phase_started_at: job.phase_started_at,
+      phase_history: job.phase_history,
     };
   }
 
@@ -875,11 +879,26 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
           durationSeconds: (finish - start) / 1000,
           audioDurationSeconds: job.session_id ? audioDurations.get(job.session_id) ?? null : null,
           completedAt: finish,
+          phaseHistory: (job.phase_history ?? []).map(phase => ({
+            phase: phase.phase,
+            durationSeconds: phase.duration_seconds,
+          })),
         };
       });
 
+    const phaseStartedAt = processing.phase_started_at ? Date.parse(processing.phase_started_at) : Number.NaN;
+    const activePhase = Number.isFinite(phaseStartedAt) && phaseStartedAt <= now
+      ? {
+          phase: processing.phase,
+          elapsedSeconds: (now - phaseStartedAt) / 1000,
+          completedPhases: (processing.phase_history ?? []).map(phase => ({
+            phase: phase.phase,
+            durationSeconds: phase.duration_seconds,
+          })),
+        }
+      : undefined;
     const remaining = estimateRemainingProcessingSeconds(
-      samples, sessionId, session.duration_seconds, (now - startedAt) / 1000,
+      samples, sessionId, session.duration_seconds, (now - startedAt) / 1000, activePhase,
     );
     if (remaining === null) return null;
 

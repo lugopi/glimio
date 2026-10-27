@@ -77,6 +77,7 @@ WHISPER_CPP_TRANSLATIONS_EN = {'en': {'Transcription locale via whisper-cli.': '
         'Modèle VAD Silero': 'Silero VAD model',
         'Modèle VAD pour whisper.cpp, à télécharger séparément.': 'VAD model for whisper.cpp; download '
                                                                   'separately.',
+        'Modèle VAD Silero introuvable : le mode automatique désactive temporairement le VAD.': 'Silero VAD model is missing; automatic mode temporarily disables VAD.',
         'Seuil VAD': 'VAD threshold',
         'Augmenter le seuil filtre plus de bruit, mais peut couper des voix faibles.': 'A higher threshold '
                                                                                        'filters more noise '

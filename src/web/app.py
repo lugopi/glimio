@@ -572,6 +572,45 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _elapsed_seconds(started_at: str | None, finished_at: str | None) -> float | None:
+    """Return a non-negative duration between persisted ISO timestamps."""
+    if not started_at or not finished_at:
+        return None
+    try:
+        start = datetime.fromisoformat(started_at)
+        finish = datetime.fromisoformat(finished_at)
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if finish.tzinfo is None:
+            finish = finish.replace(tzinfo=timezone.utc)
+        return max(0.0, (finish - start).total_seconds())
+    except (TypeError, ValueError):
+        return None
+
+
+def _transition_job_phase_locked(job: dict[str, Any], next_phase: str) -> None:
+    """Record the finished phase before starting the next one (STATE_LOCK required)."""
+    previous_phase = str(job.get("phase") or "")
+    if previous_phase == next_phase:
+        return
+
+    transition_at = _now()
+    if previous_phase and previous_phase not in {"queued", "completed", "cancelled", "error"}:
+        duration = _elapsed_seconds(job.get("phase_started_at"), transition_at)
+        if duration is not None and duration > 0:
+            history = job.get("phase_history")
+            history = list(history) if isinstance(history, list) else []
+            history.append({"phase": previous_phase, "duration_seconds": duration})
+            # Prevent event payloads and persisted job records from growing without bound.
+            job["phase_history"] = history[-40:]
+
+    job["phase"] = next_phase
+    job["phase_started_at"] = (
+        None if next_phase in {"queued", "completed", "cancelled", "error", "interrupted", "recovery-error"}
+        else transition_at
+    )
+
+
 def _job_public(job: dict[str, Any]) -> dict[str, Any]:
     result = {key: value for key, value in job.items() if not key.startswith("_")}
     payload = job.get("_payload")
@@ -797,7 +836,7 @@ def _restore_persisted_jobs() -> None:
                     job.update({
                         "state": "queued", "phase": "recovered",
                         "message": "Reprise après redémarrage · en attente de traitement",
-                        "started_at": None, "finished_at": None, "error": None,
+                        "started_at": None, "finished_at": None, "phase_started_at": None, "error": None,
                     })
                     CANCEL_EVENTS[job_id] = threading.Event()
                     PROCESSING_QUEUE_IDS.append(job_id)
@@ -939,11 +978,15 @@ def _active_job() -> dict[str, Any] | None:
 def _set_job(job_id: str, **updates: Any) -> None:
     with STATE_LOCK:
         if job_id in JOBS:
-            if JOBS[job_id].get("state") == "stopping" and updates.get("state") == "running":
+            job = JOBS[job_id]
+            if job.get("state") == "stopping" and updates.get("state") == "running":
                 updates.pop("state", None)
-            JOBS[job_id].update(updates)
-            JOBS[job_id]["updated_at"] = _now()
-            _persist_job_locked(JOBS[job_id])
+            next_phase = updates.get("phase")
+            if isinstance(next_phase, str) and next_phase != job.get("phase"):
+                _transition_job_phase_locked(job, next_phase)
+            job.update(updates)
+            job["updated_at"] = _now()
+            _persist_job_locked(job)
 
 
 def _prune_job_history_locked() -> None:
@@ -995,9 +1038,12 @@ def _processing_queue_loop() -> None:
                 PROCESSING_QUEUE.task_done()
                 continue
             PROCESSING_JOB_ID = job_id
+            _transition_job_phase_locked(job, "starting")
             job.update({
                 "state": "running",
                 "phase": "starting",
+                "phase_started_at": job.get("phase_started_at") or _now(),
+                "phase_history": list(job.get("phase_history") or []),
                 "queue_position": None,
                 "started_at": _now(),
                 "updated_at": _now(),
@@ -1010,9 +1056,11 @@ def _processing_queue_loop() -> None:
                 if current and current.get("state") in {"running", "stopping"}:
                     last_message = current.get("message") or "Traitement terminé"
                     cancelled = CANCEL_EVENTS.get(job_id) is not None and CANCEL_EVENTS[job_id].is_set()
+                    terminal_phase = "cancelled" if cancelled else "completed"
+                    _transition_job_phase_locked(current, terminal_phase)
                     current.update({
                         "state": "cancelled" if cancelled else "completed",
-                        "phase": "cancelled" if cancelled else "completed",
+                        "phase": terminal_phase,
                         "message": "Traitement annulé" if cancelled else last_message,
                         "finished_at": _now(), "updated_at": _now(), "queue_position": None,
                     })
@@ -1023,9 +1071,11 @@ def _processing_queue_loop() -> None:
                 current = JOBS.get(job_id)
                 if current:
                     cancelled = CANCEL_EVENTS.get(job_id) is not None and CANCEL_EVENTS[job_id].is_set()
+                    terminal_phase = "cancelled" if cancelled else "error"
+                    _transition_job_phase_locked(current, terminal_phase)
                     current.update({
                         "state": "cancelled" if cancelled else "error",
-                        "phase": "cancelled" if cancelled else "error",
+                        "phase": terminal_phase,
                         "message": "Traitement annulé" if cancelled else "Échec",
                         "error": None if cancelled else detail,
                         "finished_at": _now(), "updated_at": _now(), "queue_position": None,
@@ -1072,6 +1122,7 @@ def _enqueue_job(
         "id": job_id, "kind": kind, "state": "queued", "phase": "queued",
         "message": message, "session_id": session_id, "created_at": _now(),
         "updated_at": _now(), "started_at": None, "finished_at": None,
+        "phase_started_at": None, "phase_history": [],
         "error": None, "queue_position": None, "_payload": dict(payload or {}),
     }
     with STATE_LOCK:
@@ -1105,6 +1156,7 @@ def _enqueue_job(
             PROCESSING_QUEUE_IDS.remove(job_id)
             raise HTTPException(status_code=503, detail=f"Impossible de sauvegarder la tâche dans SQLite : {exc}") from exc
         if recording_job is not None:
+            _transition_job_phase_locked(recording_job, "completed")
             recording_job.update({
                 "state": "completed",
                 "phase": "completed",
@@ -1147,6 +1199,7 @@ def _start_job(
             "id": job_id, "kind": kind, "state": "running", "phase": "preparing",
             "message": message, "session_id": session_id, "created_at": _now(),
             "updated_at": _now(), "started_at": _now(), "finished_at": None,
+            "phase_started_at": _now(), "phase_history": [],
             "error": None, "queue_position": None, "_payload": {},
         }
         JOBS[job_id] = job
@@ -1164,12 +1217,14 @@ def _start_job(
                 state = JOBS.get(job_id, {}).get("state")
                 if state in {"running", "stopping"}:
                     last_message = JOBS[job_id].get("message") or "Terminé"
+                    _transition_job_phase_locked(JOBS[job_id], "completed")
                     JOBS[job_id].update({"state": "completed", "phase": "completed", "message": last_message, "finished_at": _now(), "updated_at": _now()})
                     _persist_job_locked(JOBS[job_id])
         except (Exception, SystemExit) as exc:  # Existing CLI modules use SystemExit for expected failures.
             detail = str(exc).strip() or f"Erreur pendant le traitement ({type(exc).__name__})."
             with STATE_LOCK:
                 if job_id in JOBS:
+                    _transition_job_phase_locked(JOBS[job_id], "error")
                     JOBS[job_id].update({"state": "error", "phase": "error", "message": "Échec", "error": detail, "finished_at": _now(), "updated_at": _now()})
                     _persist_job_locked(JOBS[job_id])
         finally:
@@ -1592,6 +1647,8 @@ def _decorate_session_processing(item: dict[str, Any]) -> dict[str, Any]:
         "started_at": latest.get("started_at"),
         "updated_at": latest.get("updated_at"),
         "finished_at": latest.get("finished_at"),
+        "phase_started_at": latest.get("phase_started_at"),
+        "phase_history": latest.get("phase_history", []),
     }
     return item
 
@@ -2052,6 +2109,10 @@ async def job_events(request: Request) -> StreamingResponse:
                 if event_name == JOB_EVENT_SHUTDOWN:
                     break
                 yield f"event: {event_name}\ndata: {data}\n\n"
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # Browsers may close an SSE connection while the ASGI response is
+            # sending the next event. This is not a processing-job failure.
+            return
         finally:
             with JOB_EVENT_LOCK:
                 JOB_EVENT_SUBSCRIBERS.pop(subscriber_id, None)
@@ -2104,6 +2165,7 @@ def cancel_job(job_id: str) -> dict[str, Any]:
             if record.get("phase") != "recording" or stop_event is None:
                 raise HTTPException(status_code=409, detail="L’enregistrement est déjà en finalisation et ne peut plus être annulé.")
             stop_event.set()
+            _transition_job_phase_locked(record, "finalizing")
             record.update({"state": "stopping", "phase": "finalizing", "message": "Arrêt demandé : finalisation des pistes WAV…", "updated_at": _now()})
             _persist_job_locked(record)
             return _job_public(record)
@@ -2116,6 +2178,7 @@ def cancel_job(job_id: str) -> dict[str, Any]:
         if record.get("state") == "queued":
             if job_id in PROCESSING_QUEUE_IDS:
                 PROCESSING_QUEUE_IDS.remove(job_id)
+            _transition_job_phase_locked(record, "cancelled")
             record.update({"state": "cancelled", "phase": "cancelled", "message": "Traitement annulé avant le démarrage.", "finished_at": _now(), "updated_at": _now(), "queue_position": None})
             _refresh_queue_positions_locked()
             CANCEL_EVENTS.pop(job_id, None)
@@ -2300,6 +2363,7 @@ def stop_recording() -> dict[str, Any]:
         if event is None:
             raise HTTPException(status_code=409, detail="L'enregistrement n'accepte plus de demande d'arrêt.")
         event.set()
+        _transition_job_phase_locked(JOBS[active["id"]], "finalizing")
         JOBS[active["id"]].update({"state": "stopping", "phase": "finalizing", "message": "Arrêt demandé : finalisation des pistes WAV…", "updated_at": _now()})
         _persist_job_locked(JOBS[active["id"]])
         return _job_public(JOBS[active["id"]])

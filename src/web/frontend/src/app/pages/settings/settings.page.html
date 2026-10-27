@@ -22,7 +22,8 @@
             </div>
             <div>
               <label class="field-label" for="session-root">Dossier des séances</label>
-              <input class="input" id="session-root" [ngModel]="ui()?.session_root ?? preferences.config()?.session_root ?? ''" (ngModelChange)="patchSessionRoot($event)">
+              <input class="input" id="session-root" [ngModel]="sessionRootDraft()" (ngModelChange)="onSessionRootInput($event)" (blur)="commitSessionRoot()" (keydown.enter)="commitSessionRoot(); $event.preventDefault(); $any($event.target).blur()">
+              <small class="field-note">Les chemins relatifs sont résolus depuis le dossier du projet. La valeur est appliquée lorsque vous quittez le champ.</small>
               <small class="field-note">Laissez vide pour utiliser le dossier par défaut.</small>
             </div>
           </div>

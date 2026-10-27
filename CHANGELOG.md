@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Correctif d’alignement des champs checkbox : le titre de `glimio-checkbox-field` hérite désormais des marges et de l’interligne du `.field-label` partagé. Les règles locales encapsulées ne bloquent plus les espacements spécifiques aux formulaires et aux options de séance. Convention ajoutée à `AGENTS.md` et `docs/FRONTEND.md`.
+
+
 - Les bordures d’état réutilisées et le fond de succès doux sont désormais exposés comme utilitaires (`border-success-border`, `border-danger-border`, `border-accent-border`, `border-warning-border`, `bg-success-soft`) ; les composants utilisent `@apply` plutôt que de répéter `color-mix()`. Les espacements et couleurs simples de la bibliothèque et de la recherche ont aussi été convertis en utilitaires.
 - Styles du bandeau d'enregistrement : rail d'état via `@apply border-l-3 border-l-danger`, couleurs de fond et halos fournis par des jetons Tailwind, et animation de pulse déclarée comme utilitaire `animate-recording-pulse`. Les règles standard ne restent plus en CSS brut lorsqu'un utilitaire Tailwind existe.
 - `AGENTS.md` et `docs/FRONTEND.md` exigent maintenant `@apply` pour les propriétés standard couvertes par Tailwind ; couleurs composées, halos et animations sémantiques sont exposés comme jetons de thème.
@@ -351,3 +354,26 @@ Les changements notables sont regroupés par version. Les versions sont celles d
 - Nouvelles variables `GLIMIO_*` prioritaires, avec prise en charge des variables `SEANCE_*` historiques.
 - Conservation des corrections UI/UX précédentes : gestion des séances, pagination, titres automatiques, états conditionnels, contrôle du nombre de participants et des seuils, alignements et styles cohérents.
 
+
+
+### Estimation du traitement et réglages
+
+- Recalcul de l’ETA à partir des durées par phase observées dans les jobs terminés, avec mise à jour périodique pendant le traitement et repli compatible avec l’historique ancien.
+- Le champ « Dossier des séances » conserve sa saisie locale jusqu’au blur/Entrée et ne réaffiche la valeur normalisée qu’après sauvegarde.
+- Le provider whisper.cpp expose un avertissement si le modèle VAD Silero manque en mode automatique; le mode activé obligatoirement reste non prêt tant que le modèle n’existe pas.
+- Les flux SSE nettoient leurs abonnements même quand le client interrompt la connexion; les erreurs normales de fermeture de socket ne sont pas traitées comme un échec de job.
+- Alignement de l’espacement du titre des champs checkbox sur les autres libellés.
+
+## Unification des espacements de champs
+
+- Unifier l’espace label/contrôle à 8 px via `.field-label` (`mb-2`) pour checkbox, input et select, sans `gap-0` local redondant.
+- Utiliser `.field-note` (`mt-2`) pour l’écart contrôle/aide et retirer les `gap-2` ou remises à zéro de marges qui doublaient ou remplaçaient l’espacement dans les champs de traitement.
+- Retirer les surcharges locales de la bibliothèque et de la page paramètres ; conserver seulement les exceptions de libellé compact explicitement ciblées.
+- Supprimer le gap générique sur les `div` de `.common-processing-fields`, qui écrasait le rythme prévu pour `.session-processing-column`, et définir les écarts uniquement sur les groupes sémantiques.
+- Documenter la convention commune dans `AGENTS.md` et `docs/FRONTEND.md`.
+
+## Frontend — unification des espacements et budgets SCSS
+
+- Placer `modern-normalize.scss` dans `@layer base` afin que la marge partagée de `.field-label` dans `@layer components` ne soit plus écrasée par le reset `button { margin: 0 }` non classé.
+- Conserver un espacement commun de 8 px entre les labels et leurs contrôles (checkbox, input et select) ; définir la grille des menus d’action dans les styles partagés.
+- Déplacer les classes utilitaires de présentation vers les templates Enregistrement, Recherche et Providers, supprimer des sélecteurs obsolètes et réduire les styles de composants sans modifier les budgets Angular de 12/20 kB.

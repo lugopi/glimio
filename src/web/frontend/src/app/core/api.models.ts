@@ -163,6 +163,11 @@ export interface AudioDevices {
   output_devices?: AudioDeviceInfo[];
 }
 
+export interface ProcessingPhaseDuration {
+  phase: string;
+  duration_seconds: number;
+}
+
 export interface ProcessingInfo {
   job_id: string;
   kind: string;
@@ -173,6 +178,8 @@ export interface ProcessingInfo {
   error?: string | null;
   started_at?: string | null;
   finished_at?: string | null;
+  phase_started_at?: string | null;
+  phase_history?: ProcessingPhaseDuration[];
 }
 
 export interface SessionSummary {
@@ -230,6 +237,8 @@ export interface Job {
   updated_at?: string;
   started_at?: string | null;
   finished_at?: string | null;
+  phase_started_at?: string | null;
+  phase_history?: ProcessingPhaseDuration[];
   queue_position?: number | null;
   provider_event?: ProviderEvent | null;
 }

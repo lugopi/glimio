@@ -8,46 +8,46 @@
     <span class="feature-chip">MULTI-SÉANCES</span>
   </div>
 
-  <section class="search-hero card" aria-labelledby="ai-query-label">
-    <label id="ai-query-label" for="ai-query">Que souhaitez-vous retrouver ?</label>
+  <section class="search-hero card mb-4 p-4 sm:p-5" aria-labelledby="ai-query-label">
+    <label class="mb-3 block text-compact font-bold" id="ai-query-label" for="ai-query">Que souhaitez-vous retrouver ?</label>
     @if (selectedSessions().length > 0) {
-      <div class="selected-session-list" aria-label="Séances incluses dans la recherche">
+      <div class="selected-session-list mb-3 flex flex-wrap items-center gap-2" aria-label="Séances incluses dans la recherche">
         @for (session of selectedSessions(); track session.id) {
-          <span class="selected-session-chip">
-            <glimio-icon name="document-text" />
-            <span data-no-translate="true">{{ session.title }}</span>
-            <button type="button" class="chip-remove" aria-label="Retirer la séance sélectionnée" (click)="removeSession(session.id)"><glimio-icon name="x-mark" /></button>
+          <span class="selected-session-chip inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 text-xs text-muted">
+            <glimio-icon class="size-3.5 shrink-0 text-accent" name="document-text" />
+            <span class="max-w-60 truncate" data-no-translate="true">{{ session.title }}</span>
+            <button type="button" class="chip-remove inline-flex size-5 shrink-0 items-center justify-center rounded-full text-subtle" aria-label="Retirer la séance sélectionnée" (click)="removeSession(session.id)"><glimio-icon class="size-3" name="x-mark" /></button>
           </span>
         }
-        <button type="button" class="text-action" (click)="selectedSessions.set([])">Effacer la sélection</button>
+        <button type="button" class="text-action px-1 py-1 text-xs text-accent underline underline-offset-2" (click)="selectedSessions.set([])">Effacer la sélection</button>
       </div>
     }
-    <div class="ai-composer">
-      <textarea class="textarea ai-query-input" id="ai-query" rows="3" maxlength="12000"
+    <div class="ai-composer relative overflow-hidden rounded-lg border border-border-soft bg-surface-raised focus-within:border-accent">
+      <textarea class="textarea ai-query-input block h-auto min-h-20 max-h-64 w-full resize-none overflow-y-hidden rounded-none border-0 bg-transparent p-4 text-compact leading-relaxed outline-none placeholder:text-subtle" id="ai-query" rows="3" maxlength="12000"
         [ngModel]="query()" (ngModelChange)="onQueryChange($event)"
         (keydown.control.enter)="runSearch()" (keydown.meta.enter)="runSearch()"
         placeholder="Posez une question sur vos séances… Utilisez &#64; pour cibler une séance."></textarea>
       @if (suggestionOpen()) {
-        <div class="session-suggestions" role="group" aria-labelledby="session-suggestions-label">
-          <p class="session-suggestions-label" id="session-suggestions-label">Sélectionner une séance</p>
+        <div class="session-suggestions relative z-20 max-h-64 overflow-y-auto border-x border-t border-border-soft bg-surface p-2" role="group" aria-labelledby="session-suggestions-label">
+          <p class="session-suggestions-label px-2 py-1.5 text-xs font-bold uppercase tracking-wide text-subtle" id="session-suggestions-label">Sélectionner une séance</p>
           @for (session of filteredSessions(); track session.id) {
-            <button type="button" class="session-suggestion" (click)="addSession(session)">
-              <glimio-icon name="document-text" />
-              <span class="session-suggestion-copy"><strong data-no-translate="true">{{ session.title }}</strong><small>{{ session.id }}</small></span>
-              <glimio-icon name="plus" />
+            <button type="button" class="session-suggestion flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-left text-xs" (click)="addSession(session)">
+              <glimio-icon class="size-4 shrink-0 text-accent" name="document-text" />
+              <span class="session-suggestion-copy grid min-w-0 flex-1 gap-0.5"><strong class="truncate font-semibold text-text" data-no-translate="true">{{ session.title }}</strong><small class="truncate text-xs text-subtle">{{ session.id }}</small></span>
+              <glimio-icon class="size-4 shrink-0 text-accent" name="plus" />
             </button>
           }
           @if (filteredSessions().length === 0) { <p class="empty-session-options">Aucune séance correspondante.</p> }
         </div>
       }
-      <div class="ai-composer-footer">
-        <span class="ai-query-shortcut">Ctrl / ⌘ + Entrée pour rechercher</span>
-        <div class="ai-search-actions">
+      <div class="ai-composer-footer flex flex-wrap items-center justify-between gap-3 border-t border-border-soft px-3 py-2.5 max-sm:gap-2 max-sm:p-2">
+        <span class="ai-query-shortcut font-mono text-xs text-subtle">Ctrl / ⌘ + Entrée pour rechercher</span>
+        <div class="ai-search-actions ml-auto flex items-center justify-end gap-2 max-sm:w-full max-sm:flex-wrap">
           <button class="btn btn--secondary" type="button" [disabled]="running() || sessions().length === 0" (click)="toggleSessionPicker()">
             <glimio-icon name="folder-open" /> {{ selectedSessions().length ? 'Séances ciblées (' + selectedSessions().length + ')' : 'Ajouter des séances' }}
           </button>
           <button class="btn btn--danger" type="button" [hidden]="!searchId()" (click)="cancelSearch()">Annuler</button>
-          <button class="btn btn--primary ai-run-button" type="button" [disabled]="running() || query().trim().length < 2 || mentionTerm() !== null" (click)="runSearch()"><glimio-icon name="sparkles" /> {{ running() ? 'Recherche…' : 'Rechercher' }}</button>
+          <button class="btn btn--primary ai-run-button min-w-32 max-sm:min-w-28 max-sm:ml-auto" type="button" [disabled]="running() || query().trim().length < 2 || mentionTerm() !== null" (click)="runSearch()"><glimio-icon name="sparkles" /> {{ running() ? 'Recherche…' : 'Rechercher' }}</button>
         </div>
       </div>
     </div>
@@ -64,38 +64,38 @@
         (close)="sessionPickerOpen.set(false)" />
     }
     @if (selectedSessions().length > 0) {
-      <p class="search-hint"><glimio-icon name="information-circle" /> {{ 'La recherche sera limitée aux ' + selectedSessions().length + ' séance(s) choisie(s).' }}</p>
+      <p class="search-hint mt-4 mb-0 flex items-start gap-2 px-0 text-compact leading-relaxed text-subtle"><glimio-icon class="size-3.5 shrink-0" name="information-circle" /> {{ 'La recherche sera limitée aux ' + selectedSessions().length + ' séance(s) choisie(s).' }}</p>
     } @else {
-      <p class="search-hint"><glimio-icon name="information-circle" /> Glimio recherche dans toute la bibliothèque. Tapez &#64; pour sélectionner des séances ou utilisez « Ajouter des séances » pour limiter le périmètre.</p>
+      <p class="search-hint mt-4 mb-0 flex items-start gap-2 px-0 text-compact leading-relaxed text-subtle"><glimio-icon class="size-3.5 shrink-0" name="information-circle" /> Glimio recherche dans toute la bibliothèque. Tapez &#64; pour sélectionner des séances ou utilisez « Ajouter des séances » pour limiter le périmètre.</p>
     }
   </section>
 
-  <div class="search-results" aria-live="polite">
+  <div class="search-results grid min-w-0 gap-3" aria-live="polite">
     @if (running()) {
-      <article class="answer-card ai-progress-card">
-        <div class="result-card-head"><h2>{{ result()?.answer ? 'Actualisation de la synthèse' : 'Recherche dans les archives' }}</h2><span class="badge badge--accent">EN COURS</span></div>
-        <p class="answer-text live-progress"><span class="spinner"></span> {{ result()?.message || 'Préparation de la recherche…' }} @if (result()?.sessions_total) { · {{ result()?.sessions_scanned || 0 }}/{{ result()?.sessions_total }} séance(s) analysée(s) }</p>
+      <article class="answer-card ai-progress-card rounded-xl border-0 bg-surface p-5 shadow-none">
+        <div class="result-card-head mb-3 flex flex-wrap items-center justify-between gap-2.5"><h2 class="m-0 text-compact font-bold">{{ result()?.answer ? 'Actualisation de la synthèse' : 'Recherche dans les archives' }}</h2><span class="badge badge--accent">EN COURS</span></div>
+        <p class="answer-text live-progress text-xs leading-6 text-muted wrap-anywhere"><span class="spinner"></span> {{ result()?.message || 'Préparation de la recherche…' }} @if (result()?.sessions_total) { · {{ result()?.sessions_scanned || 0 }}/{{ result()?.sessions_total }} séance(s) analysée(s) }</p>
       </article>
     }
     @if (result()?.answer) {
-      <article class="answer-card">
-        <div class="result-card-head search-answer-heading">
-          <h2>Synthèse générale</h2>
+      <article class="answer-card rounded-xl border-0 bg-surface p-5 shadow-none">
+        <div class="result-card-head search-answer-heading mb-3 flex flex-wrap items-center justify-between gap-2.5">
+          <h2 class="m-0 min-w-0 flex-1 text-compact font-bold">Synthèse générale</h2>
           <details class="session-actions-menu search-summary-actions-menu" #summaryActionsMenu>
             <summary class="session-actions-toggle" aria-label="Actions sur la synthèse générale">
               <glimio-icon class="menu-toggle-icon" name="bars-3" />
             </summary>
-            <div class="session-actions-panel">
+            <div class="session-actions-panel min-w-48">
               <button class="btn btn--ghost btn--small" type="button" (click)="exportAnswerMarkdown(); summaryActionsMenu.open = false"><glimio-icon name="arrow-down-tray" /><span class="btn-label">Exporter .md</span></button>
-              <button class="btn btn--ghost btn--small" type="button" (click)="printAnswerPdf(); summaryActionsMenu.open = false"><glimio-icon name="document-text" /><span class="btn-label">Imprimer / PDF</span></button>
+              <button class="btn btn--ghost btn--small" type="button" (click)="printAnswerPdf(); summaryActionsMenu.open = false"><glimio-icon class="size-4 shrink-0" name="document-text" /><span class="btn-label">Imprimer / PDF</span></button>
             </div>
           </details>
         </div>
-        <div class="answer-text artifact-rendered search-answer-markdown" data-no-translate="true" [innerHTML]="answerHtml()"></div>
+        <div class="answer-text artifact-rendered search-answer-markdown text-xs leading-6 text-muted wrap-anywhere mt-0 rounded-none border-0 bg-transparent p-0" data-no-translate="true" [innerHTML]="answerHtml()"></div>
       </article>
     }
     @if (result()?.llm_error) {
-      <article class="answer-card"><div class="result-card-head"><h2>Synthèse indisponible</h2><span class="badge">INFO</span></div><p class="answer-text">{{ result()?.llm_error }}</p></article>
+      <article class="answer-card rounded-xl border-0 bg-surface p-5 shadow-none"><div class="result-card-head mb-3 flex flex-wrap items-center justify-between gap-2.5"><h2 class="m-0 text-compact font-bold">Synthèse indisponible</h2><span class="badge">INFO</span></div><p class="answer-text text-xs leading-6 text-muted wrap-anywhere">{{ result()?.llm_error }}</p></article>
     }
     @if (sources().length > 0) {
       <glimio-search-sources
