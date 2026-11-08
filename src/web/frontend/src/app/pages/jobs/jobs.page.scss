@@ -25,4 +25,13 @@
   :host .jobs-page-actions { @apply flex-col items-stretch; }
   :host .jobs-page-row .job-state { @apply self-start; }
   :host .jobs-page-cancel { @apply min-h-11 w-full; }
+  :host .jobs-page-history-header { @apply items-stretch; }
+  :host .jobs-page-clear { @apply min-h-11 w-full; }
 }
+
+:host .jobs-page-history-header { @apply flex-wrap gap-3; }
+:host .jobs-page-history-header > div { @apply min-w-0; }
+:host .jobs-page-clear { @apply shrink-0 justify-center; }
+:host .jobs-page-loading { @apply my-3 text-sm text-muted; }
+:host .jobs-page-history .jobs-list { @apply mt-3; }
+:host .jobs-page-history .pagination { @apply mt-4 border-t border-border-soft pt-3; }

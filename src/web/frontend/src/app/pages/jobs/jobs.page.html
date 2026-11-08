@@ -2,10 +2,10 @@
   <div class="page-heading jobs-page-heading">
     <div>
       <div class="eyebrow">SUIVI DES TRAITEMENTS</div>
-      <h1 id="jobs-page-title">Traitements en cours</h1>
-      <p class="subheading">Consultez les tâches actives et en attente. Vous pouvez annuler un traitement qui semble bloqué.</p>
+      <h1 id="jobs-page-title">Traitements</h1>
+      <p class="subheading">Suivez la file active, annulez les tâches si nécessaire et retrouvez les traitements terminés.</p>
     </div>
-    <button class="btn btn--secondary btn--icon jobs-page-refresh" type="button" aria-label="Actualiser les traitements" title="Actualiser" (click)="refresh()"><glimio-icon name="arrow-path" /></button>
+    <button class="btn btn--secondary btn--icon jobs-page-refresh" type="button" aria-label="Actualiser les traitements" title="Actualiser" [disabled]="loading()" (click)="refresh()"><glimio-icon name="arrow-path" /></button>
   </div>
 
   <section class="card jobs-page-panel" aria-label="File de traitement">
@@ -17,6 +17,7 @@
       </div>
     }
     @if (loadingError()) { <p class="jobs-page-error" role="alert">{{ loadingError() }}</p> }
+    @if (loading() && !response()) { <p class="jobs-page-loading" role="status">Chargement des traitements…</p> }
     <div class="jobs-list">
       @for (job of jobs(); track job.id) {
         <article class="jobs-page-row">
@@ -39,9 +40,46 @@
           </div>
         </article>
       } @empty {
-        <div class="inline-empty">Aucun traitement en cours ou en attente.</div>
+        @if (response()) { <div class="inline-empty">Aucun traitement en cours ou en attente.</div> }
       }
     </div>
     <p class="jobs-page-note">Une annulation active arrête le processus de transcription ou de génération en cours. Les fichiers déjà enregistrés restent disponibles.</p>
+  </section>
+
+  <section class="card jobs-page-panel jobs-page-history jobs-panel" aria-labelledby="jobs-history-title">
+    <div class="card-header jobs-page-history-header">
+      <div>
+        <div class="eyebrow">ARCHIVES</div>
+        <h2 class="card-title" id="jobs-history-title">Historique récent</h2>
+        <p class="card-description">Retrouvez les enregistrements, imports et traitements terminés.</p>
+      </div>
+      <button class="btn btn--danger btn--small jobs-page-clear" type="button" [disabled]="!hasHistory()" (click)="clearHistory()">
+        <glimio-icon name="trash" /> Effacer l’historique
+      </button>
+    </div>
+    <div class="jobs-list" aria-live="polite">
+      @for (job of visibleHistoryJobs(); track job.id) {
+        <div class="job-row-wrap">
+          <article class="job-row">
+            <span class="job-icon"><glimio-icon [name]="historyIcon(job)" /></span>
+            <span class="job-main">
+              <strong>{{ jobLabel(job) }}</strong>
+              @if (job.session_id) { <small>Séance · {{ job.session_id }}</small> }
+              <span class="job-progress-text">{{ job.message || job.phase }}</span>
+              @if (job.error) { <small class="job-error-text" data-no-translate="true">{{ job.error }}</small> }
+            </span>
+            <span class="job-state" [class.is-completed]="job.state === 'completed'" [class.is-error]="job.state === 'error'">{{ stateLabel(job) }}</span>
+          </article>
+          @if (canDelete(job)) {
+            <button class="job-row-delete" type="button" [disabled]="deletingIds().has(job.id)" (click)="deleteHistoryItem(job)" [attr.aria-label]="'Effacer l’activité ' + jobLabel(job)" title="Effacer cette activité"><glimio-icon name="x-mark" /></button>
+          }
+        </div>
+      } @empty {
+        @if (response()) { <div class="inline-empty">Aucun traitement terminé pour le moment. Les traitements terminés apparaîtront ici.</div> }
+      }
+    </div>
+    @if (hasHistory()) {
+      <glimio-pagination [page]="historyPage()" [pageSize]="historyPageSize" [totalItems]="historyJobs().length" label="Pagination de l’historique" (pageChange)="historyPage.set($event)" />
+    }
   </section>
 </section>

@@ -1,6 +1,7 @@
 export type ThemeName = 'dark' | 'light' | 'midnight' | 'forest' | 'dracula' | 'monokai';
 export type ViewName = 'recording' | 'jobs' | 'library' | 'search' | 'settings';
 export type JobState = 'queued' | 'running' | 'stopping' | 'completed' | 'cancelled' | 'error';
+export type SearchState = 'queued' | 'running' | 'cancelling' | 'completed' | 'cancelled' | 'error';
 export type JobAction = 'transcribe' | 'summarize' | 'process' | 'translate-summary';
 
 export interface GlimioSettings {
@@ -132,7 +133,7 @@ export interface ProviderInstallStatus {
   output: string;
   returncode: number | null;
   restart_required: boolean;
-  created_at?: string;
+  created_at: string;
   started_at?: string | null;
   finished_at?: string | null;
 }
@@ -153,14 +154,14 @@ export interface AudioSourceSelection {
 export interface AudioDeviceInfo {
   id: string;
   name: string;
-  key?: string;
+  key: string;
 }
 
 export interface AudioDevices {
   microphones: string[];
   outputs: string[];
-  microphone_devices?: AudioDeviceInfo[];
-  output_devices?: AudioDeviceInfo[];
+  microphone_devices: AudioDeviceInfo[];
+  output_devices: AudioDeviceInfo[];
 }
 
 export interface ProcessingPhaseDuration {
@@ -177,6 +178,7 @@ export interface ProcessingInfo {
   message: string;
   error?: string | null;
   started_at?: string | null;
+  updated_at?: string | null;
   finished_at?: string | null;
   phase_started_at?: string | null;
   phase_history?: ProcessingPhaseDuration[];
@@ -185,21 +187,22 @@ export interface ProcessingInfo {
 export interface SessionSummary {
   id: string;
   title: string;
-  started_at?: string;
-  summary_excerpt?: string;
+  started_at: string | null;
+  summary_excerpt: string;
   summary: boolean;
   transcript: boolean;
   audio: boolean;
-  audio_tracks?: string[];
-  duration_seconds?: number | null;
-  processing?: ProcessingInfo | null;
+  audio_tracks: string[];
+  duration_seconds: number | null;
+  has_metadata: boolean;
+  processing: ProcessingInfo | null;
 }
 
 export interface SessionPage {
   items: SessionSummary[];
   count: number;
   page_count: number;
-  limit: number | string;
+  limit: number | 'all';
   offset: number;
   root: string;
   root_exists: boolean;
@@ -207,9 +210,33 @@ export interface SessionPage {
 }
 
 export interface SessionDetail extends SessionSummary {
-  metadata?: Record<string, unknown>;
-  summary_translations?: string[];
-  files?: { summary: boolean; transcript: boolean; audio_tracks: string[]; analysis: boolean };
+  metadata: Record<string, unknown>;
+  summary_translations: string[];
+  files: { summary: boolean; transcript: boolean; audio_tracks: string[]; analysis: boolean };
+}
+
+export interface SessionMutationResponse {
+  id: string;
+  title?: string | null;
+  filename?: string | null;
+  settings?: GlimioSettings | null;
+  audio_tracks?: string[] | null;
+  disabled_audio_tracks?: string[] | null;
+  warnings: string[];
+  metadata: Record<string, unknown>;
+}
+
+export interface SessionDeleteResponse {
+  deleted: boolean;
+  id: string;
+}
+
+export interface DeletedJobResponse {
+  deleted: string;
+}
+
+export interface ClearJobHistoryResponse {
+  deleted: number;
 }
 
 export interface SessionArtifact {
@@ -252,17 +279,23 @@ export interface ProviderEvent {
   details: Record<string, unknown>;
 }
 
+export interface JobQueue {
+  waiting: number;
+  running: Job | null;
+  serial: boolean;
+}
+
 export interface JobsResponse {
   items: Job[];
-  active?: Job | null;
-  queue?: { waiting?: number; running?: Job | null; serial?: boolean };
+  active: Job | null;
+  queue: JobQueue;
 }
 
 export interface SearchSource {
   source_number: number | string;
-  source_id?: string;
-  included?: boolean;
-  citation_number?: number | null;
+  source_id: string | null;
+  included: boolean;
+  citation_number: number | null;
   title: string;
   session_id: string;
   filename: string;
@@ -272,14 +305,24 @@ export interface SearchSource {
 
 export interface SearchResult {
   id: string;
-  state: 'queued' | 'running' | 'cancelling' | 'completed' | 'cancelled' | 'error';
-  message?: string;
-  updated_at?: string;
-  sessions_total?: number;
-  sessions_scanned?: number;
-  passages_found?: number;
-  answer?: string;
-  llm_error?: string;
-  sources?: SearchSource[];
-  session_ids?: string[];
+  state: SearchState;
+  message: string;
+  query: string;
+  session_ids: string[];
+  sessions_total: number;
+  sessions_scanned: number;
+  passages_found: number;
+  answer: string | null;
+  llm_error: string | null;
+  sources: SearchSource[];
+  created_at: string | null;
+  updated_at: string | null;
+  finished_at: string | null;
+}
+
+export interface SearchAskResponse {
+  query: string;
+  answer: string | null;
+  sources: SearchSource[];
+  llm_error: string | null;
 }

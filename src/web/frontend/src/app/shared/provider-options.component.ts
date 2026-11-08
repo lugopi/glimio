@@ -9,11 +9,12 @@ import { ProviderInstallStatus, ProviderOption, ProviderStatus } from '../core/a
 import { missingProviderDependencyIds } from '../core/provider-dependencies';
 import { CheckboxFieldComponent } from './checkbox-field.component';
 import { IconComponent } from './icon.component';
+import { DependencyBannerComponent, DependencyBannerIssue } from './dependency-banner.component';
 
 @Component({
   selector: 'glimio-provider-options',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet, RouterLink, CheckboxFieldComponent, IconComponent],
+  imports: [FormsModule, NgTemplateOutlet, RouterLink, CheckboxFieldComponent, IconComponent, DependencyBannerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './provider-options.component.html',
   styleUrl: './provider-options.component.scss',
@@ -96,6 +97,25 @@ export class ProviderOptionsComponent implements OnDestroy {
       .filter(providerId => !displayedIds.has(providerId))
       .map(providerId => ({ providerId }));
     return [...items, ...structuredItems];
+  }
+
+  dependencyBannerIssues(): DependencyBannerIssue[] {
+    const providerId = this.provider().id;
+    return this.missingItems().map((item, index) => ({
+      key: `${providerId}:${item.providerId ?? item.text ?? index}`,
+      message: item.providerId ? 'Dépendance manquante.' : `À configurer : ${item.text ?? 'ressource indisponible'}`,
+      providerId: item.providerId ? providerId : undefined,
+      fallbackProviderId: providerId,
+      requiredProviderIds: item.providerId ? [item.providerId] : [],
+      linkLabel: item.providerId ? 'Provider requis :' : undefined,
+    }));
+  }
+
+  warningBannerIssues(): DependencyBannerIssue[] {
+    return this.warnings().map((warning, index) => ({
+      key: `${this.provider().id}:warning:${index}`,
+      message: this.providerText(warning),
+    }));
   }
 
   missingPythonPackages(status: ProviderStatus): string[] {

@@ -305,7 +305,14 @@ def read_artifact(root: Path, session_id: str, kind: str) -> dict[str, str]:
         raise ValueError("Unsupported artifact type.")
     if path is None:
         raise FileNotFoundError(f"No {kind} found for this session.")
-    return {"session_id": session_id, "kind": kind, "filename": path.name, "content": _read_text(path)}
+    stat = path.stat()
+    return {
+        "session_id": session_id,
+        "kind": kind,
+        "filename": path.name,
+        "revision": f"{stat.st_mtime_ns}:{stat.st_size}",
+        "content": _read_text(path),
+    }
 
 
 def _rank_passages(passages: list[dict[str, Any]], top_k: int) -> list[dict[str, Any]]:

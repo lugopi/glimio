@@ -4,8 +4,64 @@ import { Observable, catchError, throwError } from 'rxjs';
 import {
   AppConfig, AudioDevices, AudioSourceSelection, GlimioSettings, JobsResponse, JobAction, Job,
   PreferencesPayload, SearchResult, SessionArtifact, SessionDetail, SessionPage,
-  ProvidersResponse, ProviderInstallResponse,
+  ProvidersResponse, ProviderInstallResponse, SessionMutationResponse, SessionDeleteResponse,
+  DeletedJobResponse, ClearJobHistoryResponse,
 } from './api.models';
+
+/** Structured error for callers that need both a readable message and HTTP context. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number | null,
+    readonly details?: unknown,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+function formatValidationDetail(detail: unknown): string | null {
+  if (typeof detail === 'string' && detail.trim()) return detail.trim();
+  if (Array.isArray(detail)) {
+    const messages = detail.map(item => {
+      if (!item || typeof item !== 'object') return '';
+      const value = item as { loc?: unknown; msg?: unknown };
+      const location = Array.isArray(value.loc)
+        ? value.loc.filter(part => part !== 'body' && part !== 'query' && part !== 'path')
+          .map(part => String(part)).join('.')
+        : '';
+      const message = typeof value.msg === 'string' ? value.msg : '';
+      return [location, message].filter(Boolean).join(' : ');
+    }).filter(Boolean);
+    return messages.length ? messages.join(' · ') : null;
+  }
+  if (detail && typeof detail === 'object') {
+    const value = detail as { message?: unknown; error?: unknown };
+    if (typeof value.message === 'string' && value.message.trim()) return value.message.trim();
+    if (typeof value.error === 'string' && value.error.trim()) return value.error.trim();
+  }
+  return null;
+}
+
+/** Convert FastAPI, network and unexpected errors without discarding their status/details. */
+export function normalizeApiError(error: unknown): ApiError {
+  if (error instanceof ApiError) return error;
+  if (error instanceof HttpErrorResponse) {
+    const body = error.error as { detail?: unknown; error?: unknown; message?: unknown } | null;
+    const details = body && typeof body === 'object'
+      ? body.detail ?? body.error ?? body.message ?? body
+      : body;
+    const message = error.status === 0
+      ? 'Impossible de joindre l’API Glimio. Vérifiez que le serveur est démarré.'
+      : formatValidationDetail(details) ?? `Erreur HTTP ${error.status}`;
+    return new ApiError(message, error.status, details);
+  }
+  return new ApiError(
+    error instanceof Error ? error.message : 'Une erreur inattendue est survenue.',
+    null,
+    error,
+  );
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -52,9 +108,9 @@ export class ApiService {
     return this.get<SessionDetail>(`/api/sessions/${encodeURIComponent(id)}`);
   }
 
-  saveSessionSummary(id: string, content: string, revision: string | null): Observable<SessionArtifact> {
+  saveSessionArtifact(id: string, kind: 'summary' | 'transcript', content: string, revision: string | null): Observable<SessionArtifact> {
     return this.http.put<SessionArtifact>(
-      `/api/sessions/${encodeURIComponent(id)}/summary`, { content, revision },
+      `/api/sessions/${encodeURIComponent(id)}/${kind}`, { content, revision },
     ).pipe(catchError(this.normalizeError));
   }
 
@@ -69,28 +125,28 @@ export class ApiService {
     return this.get<SessionArtifact>(`/api/sessions/${encodeURIComponent(id)}/${kind}`, params);
   }
 
-  renameSession(id: string, title: string): Observable<SessionDetail> {
-    return this.http.patch<SessionDetail>(`/api/sessions/${encodeURIComponent(id)}`, { title }).pipe(catchError(this.normalizeError));
+  renameSession(id: string, title: string): Observable<SessionMutationResponse> {
+    return this.http.patch<SessionMutationResponse>(`/api/sessions/${encodeURIComponent(id)}`, { title }).pipe(catchError(this.normalizeError));
   }
 
-  deleteSession(id: string): Observable<{ deleted: string }> {
-    return this.http.delete<{ deleted: string }>(`/api/sessions/${encodeURIComponent(id)}`).pipe(catchError(this.normalizeError));
+  deleteSession(id: string): Observable<SessionDeleteResponse> {
+    return this.http.delete<SessionDeleteResponse>(`/api/sessions/${encodeURIComponent(id)}`).pipe(catchError(this.normalizeError));
   }
 
-  setAudioTrackDisabled(id: string, filename: string, disabled: boolean): Observable<{ id: string; filename: string; disabled_audio_tracks: string[]; metadata: Record<string, unknown> }> {
-    return this.http.patch<{ id: string; filename: string; disabled_audio_tracks: string[]; metadata: Record<string, unknown> }>(
+  setAudioTrackDisabled(id: string, filename: string, disabled: boolean): Observable<SessionMutationResponse> {
+    return this.http.patch<SessionMutationResponse>(
       `/api/sessions/${encodeURIComponent(id)}/audio/${encodeURIComponent(filename)}`, { disabled },
     ).pipe(catchError(this.normalizeError));
   }
 
-  deleteAudioTrack(id: string, filename: string): Observable<{ id: string; filename: string; audio_tracks: string[]; metadata: Record<string, unknown>; warnings: string[] }> {
-    return this.http.delete<{ id: string; filename: string; audio_tracks: string[]; metadata: Record<string, unknown>; warnings: string[] }>(
+  deleteAudioTrack(id: string, filename: string): Observable<SessionMutationResponse> {
+    return this.http.delete<SessionMutationResponse>(
       `/api/sessions/${encodeURIComponent(id)}/audio/${encodeURIComponent(filename)}`,
     ).pipe(catchError(this.normalizeError));
   }
 
-  saveSessionSettings(id: string, settings: GlimioSettings): Observable<{ id: string; settings: GlimioSettings; metadata: Record<string, unknown> }> {
-    return this.http.put<{ id: string; settings: GlimioSettings; metadata: Record<string, unknown> }>(`/api/sessions/${encodeURIComponent(id)}/settings`, { settings }).pipe(catchError(this.normalizeError));
+  saveSessionSettings(id: string, settings: GlimioSettings): Observable<SessionMutationResponse> {
+    return this.http.put<SessionMutationResponse>(`/api/sessions/${encodeURIComponent(id)}/settings`, { settings }).pipe(catchError(this.normalizeError));
   }
 
   jobs(): Observable<JobsResponse> {
@@ -101,12 +157,12 @@ export class ApiService {
     return this.http.post<Job>(`/api/jobs/${encodeURIComponent(id)}/cancel`, {}).pipe(catchError(this.normalizeError));
   }
 
-  deleteJob(id: string): Observable<{ deleted: string }> {
-    return this.http.delete<{ deleted: string }>(`/api/jobs/${encodeURIComponent(id)}`).pipe(catchError(this.normalizeError));
+  deleteJob(id: string): Observable<DeletedJobResponse> {
+    return this.http.delete<DeletedJobResponse>(`/api/jobs/${encodeURIComponent(id)}`).pipe(catchError(this.normalizeError));
   }
 
-  clearJobHistory(): Observable<{ deleted: number }> {
-    return this.http.delete<{ deleted: number }>('/api/jobs/history').pipe(catchError(this.normalizeError));
+  clearJobHistory(): Observable<ClearJobHistoryResponse> {
+    return this.http.delete<ClearJobHistoryResponse>('/api/jobs/history').pipe(catchError(this.normalizeError));
   }
 
   startSessionJob(action: JobAction, sessionId: string, settings: GlimioSettings, force = false): Observable<Job> {
@@ -152,21 +208,14 @@ export class ApiService {
     return this.get<SearchResult>(`/api/search/${encodeURIComponent(id)}`);
   }
 
-  cancelSearch(id: string): Observable<unknown> {
-    return this.http.post(`/api/search/${encodeURIComponent(id)}/cancel`, {}).pipe(catchError(this.normalizeError));
+  cancelSearch(id: string): Observable<SearchResult> {
+    return this.http.post<SearchResult>(`/api/search/${encodeURIComponent(id)}/cancel`, {}).pipe(catchError(this.normalizeError));
   }
 
   private get<T>(url: string, params?: HttpParams): Observable<T> {
     return this.http.get<T>(url, { params }).pipe(catchError(this.normalizeError));
   }
 
-  private readonly normalizeError = (error: unknown) => {
-    if (error instanceof HttpErrorResponse) {
-      const detail = typeof error.error === 'object' && error.error !== null
-        ? error.error.detail ?? error.error.error
-        : error.error;
-      return throwError(() => new Error(String(detail || `Erreur HTTP ${error.status}`)));
-    }
-    return throwError(() => error instanceof Error ? error : new Error('Une erreur inattendue est survenue.'));
-  };
+  private readonly normalizeError = (error: unknown) =>
+    throwError(() => normalizeApiError(error));
 }

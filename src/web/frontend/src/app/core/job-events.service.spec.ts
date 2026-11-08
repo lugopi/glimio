@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Job, JobState, JobsResponse } from './api.models';
+import { Job, JobState, JobsResponse, SearchResult } from './api.models';
 import { JobEventsService } from './job-events.service';
 
 type EventListenerDouble = (event: MessageEvent<string>) => void;
@@ -130,6 +130,48 @@ describe('JobEventsService', () => {
       { kind: 'summary', revision: 'r1' },
       { kind: 'transcript', revision: 'r2' },
     ]);
+
+    subscription.unsubscribe();
+    sourceSubscription.unsubscribe();
+  });
+
+
+  it('ignores snapshots and job events that do not match the API contract', () => {
+    const responses: JobsResponse[] = [];
+    const subscription = service.updates$.subscribe(value => responses.push(value));
+    const source = FakeEventSource.instances[0];
+
+    source.emit('snapshot', { items: [], queue: { waiting: 'not-a-number' } });
+    source.emit('job', { id: 42, kind: 'process', state: 'running', phase: 'working' });
+    expect(responses).toHaveLength(0);
+
+    source.emit('snapshot', snapshot([job('job-1', 'queued')]));
+    expect(responses).toHaveLength(1);
+    expect(responses[0].items[0].id).toBe('job-1');
+    subscription.unsubscribe();
+  });
+
+  it('forwards only search events with the required response shape', () => {
+    const updates: SearchResult[] = [];
+    const sourceSubscription = service.updates$.subscribe();
+    const subscription = service.searchUpdates$.subscribe(value => updates.push(value));
+    const source = FakeEventSource.instances[0];
+
+    source.emit('search', { id: 'search-1', state: 'running' });
+    expect(updates).toHaveLength(0);
+    source.emit('search', {
+      id: 'search-1', state: 'running', message: 'Recherche en cours', query: 'question',
+      session_ids: [], sessions_total: 0, sessions_scanned: 0, passages_found: 0,
+      answer: null, llm_error: null, sources: [{ source_number: 1, source_id: 'source-1', included: true, citation_number: 1, title: 'Titre', session_id: 'session-1', filename: 'resume.md', kind: 'summary', text: 'Extrait' }], created_at: null, updated_at: null, finished_at: null,
+    });
+    expect(updates).toHaveLength(1);
+    expect(updates[0].query).toBe('question');
+    source.emit('search', {
+      id: 'search-2', state: 'running', message: 'Recherche', query: 'question', session_ids: [],
+      sessions_total: 0, sessions_scanned: 0, passages_found: 1, answer: null, llm_error: null,
+      sources: [{ source_number: 1 }], created_at: null, updated_at: null, finished_at: null,
+    });
+    expect(updates).toHaveLength(1);
 
     subscription.unsubscribe();
     sourceSubscription.unsubscribe();

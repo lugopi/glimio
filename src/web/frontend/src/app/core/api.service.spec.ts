@@ -1,8 +1,9 @@
 import { TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ApiService } from './api.service';
+import { ApiError, ApiService, normalizeApiError } from './api.service';
 
 describe('ApiService', () => {
   let api: ApiService;
@@ -50,4 +51,37 @@ describe('ApiService', () => {
       revision: 'rev-2', content: ' suite', append: true, live: true,
     });
   });
+
+  it('saves a transcript edit with optimistic revision metadata', () => {
+    api.saveSessionArtifact('session-1', 'transcript', 'Texte corrigé', 'rev-1').subscribe(value => {
+      expect(value.kind).toBe('transcript');
+      expect(value.content).toBe('Texte corrigé');
+    });
+    const request = http.expectOne('/api/sessions/session-1/transcript');
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body).toEqual({ content: 'Texte corrigé', revision: 'rev-1' });
+    request.flush({ session_id: 'session-1', kind: 'transcript', filename: 'transcription.md', revision: 'rev-2', content: 'Texte corrigé', live: false });
+  });
+
+  it('keeps FastAPI validation details readable and preserves the HTTP status', () => {
+    const error = normalizeApiError(new HttpErrorResponse({
+      status: 422,
+      error: { detail: [{ loc: ['body', 'settings', 'context'], msg: 'Input should be greater than or equal to 2048' }] },
+    }));
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.status).toBe(422);
+    expect(error.message).toContain('settings.context');
+    expect(error.message).toContain('2048');
+  });
+
+  it('keeps conflict messages and distinguishes a disconnected API', () => {
+    const conflict = normalizeApiError(new HttpErrorResponse({ status: 409, error: { detail: 'Le document a changé.' } }));
+    expect(conflict.status).toBe(409);
+    expect(conflict.message).toBe('Le document a changé.');
+
+    const disconnected = normalizeApiError(new HttpErrorResponse({ status: 0, error: null }));
+    expect(disconnected.status).toBe(0);
+    expect(disconnected.message).toContain('Impossible de joindre l’API Glimio');
+  });
+
 });

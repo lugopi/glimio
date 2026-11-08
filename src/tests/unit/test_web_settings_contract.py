@@ -32,6 +32,15 @@ class WebSettingsContractTests(unittest.TestCase):
         self.assertEqual(UIPreferences(theme="dracula").theme, "dracula")
         self.assertEqual(UIPreferences(theme="monokai").theme, "monokai")
 
+    def test_general_context_size_is_preserved_across_quality_profiles(self) -> None:
+        settings = Settings(processing_profile="quality", context=32768)
+
+        namespace = settings.namespace()
+
+        self.assertEqual(namespace.context, 32768)
+        self.assertEqual(namespace.max_tokens, 8000)
+        self.assertEqual(namespace.analysis_tokens, 5500)
+
     def test_summary_language_defaults_to_transcription_language_and_is_propagated(self) -> None:
         self.assertEqual(Settings().summary_language, "auto")
         self.assertEqual(Settings(summary_language="fr").namespace().summary_language, "fr")

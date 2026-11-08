@@ -98,6 +98,13 @@ def add_application_cli_parsers(commands: argparse._SubParsersAction[argparse.Ar
     art_save.add_argument("--revision", help="Révision mtime:size obtenue avec artifacts show (JSON).")
     art_save.add_argument("--force", action="store_true", help="Ignorer la protection contre une révision obsolète.")
     art_save.add_argument("--directory")
+    art_save_any = art_commands.add_parser("save-artifact", help="Enregistrer une édition du résumé ou de la transcription.")
+    art_save_any.add_argument("session_id")
+    art_save_any.add_argument("kind", choices=("summary", "transcript"))
+    art_save_any.add_argument("--file", required=True, help="Fichier Markdown source.")
+    art_save_any.add_argument("--revision", help="Révision mtime:size obtenue avec artifacts show (JSON).")
+    art_save_any.add_argument("--force", action="store_true", help="Ignorer la protection contre une révision obsolète.")
+    art_save_any.add_argument("--directory")
 
     preferences = commands.add_parser("preferences", aliases=["prefs"], help="Lire ou modifier les préférences partagées CLI/Web.")
     pcommands = preferences.add_subparsers(dest="preferences_command")
@@ -349,8 +356,11 @@ def _run_artifacts(args: argparse.Namespace, project_root: Path) -> int:
             print(value["content"], end="" if value["content"].endswith("\n") else "\n")
         return 0
     content = Path(args.file).expanduser().read_text(encoding="utf-8-sig")
-    result = session_core.save_summary(project_root, root, args.session_id, content, revision=args.revision, force=args.force)
-    print(f"Résumé enregistré : {result['filename']} · révision {result['revision']}")
+    kind = "summary" if command == "save-summary" else args.kind
+    result = session_core.save_session_artifact(project_root, root, args.session_id, kind, content, revision=args.revision, force=args.force)
+    label = "Résumé" if kind == "summary" else "Transcription"
+    agreement = "enregistré" if kind == "summary" else "enregistrée"
+    print(f"{label} {agreement} : {result['filename']} · révision {result['revision']}")
     return 0
 
 

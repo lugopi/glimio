@@ -1,0 +1,17 @@
+@reference '../../styles/tailwind-ref.scss';
+
+:host { @apply block min-w-0; }
+.dependency-banner {
+  @apply flex min-w-0 flex-wrap items-start gap-3 rounded-lg border border-warning-border bg-warning-banner p-3 text-sm text-muted;
+}
+.dependency-banner__icon { @apply mt-0.5 size-4 shrink-0 text-warning; }
+.dependency-banner__content { @apply grid min-w-0 flex-1 gap-1; }
+.dependency-banner__title { @apply font-semibold text-text; }
+.dependency-banner__description { @apply m-0 leading-relaxed; }
+.dependency-banner__issues { @apply m-0 grid list-disc gap-1 pl-4; }
+.dependency-banner__issues a { @apply font-semibold text-text underline decoration-dotted underline-offset-2 hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2; }
+.dependency-banner__actions { @apply flex shrink-0 flex-wrap items-center gap-2; }
+@media (width < theme(--breakpoint-sm)) {
+  .dependency-banner__actions { @apply w-full; }
+  .dependency-banner__actions .btn { @apply w-full justify-center; }
+}

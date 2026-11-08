@@ -1,0 +1,34 @@
+@if (issues().length) {
+  <section class="dependency-banner" [attr.role]="role()" [attr.aria-live]="role() === 'alert' ? 'assertive' : 'polite'">
+    <glimio-icon class="dependency-banner__icon" name="information-circle" />
+    <div class="dependency-banner__content">
+      <strong class="dependency-banner__title">{{ title() }}</strong>
+      @if (description()) { <p class="dependency-banner__description">{{ description() }}</p> }
+      <ul class="dependency-banner__issues">
+        @for (issue of issues(); track issue.key) {
+          <li>
+            <span>{{ issue.message }}</span>
+            @if (issue.requiredProviderIds?.length) {
+              @if (issue.linkLabel) { <span>{{ issue.linkLabel }} </span> }
+              @for (providerId of issue.requiredProviderIds; track providerId; let index = $index) {
+                @if (index) { <span>, </span> }
+                <a [routerLink]="['/settings']" [queryParams]="{ provider: providerId, fallback: issue.fallbackProviderId ?? issue.providerId ?? null, task: issue.linkTask ?? null }" [attr.data-no-translate]="''">{{ providerId }}</a>
+              }
+            } @else if (issue.providerId) {
+              @if (issue.linkLabel) { <span>{{ issue.linkLabel }} </span> }
+              <a [routerLink]="['/settings']" [queryParams]="{ provider: issue.providerId, fallback: issue.fallbackProviderId ?? issue.providerId }" [attr.data-no-translate]="''">{{ issue.providerId }}</a>
+            }
+          </li>
+        }
+      </ul>
+    </div>
+    <div class="dependency-banner__actions">
+      @if (settingsActionLabel()) {
+        <a class="btn btn--secondary btn--small" routerLink="/settings">{{ settingsActionLabel() }}</a>
+      }
+      @if (actionLabel()) {
+        <button class="btn btn--secondary btn--small" type="button" [disabled]="actionDisabled()" (click)="action.emit()">{{ actionLabel() }}</button>
+      }
+    </div>
+  </section>
+}

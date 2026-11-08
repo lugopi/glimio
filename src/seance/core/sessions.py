@@ -231,36 +231,49 @@ def read_session_artifact(root: str | Path, session_id: str, kind: str) -> dict[
         raise SessionServiceError(str(exc)) from exc
 
 
-def save_summary(
-    project_root: str | Path, root: str | Path, session_id: str, content: str,
+def save_session_artifact(
+    project_root: str | Path, root: str | Path, session_id: str, kind: str, content: str,
     *, revision: str | None = None, force: bool = False,
 ) -> dict[str, Any]:
+    """Save an existing summary or transcript with optimistic revision checking."""
+    if kind not in {"summary", "transcript"}:
+        raise SessionServiceError("Type de document invalide.")
+    label = "résumé" if kind == "summary" else "transcription"
+    article = "Le résumé" if kind == "summary" else "La transcription"
+    indefinite = "Aucun résumé existant" if kind == "summary" else "Aucune transcription existante"
     if not isinstance(content, str) or not content.strip():
-        raise SessionServiceError("Le résumé ne peut pas être vide.")
+        raise SessionServiceError(f"{article} ne peut pas être vide.")
     if len(content) > 2_000_000:
-        raise SessionServiceError("Le résumé dépasse la taille maximale de 2 000 000 caractères.")
-    ensure_session_idle(project_root, session_id, action="modifier le résumé")
+        raise SessionServiceError(f"{article} dépasse la taille maximale de 2 000 000 caractères.")
+    ensure_session_idle(project_root, session_id, action=f"modifier {label}")
     folder = _resolve_session(root, session_id)
-    path = summary_path(folder)
+    path = summary_path(folder) if kind == "summary" else transcript_path(folder)
     if path is None:
-        raise SessionServiceError("Aucun résumé existant à modifier pour cette séance.")
+        raise SessionServiceError(f"{indefinite} à modifier pour cette séance.")
     try:
         stat = path.stat()
     except OSError as exc:
-        raise SessionServiceError("Le résumé n'est plus disponible.") from exc
+        raise SessionServiceError(f"{article} n'est plus disponible.") from exc
     current_revision = f"{stat.st_mtime_ns}:{stat.st_size}"
     if revision is not None and revision != current_revision and not force:
-        raise SessionServiceError("Le résumé a changé depuis son chargement. Rechargez-le avant de sauvegarder.")
+        raise SessionServiceError(f"{article} a changé depuis son chargement. Rechargez le document avant de sauvegarder.")
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
         temporary.write_text(content, encoding="utf-8", newline="")
         temporary.replace(path)
         stat = path.stat()
     except OSError as exc:
-        raise SessionServiceError(f"Impossible d'enregistrer le résumé : {exc}") from exc
+        raise SessionServiceError(f"Impossible d'enregistrer {article.lower()} : {exc}") from exc
     finally:
         temporary.unlink(missing_ok=True)
-    return {"session_id": session_id, "kind": "summary", "filename": path.name, "revision": f"{stat.st_mtime_ns}:{stat.st_size}", "content": content, "live": False}
+    return {
+        "session_id": session_id,
+        "kind": kind,
+        "filename": path.name,
+        "revision": f"{stat.st_mtime_ns}:{stat.st_size}",
+        "content": content,
+        "live": False,
+    }
 
 
 def _validate_audio_filename(filename: str) -> None:

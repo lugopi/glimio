@@ -69,9 +69,9 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   readonly artifactKind = signal<'summary' | 'transcript' | null>(null);
   readonly artifactLoading = signal(false);
   readonly artifactPending = signal(false);
-  readonly summaryEditing = signal(false);
-  readonly summaryDraft = signal('');
-  readonly summarySaving = signal(false);
+  readonly artifactEditing = signal(false);
+  readonly artifactDraft = signal('');
+  readonly artifactSaving = signal(false);
   readonly revealedChars = signal(0);
   readonly artifactVisibleContent = computed(() => sliceCodePoints(this.artifactContent(), this.revealedChars()));
   readonly artifactHtml = computed(() => renderMarkdownToHtml(this.artifactVisibleContent()));
@@ -230,16 +230,16 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   changePageSize(value: number): void { this.pageSize.set(Number(value)); this.page.set(1); this.loadSessions(); }
 
   openSession(id: string, showOnMobile = false): void {
-    if (this.summarySaving()) {
+    if (this.artifactSaving()) {
       this.toast.show('Enregistrement du résumé en cours. Attendez sa fin avant de changer de séance.', 'info');
       return;
     }
-    if (this.summaryEditing()) {
+    if (this.artifactEditing()) {
       this.toast.show('Enregistrez ou annulez les modifications du résumé avant de changer de séance ou de recharger son détail.', 'info');
       return;
     }
-    this.summaryEditing.set(false);
-    this.summaryDraft.set('');
+    this.artifactEditing.set(false);
+    this.artifactDraft.set('');
     const changingSession = this.selectedId() !== id;
     if (changingSession) {
       this.artifactLanguage.set('source');
@@ -377,7 +377,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   runJob(action: 'transcribe' | 'summarize' | 'process', force = false): void {
     if (this.sessionProcessingActive()) return;
-    if (this.summaryEditing()) { this.toast.show('Enregistrez ou annulez les modifications du résumé avant de lancer un traitement.', 'info'); return; }
+    if (this.artifactEditing()) { this.toast.show('Enregistrez ou annulez les modifications du document avant de lancer un traitement.', 'info'); return; }
     const session = this.selected(); const settings = this.sessionSettings() ?? this.preferences.preferences()?.settings;
     if (!session || !settings) { this.toast.show('Les paramètres ne sont pas encore disponibles.', 'error'); return; }
     this.liveArtifactPhaseKey = '';
@@ -412,7 +412,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
       this.toast.show('Choisissez une langue cible prise en charge.', 'error');
       return;
     }
-    if (this.sessionProcessingActive() || this.working() || this.summaryEditing()) return;
+    if (this.sessionProcessingActive() || this.working() || this.artifactEditing()) return;
     const session = this.selected();
     const baseSettings = this.sessionSettings() ?? this.preferences.preferences()?.settings;
     if (!session || !session.summary || !baseSettings) {
@@ -441,7 +441,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   }
 
   loadSummaryVersion(language: string): void {
-    if (this.summaryEditing() || !this.selected()?.summary) return;
+    if (this.artifactEditing() || !this.selected()?.summary) return;
     if (language === 'source') {
       this.loadArtifact('summary', 'source');
       return;
@@ -457,14 +457,14 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   }
 
   renameSession(): void {
-    const session = this.selected(); if (!session || this.sessionProcessingActive() || this.summaryEditing()) return;
+    const session = this.selected(); if (!session || this.sessionProcessingActive() || this.artifactEditing()) return;
     const title = window.prompt('Nouveau titre de la séance', session.title)?.trim();
     if (!title || title === session.title) return;
     this.api.renameSession(session.id, title).subscribe({ next: () => { this.toast.show('Séance renommée.', 'success'); this.loadSessions(); }, error: error => this.toast.show(error.message, 'error') });
   }
 
   deleteSession(): void {
-    const session = this.selected(); if (!session || this.sessionProcessingActive() || this.summaryEditing()) return;
+    const session = this.selected(); if (!session || this.sessionProcessingActive() || this.artifactEditing()) return;
     if (!window.confirm(`Supprimer définitivement la séance « ${session.title} » et ses fichiers ?`)) return;
     this.api.deleteSession(session.id).subscribe({ next: () => { this.toast.show('Séance supprimée.', 'success'); this.selected.set(null); this.selectedId.set(null); this.loadSessions(true); }, error: error => this.toast.show(error.message, 'error') });
   }
@@ -501,7 +501,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   setAudioTrackDisabled(filename: string, disabled: boolean): void {
     const session = this.selected();
-    if (!session || this.sessionProcessingActive() || this.summaryEditing()) return;
+    if (!session || this.sessionProcessingActive() || this.artifactEditing()) return;
     this.working.set(true);
     this.api.setAudioTrackDisabled(session.id, filename, disabled).subscribe({
       next: result => {
@@ -517,7 +517,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
   deleteAudioTrack(filename: string): void {
     const session = this.selected();
-    if (!session || this.sessionProcessingActive() || this.summaryEditing()) return;
+    if (!session || this.sessionProcessingActive() || this.artifactEditing()) return;
     const isLastTrack = (session.audio_tracks ?? []).length <= 1;
     const lastTrackWarning = isLastTrack
       ? '\n\nC’est la dernière piste audio. Après suppression, il sera impossible de régénérer la transcription ou le résumé à partir de cette séance, sauf si vous réimportez une source audio.'
@@ -547,7 +547,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
   }
 
   artifactTabsDisabled(): boolean {
-    if (this.summaryEditing()) return true;
+    if (this.artifactEditing()) return true;
     if (!this.isFullProcessActive()) return false;
     const processing = this.selected()?.processing;
     // Once transcription is complete, let the user inspect the finished transcript
@@ -575,69 +575,72 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
     document.getElementById(`artifact-tab-${target}`)?.focus();
   }
 
-  startSummaryEdit(): void {
+  startArtifactEdit(): void {
     const session = this.selected();
-    if (!session || !session.summary || this.artifactKind() !== 'summary'
-        || this.sessionProcessingActive() || this.isFullProcessActive() || this.artifactLoading() || this.artifactPending()
-        || !this.artifactContent().trim()) return;
-    this.summaryDraft.set(this.artifactContent());
-    this.summaryEditing.set(true);
+    const kind = this.artifactKind();
+    if (!session || !kind || this.sessionProcessingActive() || this.isFullProcessActive()
+        || this.artifactLoading() || this.artifactPending() || !this.artifactContent().trim()) return;
+    if ((kind === 'summary' && (!session.summary || this.artifactLanguage() !== 'source'))
+        || (kind === 'transcript' && !session.transcript)) return;
+    this.artifactDraft.set(this.artifactContent());
+    this.artifactEditing.set(true);
   }
 
-  cancelSummaryEdit(): void {
-    if (this.summarySaving()) return;
-    this.summaryEditing.set(false);
-    this.summaryDraft.set('');
+  cancelArtifactEdit(): void {
+    if (this.artifactSaving()) return;
+    this.artifactEditing.set(false);
+    this.artifactDraft.set('');
   }
 
-  saveSummaryEdit(): void {
+  saveArtifactEdit(): void {
     const session = this.selected();
-    const content = this.summaryDraft();
-    if (!session || this.artifactKind() !== 'summary' || this.sessionProcessingActive() || this.isFullProcessActive()
-        || this.summarySaving() || !content.trim() || !this.artifactRevision) return;
-    this.summarySaving.set(true);
-    this.api.saveSessionSummary(session.id, content, this.artifactRevision).subscribe({
+    const kind = this.artifactKind();
+    const content = this.artifactDraft();
+    if (!session || !kind || this.sessionProcessingActive() || this.isFullProcessActive()
+        || this.artifactSaving() || !content.trim() || !this.artifactRevision) return;
+    this.artifactSaving.set(true);
+    this.api.saveSessionArtifact(session.id, kind, content, this.artifactRevision).subscribe({
       next: result => {
-        this.summarySaving.set(false);
-        if (this.selectedId() !== session.id) return;
+        this.artifactSaving.set(false);
+        if (this.selectedId() !== session.id || this.artifactKind() !== kind) return;
         const savedContent = result.content ?? content;
         const length = codePointLength(savedContent);
         this.artifactContent.set(savedContent);
         this.artifactRevision = result.revision;
         this.artifactLive.set(false);
-        this.revealedByKind.summary = length;
+        this.revealedByKind[kind] = length;
         this.reveal.reset(length);
         this.revealedChars.set(length);
-        this.summaryEditing.set(false);
-        this.summaryDraft.set('');
-        this.selected.update(current => current ? { ...current, summary: true } : current);
-        this.toast.show('Résumé enregistré.', 'success');
+        this.artifactEditing.set(false);
+        this.artifactDraft.set('');
+        this.selected.update(current => current ? { ...current, [kind]: true } : current);
+        this.toast.show(kind === 'summary' ? 'Résumé enregistré.' : 'Transcription enregistrée.', 'success');
         this.loadSessions();
       },
       error: error => {
-        this.summarySaving.set(false);
-        this.toast.show(`Impossible d’enregistrer le résumé : ${error.message}`, 'error');
+        this.artifactSaving.set(false);
+        this.toast.show(`Impossible d’enregistrer le document : ${error.message}`, 'error');
       },
     });
   }
 
   exportSummaryMarkdown(): void {
     const session = this.selected();
-    if (!session || this.artifactKind() !== 'summary' || this.summaryEditing()) return;
+    if (!session || this.artifactKind() !== 'summary' || this.artifactEditing()) return;
     this.documentExport.downloadMarkdown(this.artifactContent(), session.title, session.id);
     this.toast.show('Résumé exporté au format Markdown.', 'success');
   }
 
   printSummaryPdf(): void {
     const session = this.selected();
-    if (!session || this.artifactKind() !== 'summary' || this.summaryEditing()) return;
+    if (!session || this.artifactKind() !== 'summary' || this.artifactEditing()) return;
     if (!this.documentExport.openPrintView(this.artifactContent(), session.title)) {
       this.toast.show('Autorisez les fenêtres contextuelles pour imprimer ou enregistrer le résumé en PDF.', 'info');
     }
   }
 
   loadArtifact(kind: 'summary' | 'transcript', summaryLanguage?: string): void {
-    if (this.summaryEditing() && this.artifactKind() !== kind) return;
+    if (this.artifactEditing() && this.artifactKind() !== kind) return;
     const session = this.selected();
     if (!session || session.id !== this.selectedId()
         || (kind === 'summary' && !session.summary)

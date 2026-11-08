@@ -11,8 +11,8 @@ import { missingProviderDependencyIds, requiredProviderIdsForTask } from '../../
 import { ToastService } from '../../core/toast.service';
 import { CheckboxFieldComponent } from '../../shared/checkbox-field.component';
 import { IconComponent } from '../../shared/icon.component';
-import { PaginationComponent } from '../../shared/pagination.component';
 import { ProviderOptionsComponent } from '../../shared/provider-options.component';
+import { DependencyBannerComponent } from '../../shared/dependency-banner.component';
 import { providerSupportsTranscriptionLanguage, transcriptionLanguageOptions } from '../../shared/transcription-languages';
 import { summaryFormatDescription, summaryFormatLabel, summaryFormatOptions } from '../../shared/summary-formats';
 import { summaryLanguageOptions } from '../../shared/summary-languages';
@@ -25,12 +25,13 @@ interface ProviderSetupIssue {
   /** If the target provider is absent, route to this requiring provider's settings. */
   fallbackProviderId: string;
   requiredProviderIds: string[];
+  linkLabel?: string;
   linkTask?: ProviderStatus['task'];
 }
 
 @Component({
   standalone: true,
-  imports: [FormsModule, DecimalPipe, RouterLink, CheckboxFieldComponent, IconComponent, PaginationComponent, ProviderOptionsComponent],
+  imports: [FormsModule, DecimalPipe, RouterLink, CheckboxFieldComponent, IconComponent, ProviderOptionsComponent, DependencyBannerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './recording.page.html',
   styleUrl: './recording.page.scss',
@@ -50,8 +51,8 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
     ? (this.devices().microphone_devices ?? this.devices().microphones.map((name, index) => ({ id: '', name, key: `microphone:${index}:${name}` })))
     : (this.devices().output_devices ?? this.devices().outputs.map((name, index) => ({ id: '', name, key: `output:${index}:${name}` }))));
   readonly deviceStatus = signal('Périphériques non vérifiés');
-  readonly jobsResponse = signal<JobsResponse | null>(null);
-  readonly jobs = computed(() => this.jobsResponse()?.items ?? []);
+  /** État temps réel du seul enregistrement actif ; l'historique vit dans Traitements. */
+  readonly activeRecording = signal<Job | null>(null);
   readonly settings = computed(() => this.preferences.preferences()?.settings ?? null);
   readonly providers = signal<ProviderStatus[] | null>(null);
   readonly perJobOverrides = signal<Record<string, Record<string, unknown>>>({});
@@ -59,8 +60,6 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
   readonly formats = summaryFormatOptions.map(option => option.code);
   readonly summaryLanguages = summaryLanguageOptions;
   readonly speakerCounts = [...Array.from({ length: 20 }, (_, index) => index + 1), 25, 30, 40, 50, 100];
-  readonly visibleJobs = computed(() => this.jobs().slice((this.jobsPage() - 1) * this.pageSize, this.jobsPage() * this.pageSize));
-  readonly activeRecording = computed(() => this.jobsResponse()?.active?.kind === 'recording' ? this.jobsResponse()?.active : this.jobs().find(job => job.kind === 'recording' && ['queued', 'running', 'stopping'].includes(job.state)) ?? null);
   /** Résumé d'état et des sources capturées, à côté du bouton d'arrêt. */
   readonly recordingStatusText = computed(() => {
     const job = this.activeRecording();
@@ -83,8 +82,6 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
   readonly starting = signal(false);
   readonly importing = signal(false);
   readonly selectedFile = signal<File | null>(null);
-  readonly jobsPage = signal(1);
-  readonly pageSize = 6;
   title = '';
   microphone = '';
   output = '';
@@ -108,7 +105,7 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.api.providers().subscribe({ next: response => this.providers.set(response.providers), error: () => this.providers.set([]) });
     this.refreshDevices();
-    this.jobsSubscription = this.jobEvents.updates$.subscribe(data => { this.setJobsResponse(data); this.syncElapsedTimer(data); });
+    this.jobsSubscription = this.jobEvents.updates$.subscribe(data => this.syncElapsedTimer(data));
   }
 
   ngOnDestroy(): void {
@@ -121,6 +118,7 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
     const active = (data.active?.kind === 'recording' ? data.active : null)
       ?? data.items.find(job => job.kind === 'recording' && ['queued', 'running', 'stopping'].includes(job.state))
       ?? null;
+    this.activeRecording.set(active);
     if (!active) {
       if (this.lastActiveJobId !== null) { this.lastActiveJobId = null; this.resetElapsed(); }
       return;
@@ -219,14 +217,6 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  refreshJobs(): void { this.api.jobs().subscribe({ next: data => this.setJobsResponse(data), error: error => this.toast.show(error.message, 'error') }); }
-
-  private setJobsResponse(data: JobsResponse): void {
-    this.jobsResponse.set(data);
-    const maxPage = Math.max(1, Math.ceil(this.jobs().length / this.pageSize));
-    if (this.jobsPage() > maxPage) this.jobsPage.set(maxPage);
-  }
-
   private settingsForJob(settings: GlimioSettings): GlimioSettings {
     const support = providerSupportsTranscriptionLanguage(this.providers(), settings.transcription_provider);
     const language = support === false || settings.language === 'detect' ? 'auto' : settings.language;
@@ -301,6 +291,7 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
           providerId: missingProviderId,
           fallbackProviderId: item.fallbackProviderId ?? missingProviderId,
           requiredProviderIds: missingProviderId ? [missingProviderId] : [],
+          linkLabel: missingProviderId ? 'Provider concerné :' : undefined,
         });
       } else if (!provider.ready) {
         const dependencyIds = missingProviderDependencyIds(provider);
@@ -312,6 +303,7 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
           providerId: provider.id,
           fallbackProviderId: provider.id,
           requiredProviderIds: dependencyIds,
+          linkLabel: dependencyIds.length ? 'Providers requis :' : 'Provider concerné :',
         });
       }
     }
@@ -322,6 +314,7 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
         providerId: settings.source_separation_provider,
         fallbackProviderId: settings.source_separation_provider,
         requiredProviderIds: requiredEmbeddingIds,
+        linkLabel: 'Providers requis :',
         linkTask: 'speaker_embedding',
       });
     }
@@ -452,13 +445,13 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
       normalize_windows: this.normalizeWindows, normalize_windows_max_gain_db: Number(this.normalizeGain),
       auto_transcribe: autoTranscribe, auto_pv: autoPv, settings: this.settingsForJob(preferences.settings),
     }).subscribe({
-      next: () => { this.toast.show('Enregistrement lancé.', 'success'); this.starting.set(false); this.refreshJobs(); },
+      next: () => { this.toast.show('Enregistrement lancé.', 'success'); this.starting.set(false); },
       error: error => { this.toast.show(`Impossible de démarrer l’enregistrement : ${error.message}`, 'error'); this.starting.set(false); },
     });
   }
 
   stopRecording(): void {
-    this.api.stopRecording().subscribe({ next: () => { this.toast.show('Arrêt demandé.', 'success'); this.refreshJobs(); }, error: error => this.toast.show(error.message, 'error') });
+    this.api.stopRecording().subscribe({ next: () => this.toast.show('Arrêt demandé.', 'success'), error: error => this.toast.show(error.message, 'error') });
   }
 
   selectFile(event: Event): void {
@@ -513,22 +506,10 @@ export class RecordingPageComponent implements OnInit, OnDestroy {
     }
     this.importing.set(true);
     this.api.importFile(file, this.settingsForJob(preferences.settings), this.importAction, this.normalizeWindows, Number(this.normalizeGain)).subscribe({
-      next: () => { this.toast.show('Fichier ajouté à la file de traitement.', 'success'); this.importing.set(false); this.selectedFile.set(null); const fileInput = document.getElementById('import-file') as HTMLInputElement | null; if (fileInput) fileInput.value = ''; this.refreshJobs(); },
+      next: () => { this.toast.show('Fichier ajouté à la file de traitement.', 'success'); this.importing.set(false); this.selectedFile.set(null); const fileInput = document.getElementById('import-file') as HTMLInputElement | null; if (fileInput) fileInput.value = ''; },
       error: error => { this.toast.show(`Échec de l’import : ${error.message}`, 'error'); this.importing.set(false); },
     });
   }
 
-  jobLabel(job: Job): string { return ({ recording: 'Enregistrement', transcribe: 'Transcription Whisper', summarize: 'Résumé', process: 'Traitement complet', 'translate-summary': 'Traduction du résumé', import: 'Import audio / vidéo' } as Record<string, string>)[job.kind] ?? job.kind; }
-  stateLabel(state: string): string { return ({ queued: 'Dans la file', running: 'En cours', stopping: 'Finalisation', completed: 'Terminé', cancelled: 'Annulé', error: 'Erreur' } as Record<string, string>)[state] ?? state; }
-  isDeletable(job: Job): boolean { return !['running', 'stopping', 'queued'].includes(job.state); }
-  hasDeletableJobs(): boolean { return this.jobs().some(job => this.isDeletable(job)); }
 
-  deleteJob(job: Job): void {
-    this.api.deleteJob(job.id).subscribe({ next: () => { this.toast.show('Activité effacée.', 'success'); this.refreshJobs(); }, error: error => this.toast.show(error.message, 'error') });
-  }
-
-  clearHistory(): void {
-    if (!this.hasDeletableJobs() || !window.confirm('Effacer l’historique des activités terminées ? Les traitements actifs seront conservés.')) return;
-    this.api.clearJobHistory().subscribe({ next: result => { this.jobsPage.set(1); this.toast.show(`${result.deleted} activité(s) effacée(s).`, 'success'); this.refreshJobs(); }, error: error => this.toast.show(error.message, 'error') });
-  }
 }

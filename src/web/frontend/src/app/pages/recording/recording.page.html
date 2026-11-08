@@ -1,5 +1,5 @@
     <section class="view is-active" aria-labelledby="control-title">
-      <div class="page-heading"><div><div class="eyebrow">CENTRE DE PILOTAGE</div><h1 id="control-title">Enregistrement et import</h1><p class="subheading">Enregistrez une source audio, importez un fichier ou relancez un traitement sur une séance existante.</p></div></div>
+      <div class="page-heading"><div><div class="eyebrow">CENTRE DE PILOTAGE</div><h1 id="control-title">Enregistrement et import</h1><p class="subheading">Enregistrez une source audio ou importez un fichier. <a class="text-link-button" routerLink="/jobs">Suivre les traitements</a></p></div></div>
       <div class="control-grid">
         <section class="card control-panel recording-panel">
           <div class="card-header"><div><div class="eyebrow">NOUVELLE SÉANCE</div><h2 class="card-title">Configuration de l'enregistrement</h2><p class="card-description">Les pistes audio sont conservées localement. Vous pourrez les transcrire et les résumer ensuite.</p></div></div>
@@ -62,28 +62,13 @@
 
       <section class="card shared-processing-panel" aria-labelledby="processing-options-title">
         @if (setupIssues().length) {
-          <div class="provider-setup-notice mb-4 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-700/30 bg-amber-700/5 p-3" role="status">
-            <div class="provider-setup-notice__copy grid min-w-0 flex-1 gap-1">
-              <strong class="text-sm font-semibold">Configuration requise</strong>
-              <p class="m-0 text-sm text-muted">Un ou plusieurs composants sélectionnés ne sont pas prêts. Ouvrez les paramètres pour consulter leur état et installer ou configurer les ressources manquantes.</p>
-              @for (issue of setupIssues(); track issue.key) {
-                <p class="provider-setup-notice__issue break-words m-0 text-sm text-muted">
-                  <span>{{ issue.message }}</span>
-                  @if (issue.requiredProviderIds.length) {
-                    <span> Provider requis : </span>
-                    @for (requiredProviderId of issue.requiredProviderIds; track requiredProviderId; let index = $index) {
-                      @if (index) { <span>, </span> }
-                      <a class="provider-setup-notice__provider-link inline font-semibold text-text underline decoration-dotted underline-offset-2 hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2" [routerLink]="['/settings']" [queryParams]="{ provider: requiredProviderId, fallback: issue.fallbackProviderId, task: issue.linkTask ?? null }" [attr.data-no-translate]="''">{{ requiredProviderId }}</a>
-                    }
-                  } @else if (issue.providerId) {
-                    <span> Provider concerné : </span>
-                    <a class="provider-setup-notice__provider-link inline font-semibold text-text underline decoration-dotted underline-offset-2 hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2" [routerLink]="['/settings']" [queryParams]="{ provider: issue.providerId, fallback: issue.fallbackProviderId }" [attr.data-no-translate]="''">{{ issue.providerId }}</a>
-                  }
-                </p>
-              }
-            </div>
-            <a class="btn btn--secondary btn--small shrink-0 max-sm:w-full max-sm:justify-center" routerLink="/settings">Ouvrir les paramètres</a>
-          </div>
+          <glimio-dependency-banner
+            class="mb-4"
+            title="Configuration requise"
+            description="Un ou plusieurs composants sélectionnés ne sont pas prêts. Ouvrez les paramètres pour consulter leur état et installer ou configurer les ressources manquantes."
+            [issues]="setupIssues()"
+            settingsActionLabel="Ouvrir les paramètres"
+          />
         }
         <div class="card-header"><div><div class="eyebrow">OPTIONS COMMUNES</div><h2 class="card-title" id="processing-options-title">Options communes de traitement</h2><p class="card-description">Ces choix s’appliquent aux nouveaux enregistrements, aux imports et servent de valeurs initiales dans la bibliothèque.</p></div></div>
         @if (settings(); as value) {
@@ -127,18 +112,6 @@
         }
       </section>
 
-      <section class="card jobs-panel" aria-labelledby="jobs-title">
-        <div class="card-header"><div><div class="eyebrow">SUIVI DES TRAITEMENTS</div><h2 class="card-title" id="jobs-title">Activités récentes</h2><p class="card-description">État des enregistrements, imports, transcriptions et résumés.</p></div><button class="btn btn--secondary btn--icon" type="button" aria-label="Actualiser les activités" (click)="refreshJobs()"><glimio-icon name="arrow-path" /></button></div>
-        @if (jobsResponse()?.queue?.waiting || jobsResponse()?.queue?.running) { <div class="queue-overview"><strong>File de traitement</strong><span>{{ jobsResponse()?.queue?.waiting || 0 }} en attente. Les modèles sont exécutés séquentiellement.</span></div> }
-        <div class="jobs-list">
-          @for (job of visibleJobs(); track job.id) {
-            <div class="job-row-wrap">
-              <article class="job-row"><span class="job-icon"><glimio-icon [name]="job.state === 'completed' ? 'check-circle' : 'clock'" /></span><span class="job-main"><strong>{{ jobLabel(job) }}</strong>@if (job.session_id) { <small>Séance · {{ job.session_id }}</small> }<span class="job-progress-text">{{ job.message || job.state }}</span>@if (job.error) { <small class="job-error-text" data-no-translate="true">{{ job.error }}</small> }</span><span class="job-state" [class.is-completed]="job.state === 'completed'" [class.is-error]="job.state === 'error'" [class.is-running]="job.state === 'running'">{{ stateLabel(job.state) }}</span></article>
-              @if (isDeletable(job)) { <button class="job-row-delete" type="button" (click)="deleteJob(job)" [attr.aria-label]="'Effacer l’activité ' + jobLabel(job)" title="Effacer cette activité"><glimio-icon name="x-mark" /></button> }
-            </div>
-          } @empty { <div class="inline-empty">Aucune activité récente. Les nouveaux traitements apparaîtront ici.</div> }
-        </div>
-        <div class="jobs-footer flex min-w-0 flex-wrap items-center justify-between gap-3"><button class="btn btn--danger btn--small text-danger hover:bg-danger-soft hover:border-danger max-sm:w-full max-sm:justify-center" type="button" [disabled]="!hasDeletableJobs()" (click)="clearHistory()"><glimio-icon name="trash" /> Effacer l’historique terminé</button><glimio-pagination [page]="jobsPage()" [pageSize]="pageSize" [totalItems]="jobs().length" class="min-w-0 flex-1 max-sm:grow max-sm:shrink max-sm:basis-full" label="Pagination des activités" (pageChange)="jobsPage.set($event)" /></div>
-      </section>
+
     </section>
   

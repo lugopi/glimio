@@ -9,6 +9,14 @@
 
   @if (settings(); as value) {
     <div class="settings-layout">
+      @if (providersError(); as error) {
+        <div class="settings-providers-status is-error" role="alert">
+          <span>{{ error }} Les réglages déjà chargés restent disponibles.</span>
+          <button class="btn btn--secondary btn--small" type="button" (click)="refreshProviders()">Réessayer</button>
+        </div>
+      } @else if (providersLoading() && !providers().length) {
+        <p class="settings-providers-status" role="status">Chargement des moteurs et de leurs dépendances…</p>
+      }
       <section class="card settings-panel" aria-labelledby="workspace-title">
         <div class="settings-body">
           <h2 class="card-title" id="workspace-title">Votre espace</h2>
@@ -34,7 +42,6 @@
         <div class="settings-body">
           <h2 class="card-title" id="transcription-title">Transcription</h2>
           <p class="field-note">Le moteur transforme vos fichiers audio en texte. L’accélération matérielle dépend du moteur et de votre installation.</p>
-          @if (providersError(); as error) { <p class="break-all text-sm text-amber-700" role="status">{{ error }}</p> }
           <div class="settings-grid" [attr.id]="'provider-settings-' + value.transcription_provider" tabindex="-1">
             <div>
               <label class="field-label" for="transcription-provider">Moteur de transcription</label>
@@ -44,7 +51,7 @@
             </div>
             @if (activeProvider('transcription', value.transcription_provider); as provider) {
               <glimio-provider-options [collapsible]="true" [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" (installFinished)="refreshProviders()" (readinessChecked)="updateProviderStatus($event)" />
-            } @else {
+            } @else if (!providersLoading() && !providersError()) {
               <p class="field-note">Aucun moteur de transcription n’est disponible.</p>
             }
           </div>
@@ -64,7 +71,7 @@
             </div>
             @if (activeProvider('generation', value.text_provider); as provider) {
               <glimio-provider-options [collapsible]="true" [provider]="provider" [values]="value.provider_options[provider.id] ?? {}" (optionChange)="patchProviderOption(provider, $event.option, $event.value)" (installFinished)="refreshProviders()" (readinessChecked)="updateProviderStatus($event)" />
-            } @else {
+            } @else if (!providersLoading() && !providersError()) {
               <p class="field-note">Aucun moteur de rédaction n’est disponible.</p>
             }
           </div>
@@ -184,7 +191,7 @@
                     </div>
                   }
                 </div>
-                @if (!providersFor('diarization').length) {
+                @if (!providersFor('diarization').length && !providersLoading() && !providersError()) {
                   <p class="break-all text-sm text-amber-700" role="status">Aucun moteur de diarisation n’est disponible.</p>
                 }
               </div>
@@ -219,13 +226,12 @@
                   }
                 </div>
                 @if (requiredProviderIdsForTask(value.source_separation_provider, 'speaker_embedding').length && !requiredProviderIdsForTask(value.source_separation_provider, 'speaker_embedding').includes(value.speaker_embedding_provider)) {
-                  <p class="break-words text-sm text-amber-700" role="alert">
-                    Le provider de séparation nécessite un des providers d’identité vocale suivants. Sélectionnez le provider requis avant de lancer le traitement :
-                    @for (requiredProviderId of requiredProviderIdsForTask(value.source_separation_provider, 'speaker_embedding'); track requiredProviderId; let index = $index) {
-                      @if (index) { <span>, </span> }
-                      <a class="provider-dependency-link" [routerLink]="['/settings']" [queryParams]="{ provider: requiredProviderId, fallback: value.source_separation_provider, task: 'speaker_embedding' }" [attr.data-no-translate]="''">{{ requiredProviderId }}</a>
-                    }
-                  </p>
+                  <glimio-dependency-banner
+                    title="Dépendance obligatoire"
+                    role="alert"
+                    description="Sélectionnez un provider d’identité vocale requis avant de lancer le traitement."
+                    [issues]="[{ key: 'speaker-embedding-required', message: 'Le provider de séparation sélectionné nécessite un moteur d’identité vocale.', providerId: value.source_separation_provider, fallbackProviderId: value.source_separation_provider, requiredProviderIds: requiredProviderIdsForTask(value.source_separation_provider, 'speaker_embedding'), linkTask: 'speaker_embedding' }]"
+                  />
                 }
               </div>
             }
@@ -245,14 +251,14 @@
           <section class="settings-section" aria-labelledby="generation-advanced-title">
             <h2 class="card-title" id="generation-advanced-title">Réglages de génération</h2>
             <div class="settings-grid settings-grid--compact">
-              <div><label class="field-label" for="context">Taille du contexte</label><input class="input" id="context" type="number" min="2048" max="131072" step="1024" [disabled]="generationReadOnly()" [ngModel]="generationValue('context')" (ngModelChange)="patch('context', numberValue($event))"></div>
-              <div><label class="field-label" for="max-tokens">Longueur maximale du résumé</label><input class="input" id="max-tokens" type="number" min="500" max="32768" [disabled]="generationReadOnly()" [ngModel]="generationValue('max_tokens')" (ngModelChange)="patch('max_tokens', numberValue($event))"></div>
-              <div><label class="field-label" for="analysis-tokens">Budget d’analyse</label><input class="input" id="analysis-tokens" type="number" min="100" max="32768" [disabled]="generationReadOnly()" [ngModel]="generationValue('analysis_tokens')" (ngModelChange)="patch('analysis_tokens', numberValue($event))"></div>
-              <div><label class="field-label" for="analysis-retries">Reprises après erreur</label><input class="input" id="analysis-retries" type="number" min="0" max="10" [disabled]="generationReadOnly()" [ngModel]="generationValue('analysis_retries')" (ngModelChange)="patch('analysis_retries', numberValue($event))"></div>
-              <div><label class="field-label" for="analysis-splits">Découpages supplémentaires</label><input class="input" id="analysis-splits" type="number" min="0" max="12" [disabled]="generationReadOnly()" [ngModel]="generationValue('analysis_max_splits')" (ngModelChange)="patch('analysis_max_splits', numberValue($event))"></div>
-              <glimio-checkbox-field fieldId="disable-final-review" title="Désactiver la relecture finale" description="Réduit les étapes de vérification du résumé." [checked]="!!generationValue('no_review')" [disabled]="generationReadOnly()" (checkedChange)="patch('no_review', $event)" />
+              <div><label class="field-label" for="context">Taille du contexte</label><input class="input" id="context" type="number" min="2048" max="131072" step="1024" [ngModel]="generationValue('context')" (ngModelChange)="patch('context', numberValue($event))"><small class="field-note">Réglage général appliqué à chaque nouveau traitement. Il est indépendant du profil de qualité et doit rester compatible avec le modèle sélectionné.</small></div>
+              <div><label class="field-label" for="max-tokens">Longueur maximale du résumé</label><input class="input" id="max-tokens" type="number" min="500" max="32768" [disabled]="generationReadOnly('max_tokens')" [ngModel]="generationValue('max_tokens')" (ngModelChange)="patch('max_tokens', numberValue($event))"></div>
+              <div><label class="field-label" for="analysis-tokens">Budget d’analyse</label><input class="input" id="analysis-tokens" type="number" min="100" max="32768" [disabled]="generationReadOnly('analysis_tokens')" [ngModel]="generationValue('analysis_tokens')" (ngModelChange)="patch('analysis_tokens', numberValue($event))"></div>
+              <div><label class="field-label" for="analysis-retries">Reprises après erreur</label><input class="input" id="analysis-retries" type="number" min="0" max="10" [disabled]="generationReadOnly('analysis_retries')" [ngModel]="generationValue('analysis_retries')" (ngModelChange)="patch('analysis_retries', numberValue($event))"></div>
+              <div><label class="field-label" for="analysis-splits">Découpages supplémentaires</label><input class="input" id="analysis-splits" type="number" min="0" max="12" [disabled]="generationReadOnly('analysis_max_splits')" [ngModel]="generationValue('analysis_max_splits')" (ngModelChange)="patch('analysis_max_splits', numberValue($event))"></div>
+              <glimio-checkbox-field fieldId="disable-final-review" title="Désactiver la relecture finale" description="Réduit les étapes de vérification du résumé." [checked]="!!generationValue('no_review')" [disabled]="generationReadOnly('no_review')" (checkedChange)="patch('no_review', $event)" />
             </div>
-            <p class="field-note">Les profils communs affichent ici leurs paramètres effectifs. Choisissez « Personnalisé » dans Enregistrement pour modifier ces valeurs.</p>
+            <p class="field-note">La taille du contexte est un réglage général. Les autres budgets et étapes restent pilotés par le profil sélectionné dans Enregistrement ; choisissez « Personnalisé » pour les modifier.</p>
           </section>
 
           <section class="settings-section">

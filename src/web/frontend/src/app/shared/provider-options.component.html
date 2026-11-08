@@ -6,31 +6,19 @@
     </div>
     <small class="provider-description m-0 text-xs leading-relaxed text-subtle" data-no-translate>{{ providerText(provider().description) }}</small>
     @if (warnings().length) {
-      <div class="provider-advisories flex min-w-0 items-start gap-2 rounded-md border border-warning-border bg-warning-banner p-3 text-sm text-muted" role="status">
-        <glimio-icon class="mt-0.5 size-4 shrink-0 text-warning" name="information-circle" />
-        <div>@for (warning of warnings(); track warning) { <p class="m-0" data-no-translate>{{ providerText(warning) }}</p> }</div>
-      </div>
+      <glimio-dependency-banner
+        title="Informations du provider"
+        [issues]="warningBannerIssues()"
+      />
     }
     @if (missingItems().length) {
-      <div class="provider-readiness-help">
-        <small class="provider-missing break-words text-sm text-amber-700">
-        À configurer :
-        @for (item of missingItems(); track $index) {
-          @if ($index) { <span>, </span> }
-          @if (item.providerId; as requiredProviderId) {
-            <span>Provider requis : </span><a class="provider-dependency-link" [routerLink]="['/settings']" [queryParams]="{ provider: requiredProviderId, fallback: provider().id }" [attr.data-no-translate]="''">{{ requiredProviderId }}</a>
-          } @else {
-            <span data-no-translate>{{ item.text }}</span>
-          }
-        }
-      </small>
-        @if (showSetupLinks()) {
-          <button class="text-link-button" type="button" [disabled]="checkingReadiness()" (click)="checkReadiness()">
-            <glimio-icon name="arrow-path" />
-            {{ checkingReadiness() ? 'Vérification…' : 'Vérifier les ressources' }}
-          </button>
-        }
-      </div>
+      <glimio-dependency-banner
+        title="Éléments à configurer"
+        [issues]="dependencyBannerIssues()"
+        actionLabel="Vérifier les ressources"
+        [actionDisabled]="checkingReadiness()"
+        (action)="checkReadiness()"
+      />
     }
     @if (readinessError(); as error) { <small class="provider-readiness-error text-sm text-danger" role="status">{{ error }}</small> }
   }

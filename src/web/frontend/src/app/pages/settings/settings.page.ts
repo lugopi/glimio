@@ -9,11 +9,12 @@ import { ProviderDependency, requiredProviderDependencies as findRequiredProvide
 import { CheckboxFieldComponent } from '../../shared/checkbox-field.component';
 import { IconComponent } from '../../shared/icon.component';
 import { ProviderOptionsComponent } from '../../shared/provider-options.component';
+import { DependencyBannerComponent } from '../../shared/dependency-banner.component';
 import { summaryFormatLabel } from '../../shared/summary-formats';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, CheckboxFieldComponent, IconComponent, ProviderOptionsComponent],
+  imports: [FormsModule, RouterLink, CheckboxFieldComponent, IconComponent, ProviderOptionsComponent, DependencyBannerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './settings.page.html',
   styleUrl: './settings.page.scss',
@@ -23,6 +24,7 @@ export class SettingsPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   readonly providers = signal<ProviderStatus[]>([]);
+  readonly providersLoading = signal(false);
   readonly providersError = signal<string | null>(null);
   private providerReadinessDirty = false;
   private preferencesSavedSubscription?: Subscription;
@@ -153,13 +155,19 @@ export class SettingsPageComponent implements OnInit, OnDestroy {
   }
 
   refreshProviders(): void {
+    this.providersError.set(null);
+    this.providersLoading.set(true);
     this.api.providers().subscribe({
       next: result => {
         this.providers.set(result.providers);
         this.providersError.set(null);
+        this.providersLoading.set(false);
         if (this.requestedProviderNavigation) this.scrollToRequestedProvider();
       },
-      error: () => this.providersError.set('État des providers indisponible.'),
+      error: () => {
+        this.providersError.set('État des providers indisponible.');
+        this.providersLoading.set(false);
+      },
     });
   }
 
@@ -169,10 +177,10 @@ export class SettingsPageComponent implements OnInit, OnDestroy {
   patch<K extends keyof GlimioSettings>(key: K, value: GlimioSettings[K]): void {
     const current = this.preferences.preferences();
     if (!current) return;
-    const advancedKeys: (keyof GlimioSettings)[] = ['context', 'max_tokens', 'analysis_tokens', 'analysis_retries', 'analysis_max_splits', 'no_review'];
+    const profileControlledKeys: (keyof GlimioSettings)[] = ['max_tokens', 'analysis_tokens', 'analysis_retries', 'analysis_max_splits', 'no_review'];
     const updated: PreferencesPayload = { ...current, settings: {
       ...current.settings, [key]: value,
-      ...(advancedKeys.includes(key) ? { processing_profile: 'custom' as const } : {}),
+      ...(profileControlledKeys.includes(key) ? { processing_profile: 'custom' as const } : {}),
     } };
     this.preferences.updatePreferences(updated);
   }
@@ -206,7 +214,10 @@ export class SettingsPageComponent implements OnInit, OnDestroy {
     return this.preferences.config()?.processing_profiles?.[value.processing_profile]?.[key] ?? value[key];
   }
 
-  generationReadOnly(): boolean { return this.settings()?.processing_profile !== 'custom'; }
+  generationReadOnly(key: 'context' | 'max_tokens' | 'analysis_tokens' | 'analysis_retries' | 'analysis_max_splits' | 'no_review'): boolean {
+    // Context capacity belongs to the selected model and remains globally editable.
+    return key !== 'context' && this.settings()?.processing_profile !== 'custom';
+  }
 
   audioBitrateValue(value: string | number): GlimioSettings['audio_bitrate_kbps'] {
     const bitrate = Number(value);

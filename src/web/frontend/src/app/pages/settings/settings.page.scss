@@ -88,7 +88,6 @@
   @apply text-muted;
 }
 
-.provider-dependency-link { @apply inline font-semibold underline decoration-dotted underline-offset-2 hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border; }
 
 .voice-provider-block { @apply mt-4 grid min-w-0 gap-3 rounded-lg border border-border-soft p-4; }
 .provider-dependency-item[data-ready='true'] { @apply gap-2 p-3; }
@@ -96,3 +95,8 @@
 .voice-provider-block > .card-title { @apply m-0 text-sm; }
 .voice-provider-block > .field-note { @apply m-0; }
 .voice-disabled-note { @apply mt-3 rounded-md bg-surface-raised p-3; }
+
+.settings-providers-status {
+  @apply flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-border-soft bg-surface-raised px-4 py-3 text-sm text-muted;
+}
+.settings-providers-status.is-error { @apply border-danger bg-danger-soft text-danger; }

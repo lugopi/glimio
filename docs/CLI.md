@@ -58,11 +58,14 @@ Set `GLIMIO_DIRECTORY` to override the session root or pass `--directory` to ind
 
 ```console
 glimio artifacts show 2026-10-24_12-00-00 transcript
+glimio artifacts save-artifact 2026-10-24_12-00-00 transcript --file ./transcription-edited.md --revision 123456:789
 glimio artifacts show 2026-10-24_12-00-00 summary --output ./summary.md
+glimio artifacts save-artifact 2026-10-24_12-00-00 summary --file ./summary-edited.md --revision 123456:789
+# Ancienne commande toujours prise en charge :
 glimio artifacts save-summary 2026-10-24_12-00-00 --file ./summary-edited.md --revision 123456:789
 ```
 
-`artifacts show` writes to stdout by default. Use `--json` with `sessions show` to obtain metadata and file information. Summary editing observes the same stale-revision check as the Web API; `--force` explicitly bypasses it.
+`artifacts show` writes to stdout by default. Use `--json` with `sessions show` to obtain metadata and file information. `save-artifact` edits either the existing transcript or summary through the same core service as the Web API. Use `artifacts show ... --output ./document.md` to export a document and print its `mtime_ns:size` revision, then pass that value with `--revision` to reject stale edits; `--force` explicitly bypasses that check. `save-summary` remains available as a compatibility alias for existing scripts.
 
 ## Intelligent cross-session search
 

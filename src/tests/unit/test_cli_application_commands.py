@@ -56,7 +56,9 @@ def test_cli_has_library_jobs_preferences_search_and_devices_commands() -> None:
     for command_line in (
         ["sessions", "list"], ["sessions", "show", "id"], ["sessions", "rename", "id", "Title"],
         ["sessions", "audio", "list", "id"], ["sessions", "settings", "show", "id"],
-        ["artifacts", "show", "id", "summary"], ["preferences", "show"], ["jobs", "list"],
+        ["artifacts", "show", "id", "summary"],
+        ["artifacts", "save-artifact", "id", "transcript", "--file", "transcription.md"],
+        ["preferences", "show"], ["jobs", "list"],
         ["devices"], ["search", "project launch"], ["search", "--list"], ["search", "--synthesize", "id", "--excerpts", "1,2"],
     ):
         assert parser.parse_args(command_line).command in {
@@ -93,6 +95,35 @@ def test_cli_sessions_shared_operations_and_search_history(tmp_path: Path, capsy
         assert _run(["search", "--show", search_id, "--json"], tmp_path) == 0
         shown = json.loads(capsys.readouterr().out)
         assert shown["query"] == "lancement projet"
+
+
+def test_cli_can_save_a_transcript_artifact_with_revision_guard(tmp_path: Path, capsys) -> None:
+    root = tmp_path / "sessions"
+    root.mkdir()
+    folder = _make_session(root)
+    transcript = folder / "transcript" / "transcription.md"
+    stat = transcript.stat()
+    revision = f"{stat.st_mtime_ns}:{stat.st_size}"
+    edited_file = tmp_path / "transcription-edited.md"
+    exported_file = tmp_path / "transcription-exported.md"
+    edited_file.write_text("Transcription corrigée par le CLI", encoding="utf-8")
+
+    with patch.dict(os.environ, {"GLIMIO_DATA_DIR": str(tmp_path / "data")}):
+        assert _run([
+            "artifacts", "show", folder.name, "transcript",
+            "--output", str(exported_file), "--directory", str(root),
+        ], tmp_path) == 0
+        export_message = capsys.readouterr().out
+        assert f"Révision : {revision}" in export_message
+        assert exported_file.read_text(encoding="utf-8") == transcript.read_text(encoding="utf-8")
+
+        assert _run([
+            "artifacts", "save-artifact", folder.name, "transcript",
+            "--file", str(edited_file), "--revision", revision, "--directory", str(root),
+        ], tmp_path) == 0
+
+    assert transcript.read_text(encoding="utf-8") == "Transcription corrigée par le CLI"
+    assert "Transcription enregistrée" in capsys.readouterr().out
 
 
 def test_cli_preferences_are_shared_with_web_persistence(tmp_path: Path, capsys) -> None:

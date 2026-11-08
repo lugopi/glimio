@@ -8,7 +8,7 @@ from unittest.mock import patch
 from fastapi import HTTPException, Response
 from starlette.requests import Request
 
-from web.app import (AudioTrackToggleRequest, AudioDevicesResponse, SaveSummaryRequest, _artifact_tail_hash, clear_job_history, delete_job_history_item, devices, health, save_session_summary, session_audio, session_artifact, sessions, set_session_audio_track_disabled, delete_session_audio_track)
+from web.app import (AudioTrackToggleRequest, AudioDevicesResponse, SaveArtifactRequest, _artifact_tail_hash, clear_job_history, delete_job_history_item, devices, health, save_session_artifact, session_audio, session_artifact, sessions, set_session_audio_track_disabled, delete_session_audio_track)
 
 
 class WebApiSmokeTests(unittest.TestCase):
@@ -216,7 +216,7 @@ class WebApiSmokeTests(unittest.TestCase):
         live.write_text(content, encoding="utf-8")
         return root, live
 
-    def test_save_session_summary_persists_markdown_and_returns_new_revision(self) -> None:
+    def test_save_session_artifact_persists_summary_and_returns_new_revision(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "seances"
             session = root / "2026-10-17_10-30-00"
@@ -227,8 +227,8 @@ class WebApiSmokeTests(unittest.TestCase):
             revision = f"{stat.st_mtime_ns}:{stat.st_size}"
             content = "# Après\n\n- Décision\n- Action"
 
-            with patch("web.app.SESSION_ROOT", root), patch("web.app.JOBS", {}):
-                result = save_session_summary(session.name, SaveSummaryRequest(content=content, revision=revision))
+            with patch("web.app.SESSION_ROOT", root), patch("web.app.PROJECT_ROOT", Path(temp_dir) / "project"), patch("web.app.JOBS", {}):
+                result = save_session_artifact(session.name, "summary", SaveArtifactRequest(content=content, revision=revision))
 
             self.assertEqual(summary.read_text(encoding="utf-8"), content)
             self.assertEqual(result["content"], content)
@@ -236,7 +236,7 @@ class WebApiSmokeTests(unittest.TestCase):
             self.assertEqual(result["filename"], "resume_audio.md")
             self.assertEqual(result["revision"], f"{summary.stat().st_mtime_ns}:{summary.stat().st_size}")
 
-    def test_save_session_summary_rejects_stale_revision_without_overwriting(self) -> None:
+    def test_save_session_artifact_rejects_stale_revision_without_overwriting(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "seances"
             session = root / "2026-10-17_10-30-00"
@@ -247,14 +247,14 @@ class WebApiSmokeTests(unittest.TestCase):
             stale_revision = f"{stat.st_mtime_ns}:{stat.st_size}"
             summary.write_text("# Modification externe plus longue", encoding="utf-8")
 
-            with patch("web.app.SESSION_ROOT", root), patch("web.app.JOBS", {}):
+            with patch("web.app.SESSION_ROOT", root), patch("web.app.PROJECT_ROOT", Path(temp_dir) / "project"), patch("web.app.JOBS", {}):
                 with self.assertRaises(HTTPException) as raised:
-                    save_session_summary(session.name, SaveSummaryRequest(content="# Mon édition", revision=stale_revision))
+                    save_session_artifact(session.name, "summary", SaveArtifactRequest(content="# Mon édition", revision=stale_revision))
 
             self.assertEqual(raised.exception.status_code, 409)
             self.assertEqual(summary.read_text(encoding="utf-8"), "# Modification externe plus longue")
 
-    def test_save_session_summary_rejects_active_processing(self) -> None:
+    def test_save_session_artifact_rejects_active_processing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "seances"
             session = root / "2026-10-17_10-30-00"
@@ -265,9 +265,39 @@ class WebApiSmokeTests(unittest.TestCase):
                 "job-1": {"id": "job-1", "session_id": session.name, "state": "running", "kind": "process"}
             }):
                 with self.assertRaises(HTTPException) as raised:
-                    save_session_summary(session.name, SaveSummaryRequest(content="# Édition"))
+                    save_session_artifact(session.name, "summary", SaveArtifactRequest(content="# Édition"))
             self.assertEqual(raised.exception.status_code, 409)
             self.assertEqual(summary.read_text(encoding="utf-8"), "# Résumé")
+
+    def test_save_session_artifact_returns_not_found_when_document_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "seances"
+            session = root / "2026-10-17_10-30-00"
+            session.mkdir(parents=True)
+
+            with patch("web.app.SESSION_ROOT", root), patch("web.app.PROJECT_ROOT", Path(temp_dir) / "project"), patch("web.app.JOBS", {}):
+                with self.assertRaises(HTTPException) as raised:
+                    save_session_artifact(session.name, "transcript", SaveArtifactRequest(content="Texte corrigé"))
+
+            self.assertEqual(raised.exception.status_code, 404)
+
+    def test_save_session_artifact_persists_transcript_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "seances"
+            session = root / "2026-10-17_10-30-00"
+            transcript = session / "transcript" / "transcription.md"
+            transcript.parent.mkdir(parents=True)
+            transcript.write_text("Texte initial", encoding="utf-8")
+            stat = transcript.stat()
+            revision = f"{stat.st_mtime_ns}:{stat.st_size}"
+            content = "Texte corrigé\n\nDeuxième paragraphe."
+
+            with patch("web.app.SESSION_ROOT", root), patch("web.app.PROJECT_ROOT", Path(temp_dir) / "project"), patch("web.app.JOBS", {}):
+                result = save_session_artifact(session.name, "transcript", SaveArtifactRequest(content=content, revision=revision))
+
+            self.assertEqual(transcript.read_text(encoding="utf-8"), content)
+            self.assertEqual(result["kind"], "transcript")
+            self.assertEqual(result["content"], content)
 
     def test_session_artifact_returns_live_content_and_full_document_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

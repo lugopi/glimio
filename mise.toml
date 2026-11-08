@@ -1,7 +1,20 @@
 [tools]
-python = "3.14.9"
-node = "26.12.1"
+python = "3.14"
+node = "26"
 "npm:@angular/cli" = "22"
 
 [env]
-_.python.venv = ".venv"
+_.python.venv = { path = ".venv", create = true }
+
+[tasks.setup]
+description = "Installe les outils et les dépendances du frontend"
+run = [
+  "mise install",
+  "npm install",
+]
+dir = "{{config_root}}/src/web/frontend"
+
+[tasks.dev]
+description = "Lance le serveur de dev Angular"
+run = "ng serve"
+dir = "{{config_root}}/src/web/frontend"

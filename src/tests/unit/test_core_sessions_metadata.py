@@ -14,6 +14,7 @@ from seance.core.sessions import (
     mark_audio_outputs_stale,
     read_metadata,
     write_metadata,
+    save_session_artifact,
 )
 from seance.providers.contracts import MediaToolchainUnavailable
 from seance.providers.media_tools import ensure_media_toolchain_ready
@@ -378,3 +379,41 @@ def test_import_job_removes_temporary_file_after_successful_import(
     finally:
         with web_app.STATE_LOCK:
             web_app.JOBS.pop(job_id, None)
+
+
+def test_save_session_artifact_edits_existing_transcript_with_revision_guard(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    session_root = tmp_path / "seances"
+    transcript = session_root / "session-1" / "transcript" / "transcription.md"
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text("Texte original", encoding="utf-8")
+    stat = transcript.stat()
+    revision = f"{stat.st_mtime_ns}:{stat.st_size}"
+
+    result = save_session_artifact(project_root, session_root, "session-1", "transcript", "Texte corrigé", revision=revision)
+
+    assert transcript.read_text(encoding="utf-8") == "Texte corrigé"
+    assert result["kind"] == "transcript"
+    assert result["content"] == "Texte corrigé"
+    assert result["revision"] == f"{transcript.stat().st_mtime_ns}:{transcript.stat().st_size}"
+
+
+def test_save_session_artifact_rejects_stale_revision(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    session_root = tmp_path / "seances"
+    transcript = session_root / "session-1" / "transcript" / "transcription.md"
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text("Texte initial", encoding="utf-8")
+    stat = transcript.stat()
+    stale_revision = f"{stat.st_mtime_ns}:{stat.st_size}"
+    transcript.write_text("Texte modifié par un autre processus", encoding="utf-8")
+
+    with pytest.raises(SessionServiceError, match="a changé"):
+        save_session_artifact(project_root, session_root, "session-1", "transcript", "Ma correction", revision=stale_revision)
+
+    assert transcript.read_text(encoding="utf-8") == "Texte modifié par un autre processus"
+
+
+def test_save_session_artifact_rejects_unknown_kind(tmp_path: Path) -> None:
+    with pytest.raises(SessionServiceError, match="Type de document invalide"):
+        save_session_artifact(tmp_path / "project", tmp_path / "seances", "session-1", "analysis", "texte")

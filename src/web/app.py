@@ -17,9 +17,9 @@ import uuid
 import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
@@ -65,9 +65,18 @@ from seance.core.sessions import (
     set_audio_track_disabled as set_core_audio_track_disabled,
     delete_audio_track as delete_core_audio_track,
     save_processing_settings as save_core_processing_settings,
-    save_summary as save_core_summary,
+    save_session_artifact as save_core_session_artifact,
 )
 from seance.providers.installer import ProviderInstallManager, python_install_runtime_available
+from .schemas import (
+    AppConfigResponse, AudioDevicesResponse, ClearJobHistoryResponse,
+    DeletedJobResponse, HealthResponse, JobResponse, JobsResponse,
+    PreferencesResponse, ProviderInstallResponse, ProvidersResponse,
+    SearchAskResponse, SearchResultResponse, SessionArtifactResponse,
+    SessionDeleteResponse, SessionDetailResponse, SessionMutationResponse,
+    SessionPageResponse,
+)
+
 from seance.core.search_synthesis import (
     _clean_search_answer,
     _has_unknown_citations,
@@ -272,36 +281,45 @@ def _angular_file(relative: str) -> Path | None:
 
 class Settings(BaseModel):
     processing_profile: Literal["turbo", "balanced", "quality", "pixel-perfect", "custom"] = "balanced"
-    model: str = DEFAULT_WHISPER_MODEL
-    transcription_provider: str = "whisper.cpp"
-    media_provider: str = DEFAULT_MEDIA_PROVIDER
-    audio_enhancement_provider: str = "ffmpeg-denoise"
-    source_separation_provider: str = "no-separation"
-    speaker_embedding_provider: str = "speechbrain-ecapa"
-    provider_options: dict[str, dict[str, Any]] = Field(default_factory=dict)
-    whisper_cli: str = DEFAULT_WHISPER_CLI
-    language: str = "auto"
+    model: str = Field(default=DEFAULT_WHISPER_MODEL, max_length=2000)
+    transcription_provider: str = Field(default="whisper.cpp", min_length=1, max_length=128)
+    media_provider: str = Field(default=DEFAULT_MEDIA_PROVIDER, min_length=1, max_length=128)
+    audio_enhancement_provider: str = Field(default="ffmpeg-denoise", min_length=1, max_length=128)
+    source_separation_provider: str = Field(default="no-separation", min_length=1, max_length=128)
+    speaker_embedding_provider: str = Field(default="speechbrain-ecapa", min_length=1, max_length=128)
+    provider_options: dict[str, dict[str, Any]] = Field(default_factory=dict, max_length=128)
+    whisper_cli: str = Field(default=DEFAULT_WHISPER_CLI, max_length=2000)
+    language: str = Field(default="auto", max_length=32)
     summary_language: str = Field(default="auto", pattern="^(auto|fr|en|de|it|es|pt|nl)$")
     threads: int = Field(default=DEFAULT_THREADS, ge=1, le=256)
-    ffmpeg: str = "ffmpeg"
-    ffprobe: str = "ffprobe"
+    ffmpeg: str = Field(default="ffmpeg", max_length=2000)
+    ffprobe: str = Field(default="ffprobe", max_length=2000)
     diarize: bool = False
-    diarization_provider: str = DEFAULT_DIARIZATION_PROVIDER
-    diarization_segmentation_model: str = "models/diarization/segmentation/segmentation.onnx"
-    diarization_embedding_model: str = "models/diarization/embedding/embedding.onnx"
+    diarization_provider: str = Field(default=DEFAULT_DIARIZATION_PROVIDER, min_length=1, max_length=128)
+    diarization_segmentation_model: str = Field(default="models/diarization/segmentation/segmentation.onnx", max_length=2000)
+    diarization_embedding_model: str = Field(default="models/diarization/embedding/embedding.onnx", max_length=2000)
     diarization_num_speakers: int = Field(default=-1, ge=-1, le=256)
     audio_bitrate_kbps: Literal[128, 256, 384, 512, 768] = 256
     diarization_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
-    gguf: str = DEFAULT_GGUF
-    text_provider: str = "llama.cpp"
-    llama_completion: str = DEFAULT_LLAMA_COMPLETION
+    gguf: str = Field(default=DEFAULT_GGUF, max_length=2000)
+    text_provider: str = Field(default="llama.cpp", min_length=1, max_length=128)
+    llama_completion: str = Field(default=DEFAULT_LLAMA_COMPLETION, max_length=2000)
     context: int = Field(default=16384, ge=2048, le=131072)
     max_tokens: int = Field(default=6000, ge=500, le=32768)
     analysis_tokens: int = Field(default=3500, ge=100, le=32768)
     analysis_retries: int = Field(default=3, ge=0, le=10)
     analysis_max_splits: int = Field(default=6, ge=0, le=12)
-    format: str = "auto"
+    format: str = Field(default="auto", min_length=1, max_length=80)
     no_review: bool = False
+
+    @model_validator(mode="after")
+    def validate_provider_option_shape(self) -> "Settings":
+        for provider_id, options in self.provider_options.items():
+            if len(provider_id) > 128 or len(options) > 100:
+                raise ValueError("Le nombre ou la longueur des options provider dépasse la limite autorisée.")
+            if any(not key or len(key) > 128 for key in options):
+                raise ValueError("Une clé d’option provider est vide ou trop longue.")
+        return self
 
     @model_validator(mode="before")
     @classmethod
@@ -445,14 +463,14 @@ class RenameSessionRequest(BaseModel):
     title: str = Field(min_length=1, max_length=120)
 
 
-class SaveSummaryRequest(BaseModel):
+class SaveArtifactRequest(BaseModel):
     content: str = Field(min_length=1, max_length=2_000_000)
     revision: str | None = Field(default=None, max_length=100)
 
 
 class JobRequest(BaseModel):
     action: Literal["transcribe", "summarize", "process", "translate-summary"]
-    session_id: str
+    session_id: str = Field(min_length=1, max_length=120)
     settings: Settings = Field(default_factory=Settings)
     force: bool = False
 
@@ -471,17 +489,8 @@ class AudioDeviceInfo(BaseModel):
     key: str
 
 
-class AudioDevicesResponse(BaseModel):
-    """Legacy display-name lists and endpoint records exposed by /api/devices."""
-
-    microphones: list[str]
-    outputs: list[str]
-    microphone_devices: list[AudioDeviceInfo]
-    output_devices: list[AudioDeviceInfo]
-
-
 class RecordRequest(BaseModel):
-    title: str = ""
+    title: str = Field(default="", max_length=120)
     # Legacy single-source fields remain supported for older clients/CLI workflows.
     microphone: str = ""
     output: str = ""
@@ -501,6 +510,12 @@ class SearchRequest(BaseModel):
     top_k: int = Field(default=8, ge=1, le=20)
     settings: Settings = Field(default_factory=Settings)
     session_ids: list[str] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def validate_session_ids(self) -> "SearchRequest":
+        if any(not value.strip() or len(value) > 120 for value in self.session_ids):
+            raise ValueError("Un identifiant de séance est vide ou trop long.")
+        return self
 
 
 class SearchSynthesisRequest(BaseModel):
@@ -1459,7 +1474,7 @@ def angular_spa(spa_path: str) -> Response:
     return FileResponse(str(fallback))
 
 
-@app.get("/api/health")
+@app.get("/api/health", response_model=HealthResponse)
 def health() -> dict[str, Any]:
     return {
         "ok": True,
@@ -1470,7 +1485,7 @@ def health() -> dict[str, Any]:
     }
 
 
-@app.get("/api/config")
+@app.get("/api/config", response_model=AppConfigResponse)
 def config() -> dict[str, Any]:
     preferences = _get_preferences()
     return {
@@ -1486,7 +1501,7 @@ def config() -> dict[str, Any]:
     }
 
 
-@app.get("/api/providers")
+@app.get("/api/providers", response_model=ProvidersResponse)
 def providers() -> dict[str, Any]:
     """Return neutral provider metadata and current local readiness to the UI."""
     settings = _get_preferences()["settings"]
@@ -1523,7 +1538,7 @@ def providers() -> dict[str, Any]:
     return {"providers": payloads}
 
 
-@app.post("/api/providers/{provider_id}/install-python")
+@app.post("/api/providers/{provider_id}/install-python", response_model=ProviderInstallResponse)
 def install_provider_python(provider_id: str, request: Request) -> dict[str, Any]:
     """Install only Python dependencies declared by a built-in provider, from localhost."""
     remote_host = request.client.host if request.client else ""
@@ -1553,7 +1568,7 @@ def install_provider_python(provider_id: str, request: Request) -> dict[str, Any
     return {"install": install}
 
 
-@app.get("/api/provider-installs/{install_id}")
+@app.get("/api/provider-installs/{install_id}", response_model=ProviderInstallResponse)
 def provider_python_install_status(install_id: str) -> dict[str, Any]:
     """Poll status of a background Python provider installation."""
     install = _PROVIDER_INSTALLER.get(install_id)
@@ -1562,12 +1577,12 @@ def provider_python_install_status(install_id: str) -> dict[str, Any]:
     return {"install": install}
 
 
-@app.get("/api/preferences")
+@app.get("/api/preferences", response_model=PreferencesResponse)
 def get_preferences() -> dict[str, Any]:
     return _get_preferences()
 
 
-@app.put("/api/preferences")
+@app.put("/api/preferences", response_model=PreferencesResponse)
 def save_preferences(request: PreferencesRequest) -> dict[str, Any]:
     global SESSION_ROOT
     _initialize_persistence()
@@ -1684,15 +1699,18 @@ def _live_session_artifact(folder: Path, session_id: str, kind: str) -> Path | N
     return preview if preview.is_file() else None
 
 
-@app.get("/api/sessions")
-def sessions(q: str = "", filter_by: str = "all", limit: str = "25", offset: int = 0) -> dict[str, Any]:
-    if filter_by not in {"all", "summary", "transcript", "audio"}:
-        raise HTTPException(status_code=422, detail="Filtre invalide.")
+@app.get("/api/sessions", response_model=SessionPageResponse)
+def sessions(
+    q: Annotated[str, Query(max_length=1000)] = "",
+    filter_by: Literal["all", "summary", "transcript", "audio"] = "all",
+    limit: Annotated[str, Query(max_length=4)] = "25",
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> dict[str, Any]:
     try:
         limit_value = 0 if str(limit).casefold() in {"all", "0"} else int(limit)
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail="Taille de page invalide.") from exc
-    if limit_value < 0 or limit_value > 1000 or offset < 0:
+    if limit_value < 0 or limit_value > 1000:
         raise HTTPException(status_code=422, detail="Pagination invalide.")
     try:
         items, total = list_sessions_page(
@@ -1714,7 +1732,7 @@ def sessions(q: str = "", filter_by: str = "all", limit: str = "25", offset: int
     }
 
 
-@app.get("/api/sessions/{session_id}")
+@app.get("/api/sessions/{session_id}", response_model=SessionDetailResponse)
 def session_detail(session_id: str) -> dict[str, Any]:
     try:
         folder = resolve_session_folder(SESSION_ROOT, session_id)
@@ -1803,7 +1821,7 @@ def _ensure_session_idle_for_audio_edit(folder: Path) -> None:
         raise HTTPException(status_code=409, detail="Impossible de modifier une piste pendant l’enregistrement ou le traitement de cette séance.")
 
 
-@app.patch("/api/sessions/{session_id}")
+@app.patch("/api/sessions/{session_id}", response_model=SessionMutationResponse)
 def rename_session(session_id: str, request: RenameSessionRequest) -> dict[str, Any]:
     try:
         folder = resolve_session_folder(SESSION_ROOT, session_id)
@@ -1823,7 +1841,7 @@ def rename_session(session_id: str, request: RenameSessionRequest) -> dict[str, 
         raise HTTPException(status_code=status, detail=message) from exc
 
 
-@app.put("/api/sessions/{session_id}/settings")
+@app.put("/api/sessions/{session_id}/settings", response_model=SessionMutationResponse)
 def save_session_settings(session_id: str, request: SessionSettingsRequest) -> dict[str, Any]:
     try:
         folder = resolve_session_folder(SESSION_ROOT, session_id)
@@ -1844,7 +1862,7 @@ def save_session_settings(session_id: str, request: SessionSettingsRequest) -> d
     return {"id": session_id, "settings": value, "metadata": result["metadata"]}
 
 
-@app.delete("/api/sessions/{session_id}")
+@app.delete("/api/sessions/{session_id}", response_model=SessionDeleteResponse)
 def delete_session(session_id: str) -> dict[str, Any]:
     try:
         folder = resolve_session_folder(SESSION_ROOT, session_id)
@@ -1862,7 +1880,7 @@ def delete_session(session_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@app.patch("/api/sessions/{session_id}/audio/{filename}")
+@app.patch("/api/sessions/{session_id}/audio/{filename}", response_model=SessionMutationResponse)
 def set_session_audio_track_disabled(session_id: str, filename: str, request: AudioTrackToggleRequest) -> dict[str, Any]:
     if Path(filename).name != filename or not filename.lower().endswith(".wav"):
         raise HTTPException(status_code=404, detail="Piste audio inconnue.")
@@ -1881,7 +1899,7 @@ def set_session_audio_track_disabled(session_id: str, filename: str, request: Au
         raise HTTPException(status_code=status, detail=message) from exc
 
 
-@app.delete("/api/sessions/{session_id}/audio/{filename}")
+@app.delete("/api/sessions/{session_id}/audio/{filename}", response_model=SessionMutationResponse)
 def delete_session_audio_track(session_id: str, filename: str) -> dict[str, Any]:
     if Path(filename).name != filename or not filename.lower().endswith(".wav"):
         raise HTTPException(status_code=404, detail="Piste audio inconnue.")
@@ -1971,9 +1989,11 @@ def session_audio(session_id: str, filename: str, request: Request):
     return StreamingResponse(stream_file(), status_code=status_code, media_type="audio/wav", headers=headers)
 
 
-@app.put("/api/sessions/{session_id}/summary")
-def save_session_summary(session_id: str, request: SaveSummaryRequest) -> dict[str, Any]:
-    """Save a user-edited summary through the same core operation as the CLI."""
+@app.put("/api/sessions/{session_id}/{kind}", response_model=SessionArtifactResponse)
+def save_session_artifact(session_id: str, kind: str, request: SaveArtifactRequest) -> dict[str, Any]:
+    """Save a user-edited summary or transcript through the shared core service."""
+    if kind not in {"summary", "transcript"}:
+        raise HTTPException(status_code=404, detail="Document inconnu.")
     try:
         folder = resolve_session_folder(SESSION_ROOT, session_id)
     except ValueError as exc:
@@ -1983,12 +2003,19 @@ def save_session_summary(session_id: str, request: SaveSummaryRequest) -> dict[s
     with STATE_LOCK:
         active = [job for job in JOBS.values() if job.get("session_id") == folder.name and job.get("state") in {"queued", "running", "stopping"}]
         if active:
-            raise HTTPException(status_code=409, detail="Le résumé ne peut pas être modifié pendant un traitement.")
+            raise HTTPException(status_code=409, detail="Le document ne peut pas être modifié pendant un traitement.")
         try:
-            return save_core_summary(PROJECT_ROOT, SESSION_ROOT, folder.name, request.content, revision=request.revision)
+            return save_core_session_artifact(
+                PROJECT_ROOT, SESSION_ROOT, folder.name, kind, request.content, revision=request.revision,
+            )
         except SessionServiceError as exc:
             message = str(exc)
-            status = 409 if "changé" in message or "cours" in message or "disponible" in message else 422 if "vide" in message or "taille" in message else 500
+            status = (
+                404 if "introuvable" in message or "Aucun" in message or "Aucune" in message
+                else 409 if "changé" in message or "cours" in message or "disponible" in message
+                else 422 if "vide" in message or "taille" in message
+                else 500
+            )
             raise HTTPException(status_code=status, detail=message) from exc
 
 
@@ -2001,10 +2028,14 @@ def _artifact_tail_hash(value: str) -> str:
     return f"{result:08x}"
 
 
-@app.get("/api/sessions/{session_id}/{kind}")
-def session_artifact(session_id: str, kind: str, response: Response,
-                     revision: str | None = None, offset: int = 0,
-                     tail_hash: str | None = None, translation: str | None = None) -> dict[str, Any]:
+@app.get("/api/sessions/{session_id}/{kind}", response_model=SessionArtifactResponse)
+def session_artifact(
+    session_id: str, kind: str, response: Response,
+    revision: Annotated[str | None, Query(max_length=100)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    tail_hash: Annotated[str | None, Query(max_length=64)] = None,
+    translation: Annotated[str | None, Query(max_length=5)] = None,
+) -> dict[str, Any]:
     if kind not in {"summary", "transcript"}:
         raise HTTPException(status_code=404, detail="Document inconnu.")
     try:
@@ -2046,7 +2077,6 @@ def session_artifact(session_id: str, kind: str, response: Response,
             result["unchanged"] = True
             return result
         content = path.read_text(encoding="utf-8-sig", errors="replace")
-        offset = max(0, offset)
         if offset > 0 and offset <= len(content):
             if tail_hash is None:
                 prefix_ok = True
@@ -2072,7 +2102,7 @@ def session_artifact(session_id: str, kind: str, response: Response,
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@app.get("/api/jobs")
+@app.get("/api/jobs", response_model=JobsResponse)
 def jobs() -> dict[str, Any]:
     _initialize_persistence()
     with STATE_LOCK:
@@ -2124,7 +2154,7 @@ async def job_events(request: Request) -> StreamingResponse:
     )
 
 
-@app.delete("/api/jobs/history")
+@app.delete("/api/jobs/history", response_model=ClearJobHistoryResponse)
 def clear_job_history() -> dict[str, int]:
     """Delete finished activity records while preserving queued and active work."""
     _initialize_persistence()
@@ -2150,7 +2180,7 @@ def clear_job_history() -> dict[str, int]:
     return {"deleted": deleted}
 
 
-@app.post("/api/jobs/{job_id}/cancel")
+@app.post("/api/jobs/{job_id}/cancel", response_model=JobResponse)
 def cancel_job(job_id: str) -> dict[str, Any]:
     """Cancel queued model work or request a cooperative stop for a running job."""
     _initialize_persistence()
@@ -2188,7 +2218,7 @@ def cancel_job(job_id: str) -> dict[str, Any]:
         return _job_public(record)
 
 
-@app.delete("/api/jobs/{job_id}")
+@app.delete("/api/jobs/{job_id}", response_model=DeletedJobResponse)
 def delete_job_history_item(job_id: str) -> dict[str, str]:
     """Delete one finished activity record; active work cannot be removed."""
     _initialize_persistence()
@@ -2208,12 +2238,12 @@ def delete_job_history_item(job_id: str) -> dict[str, str]:
     return {"deleted": job_id}
 
 
-@app.get("/api/jobs/{job_id}")
+@app.get("/api/jobs/{job_id}", response_model=JobResponse)
 def job(job_id: str) -> dict[str, Any]:
     return _get_job_or_404(job_id)
 
 
-@app.post("/api/jobs")
+@app.post("/api/jobs", response_model=JobResponse)
 def start_session_job(request: JobRequest) -> dict[str, Any]:
     if request.action == "translate-summary" and request.settings.summary_language == "auto":
         raise HTTPException(status_code=422, detail="Choisissez une langue cible explicite pour traduire le résumé.")
@@ -2256,7 +2286,7 @@ def start_session_job(request: JobRequest) -> dict[str, Any]:
     )
 
 
-@app.post("/api/recording/start")
+@app.post("/api/recording/start", response_model=JobResponse)
 def start_recording(request: RecordRequest) -> dict[str, Any]:
     if request.settings.format not in VALID_FORMATS:
         raise HTTPException(status_code=422, detail="Format de résumé invalide.")
@@ -2351,7 +2381,7 @@ def start_recording(request: RecordRequest) -> dict[str, Any]:
     return result
 
 
-@app.post("/api/recording/stop")
+@app.post("/api/recording/stop", response_model=JobResponse)
 def stop_recording() -> dict[str, Any]:
     active = _active_job()
     if not active or active["kind"] != "recording":
@@ -2369,7 +2399,7 @@ def stop_recording() -> dict[str, Any]:
         return _job_public(JOBS[active["id"]])
 
 
-@app.post("/api/import")
+@app.post("/api/import", response_model=JobResponse)
 async def import_and_process(
     file: UploadFile = File(...),
     settings_json: str = Form("{}"),
@@ -2704,7 +2734,7 @@ def _run_cancellable_search(search_id: str, request: SearchRequest) -> None:
                             break
 
 
-@app.post("/api/search/start")
+@app.post("/api/search/start", response_model=SearchResultResponse)
 def start_library_search(request: SearchRequest) -> dict[str, Any]:
     """Start a local AI search in the background so the UI can cancel it."""
     global ACTIVE_SEARCH_ID
@@ -2812,7 +2842,7 @@ def _run_search_resynthesis(search_id: str, passages: list[dict[str, Any]], sett
                 ACTIVE_SEARCH_ID = None
 
 
-@app.post("/api/search/{search_id}/synthesize")
+@app.post("/api/search/{search_id}/synthesize", response_model=SearchResultResponse)
 def synthesize_library_search(search_id: str, request: SearchSynthesisRequest) -> dict[str, Any]:
     """Start one synthesis pass after the user confirms the kept excerpts."""
     global ACTIVE_SEARCH_ID
@@ -2857,7 +2887,7 @@ def synthesize_library_search(search_id: str, request: SearchSynthesisRequest) -
     return public
 
 
-@app.get("/api/search/{search_id}")
+@app.get("/api/search/{search_id}", response_model=SearchResultResponse)
 def get_library_search(search_id: str) -> dict[str, Any]:
     with SEARCH_LOCK:
         search = SEARCHES.get(search_id)
@@ -2866,7 +2896,7 @@ def get_library_search(search_id: str) -> dict[str, Any]:
         return _search_public(search)
 
 
-@app.post("/api/search/{search_id}/cancel")
+@app.post("/api/search/{search_id}/cancel", response_model=SearchResultResponse)
 def cancel_library_search(search_id: str) -> dict[str, Any]:
     with SEARCH_LOCK:
         search = SEARCHES.get(search_id)
@@ -2891,7 +2921,7 @@ def cancel_library_search(search_id: str) -> dict[str, Any]:
     return public
 
 
-@app.post("/api/search/ask")
+@app.post("/api/search/ask", response_model=SearchAskResponse)
 def ask_library(request: SearchRequest) -> dict[str, Any]:
     passages = retrieve_passages(
         SESSION_ROOT, request.query, request.top_k,
