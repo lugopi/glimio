@@ -36,7 +36,7 @@ export class SearchPageComponent {
   readonly excludedSourceSelection = signal<Record<string, boolean>>({});
   readonly sources = computed(() => this.result()?.sources ?? []);
   readonly isSessionSelectedFn = (id: string) => this.isSessionSelected(id);
-  readonly sessionDateLabelFn = (value?: string, fallback = '') => this.sessionDateLabel(value, fallback);
+  readonly sessionDateLabelFn = (value?: string | null, fallback = '') => this.sessionDateLabel(value, fallback);
   readonly durationLabelFn = (value?: number | null) => this.durationLabel(value);
   readonly sourceIncludedFn = (source: SearchSource) => this.sourceIncluded(source);
   readonly sourceBadgeLabelFn = (source: SearchSource) => this.sourceBadgeLabel(source);
@@ -69,7 +69,7 @@ export class SearchPageComponent {
     });
   }
 
-  sessionDateLabel(value?: string, fallback = ''): string {
+  sessionDateLabel(value?: string | null, fallback = ''): string {
     if (!value) return fallback;
     const date = new Date(value);
     const locale = document.documentElement.lang === 'en' ? 'en-CH' : 'fr-CH';

@@ -532,10 +532,10 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
         if (this.selectedId() === session.id) {
           this.selected.update(current => current ? {
             ...current,
-            audio_tracks: result.audio_tracks,
-            audio: result.audio_tracks.length > 0,
+            audio_tracks: result.audio_tracks ?? [],
+            audio: (result.audio_tracks ?? []).length > 0,
             metadata: result.metadata,
-            files: current.files ? { ...current.files, audio_tracks: result.audio_tracks } : current.files,
+            files: { ...current.files, audio_tracks: result.audio_tracks ?? [] },
           } : current);
         }
         this.toast.show(result.warnings?.length ? `Piste supprimée. ${result.warnings.join(' ')}` : 'Piste audio supprimée.', result.warnings?.length ? 'info' : 'success');
@@ -982,7 +982,7 @@ export class LibraryPageComponent implements OnInit, OnDestroy {
 
 
 
-  dateLabel(value?: string, fallback = ''): string {
+  dateLabel(value?: string | null, fallback = ''): string {
     if (!value) return fallback;
     const date = new Date(value);
     const locale = document.documentElement.lang === 'en' ? 'en-CH' : 'fr-CH';

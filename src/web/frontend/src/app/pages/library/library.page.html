@@ -103,8 +103,8 @@
         @if (audioArtifactsStale()) {
           <div class="audio-stale-notice" role="status">
             <glimio-icon name="information-circle" />
-            <div><strong>Les documents ne correspondent peut-être plus aux pistes actives.</strong>@if (session.audio_tracks?.length) { <p>Une piste a été désactivée ou supprimée. Relancez le traitement complet pour actualiser la transcription et le résumé.</p> } @else { <p>Aucune piste audio n’est conservée. Les documents actuels restent consultables, mais pour les recalculer il faudra réimporter une source audio.</p> }</div>
-            @if (session.audio_tracks?.length) { <button class="btn btn--secondary btn--small" type="button" [disabled]="processingActionDisabled() || artifactEditing()" (click)="runJob('process', true)">Actualiser les documents</button> }
+            <div><strong>Les documents ne correspondent peut-être plus aux pistes actives.</strong>@if (session.audio_tracks.length) { <p>Une piste a été désactivée ou supprimée. Relancez le traitement complet pour actualiser la transcription et le résumé.</p> } @else { <p>Aucune piste audio n’est conservée. Les documents actuels restent consultables, mais pour les recalculer il faudra réimporter une source audio.</p> }</div>
+            @if (session.audio_tracks.length) { <button class="btn btn--secondary btn--small" type="button" [disabled]="processingActionDisabled() || artifactEditing()" (click)="runJob('process', true)">Actualiser les documents</button> }
           </div>
         }
 
@@ -196,7 +196,7 @@
           }
         </section>
 
-        @if (session.audio_tracks?.length) {
+        @if (session.audio_tracks.length) {
           <section class="detail-section" aria-labelledby="session-audio-title">
             <h3 id="session-audio-title">Pistes audio</h3>
             <div class="audio-track-list">

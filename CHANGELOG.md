@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Correctif frontend après validation Angular : les états locaux d’installation provider incluent maintenant `created_at`, les réponses de suppression de piste normalisent `audio_tracks` à `[]` lorsqu’il est absent ou nul, et les formateurs de date acceptent `started_at: null`. Imports Angular inutilisés et accès optionnels redondants supprimés. Le hachage des bundles est désactivé uniquement pour la configuration de développement afin de ne pas désactiver HMR ; la production conserve le hachage complet.
+
 - Correctif d’alignement des champs checkbox : le titre de `glimio-checkbox-field` hérite désormais des marges et de l’interligne du `.field-label` partagé. Les règles locales encapsulées ne bloquent plus les espacements spécifiques aux formulaires et aux options de séance. Convention ajoutée à `AGENTS.md` et `docs/FRONTEND.md`.
 
 

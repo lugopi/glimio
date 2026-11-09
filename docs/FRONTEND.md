@@ -2,6 +2,8 @@
 
 ## Architecture
 
+La configuration `development` du build Angular utilise `outputHashing: "none"` pour rester compatible avec HMR ; la configuration de production conserve `outputHashing: "all"`.
+
 L’interface servie à `/` est l’application Angular 22. FastAPI fournit les routes `/api/*` et sert le build SPA depuis `dist/glimio-web-ui` à la racine du dépôt. Un import de `web.app` depuis les tests Python ne doit pas installer les dépendances ni lancer npm.
 
 Les sources Angular se trouvent dans `src/web/frontend/src/app`. Les pages sont regroupées par fonctionnalité et les éléments partagés dans `src/web/frontend/src/app/shared`. Les composants gardent leur logique, leur template et leurs styles dans des fichiers séparés (`.ts`, `.html`, `.scss`).

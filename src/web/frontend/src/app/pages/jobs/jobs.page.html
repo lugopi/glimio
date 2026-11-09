@@ -12,7 +12,7 @@
     @if (response(); as data) {
       <div class="queue-overview">
         <strong>File de traitement</strong>
-        <span>{{ jobs().length }} tâche(s) active(s) · {{ data.queue?.waiting ?? 0 }} en attente</span>
+        <span>{{ jobs().length }} tâche(s) active(s) · {{ data.queue.waiting }} en attente</span>
         <span>Les modèles sont exécutés séquentiellement.</span>
       </div>
     }

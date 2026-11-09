@@ -17,7 +17,7 @@ export class SearchSessionPickerComponent {
   @Input() selectedCount = 0;
   @Input() filter = '';
   @Input() isSelected: (id: string) => boolean = () => false;
-  @Input() dateLabel: (value?: string, fallback?: string) => string = (_value, fallback = '') => fallback;
+  @Input() dateLabel: (value?: string | null, fallback?: string) => string = (_value, fallback = '') => fallback;
   @Input() durationLabel: (value?: number | null) => string = () => '—';
   readonly sessionTrackKey = (session: SessionSummary, _index: number) => session.id;
   readonly sessionIsHighlighted = (session: SessionSummary) => this.isSelected(session.id);

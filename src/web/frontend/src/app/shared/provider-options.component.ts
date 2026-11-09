@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, input, output, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { Subscription, switchMap, takeWhile, timer } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { PreferencesService } from '../core/preferences.service';
@@ -14,7 +13,7 @@ import { DependencyBannerComponent, DependencyBannerIssue } from './dependency-b
 @Component({
   selector: 'glimio-provider-options',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet, RouterLink, CheckboxFieldComponent, IconComponent, DependencyBannerComponent],
+  imports: [FormsModule, NgTemplateOutlet, CheckboxFieldComponent, IconComponent, DependencyBannerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './provider-options.component.html',
   styleUrl: './provider-options.component.scss',
@@ -158,7 +157,7 @@ export class ProviderOptionsComponent implements OnDestroy {
     this.installation.set({
       id: '', provider_id: this.provider().id, state: 'queued',
       message: 'Préparation de l’installation…', output: '', returncode: null,
-      restart_required: this.provider().restart_after_python_install,
+      restart_required: this.provider().restart_after_python_install, created_at: new Date().toISOString(),
     });
     this.startSubscription = this.api.installProviderDependencies(this.provider().id).subscribe({
       next: result => {
@@ -172,7 +171,7 @@ export class ProviderOptionsComponent implements OnDestroy {
       error: error => this.installation.set({
         id: '', provider_id: this.provider().id, state: 'failed',
         message: error instanceof Error ? error.message : 'Impossible de démarrer l’installation.',
-        output: '', returncode: null, restart_required: false,
+        output: '', returncode: null, restart_required: false, created_at: new Date().toISOString(),
       }),
     });
   }
@@ -190,7 +189,7 @@ export class ProviderOptionsComponent implements OnDestroy {
       error: error => this.installation.set({
         id: installId, provider_id: this.provider().id, state: 'failed',
         message: error instanceof Error ? error.message : 'Impossible de lire l’état de l’installation.',
-        output: '', returncode: null, restart_required: false,
+        output: '', returncode: null, restart_required: false, created_at: new Date().toISOString(),
       }),
     });
   }

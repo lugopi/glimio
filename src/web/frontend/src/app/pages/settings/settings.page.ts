@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { GlimioSettings, PreferencesPayload, ProviderOption, ProviderStatus } from '../../core/api.models';
 import { PreferencesService } from '../../core/preferences.service';
 import { ApiService } from '../../core/api.service';
@@ -14,7 +14,7 @@ import { summaryFormatLabel } from '../../shared/summary-formats';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, CheckboxFieldComponent, IconComponent, ProviderOptionsComponent, DependencyBannerComponent],
+  imports: [FormsModule, CheckboxFieldComponent, IconComponent, ProviderOptionsComponent, DependencyBannerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './settings.page.html',
   styleUrl: './settings.page.scss',
